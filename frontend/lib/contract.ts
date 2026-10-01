@@ -35,17 +35,16 @@ export async function getSponsorTotal(missionId: number, wallet: string): Promis
   return BigInt(String(raw || "0"));
 }
 
-async function writer(provider: Eip1193Provider, account: `0x${string}`) {
-  const client = walletClient(provider, account);
-  const connect = (client as unknown as { connect?: (name: string) => Promise<unknown> }).connect;
-  if (typeof connect === "function") await connect.call(client, "studionet");
-  return client;
+function writer(provider: Eip1193Provider, account: `0x${string}`) {
+  // Network switching is handled through the injected EIP-1193 provider before
+  // this point. genlayer-js connect() is a MetaMask Snap flow and must not run.
+  return walletClient(provider, account);
 }
 
 export async function openMission(provider: Eip1193Provider, account: `0x${string}`, input: {
   repo: string; baseline: string; title: string; objective: string; criteria: string[]; closeAt: number; value: bigint;
 }) {
-  const client = await writer(provider, account);
+  const client = writer(provider, account);
   return client.writeContract({
     address: requireContractAddress(), functionName: "open_mission",
     args: [input.repo, input.baseline, input.title, input.objective, JSON.stringify(input.criteria), input.closeAt], value: input.value,
@@ -53,26 +52,26 @@ export async function openMission(provider: Eip1193Provider, account: `0x${strin
 }
 
 export async function addFunding(provider: Eip1193Provider, account: `0x${string}`, missionId: number, value: bigint) {
-  const client = await writer(provider, account);
+  const client = writer(provider, account);
   return client.writeContract({ address: requireContractAddress(), functionName: "add_funding", args: [BigInt(missionId)], value });
 }
 
 export async function sealContribution(provider: Eip1193Provider, account: `0x${string}`, missionId: number, pr: number, commentId: number) {
-  const client = await writer(provider, account);
+  const client = writer(provider, account);
   return client.writeContract({ address: requireContractAddress(), functionName: "seal_contribution", args: [BigInt(missionId), pr, commentId], value: 0n });
 }
 
 export async function resolveMission(provider: Eip1193Provider, account: `0x${string}`, missionId: number) {
-  const client = await writer(provider, account);
+  const client = writer(provider, account);
   return client.writeContract({ address: requireContractAddress(), functionName: "resolve_mission", args: [BigInt(missionId)], value: 0n });
 }
 
 export async function expireMission(provider: Eip1193Provider, account: `0x${string}`, missionId: number) {
-  const client = await writer(provider, account);
+  const client = writer(provider, account);
   return client.writeContract({ address: requireContractAddress(), functionName: "expire_unresolved", args: [BigInt(missionId)], value: 0n });
 }
 
 export async function withdraw(provider: Eip1193Provider, account: `0x${string}`) {
-  const client = await writer(provider, account);
+  const client = writer(provider, account);
   return client.writeContract({ address: requireContractAddress(), functionName: "withdraw", args: [], value: 0n });
 }

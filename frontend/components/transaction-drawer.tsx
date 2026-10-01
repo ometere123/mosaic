@@ -20,7 +20,7 @@ const copy: Record<string, string> = {
 export function TransactionDrawer() {
   const [open, setOpen] = useState(false);
   const { transactions, dismiss } = useTransactions();
-  const active = transactions.filter((t) => ["submitted", "pending", "accepted"].includes(t.stage)).length;
+  const active = transactions.filter((t) => ["submitted", "pending", "accepted", "finalized_unverified"].includes(t.stage)).length;
   return (
     <>
       <button className="activity-button" onClick={() => setOpen((v) => !v)} aria-expanded={open}>Activity {active ? `· ${active}` : ""}</button>
@@ -32,7 +32,8 @@ export function TransactionDrawer() {
             <div className="tx-row-top"><strong>{tx.action}</strong><span className={`tx-stage ${tx.stage}`}>{copy[tx.stage] ?? tx.stage}</span></div>
             <div className="tx-meta"><a href={explorerTx(tx.hash)} target="_blank" rel="noreferrer">{shortHex(tx.hash, 8, 6)} ↗</a>{tx.statusName && <span>{tx.statusName}</span>}{tx.executionName && <span>{tx.executionName}</span>}</div>
             {tx.stage === "accepted" && <p className="tx-note">Consensus accepted a receipt. MOSAIC does not treat this as durable completion until finality and execution are both checked.</p>}
-            {!["submitted", "pending", "accepted"].includes(tx.stage) && <button className="text-button small" onClick={() => dismiss(tx.hash)}>Dismiss</button>}
+            {tx.stage === "finalized_unverified" && <p className="tx-note">Finality is confirmed, but the execution result is still unavailable. MOSAIC continues checking and does not report success.</p>}
+            {!["submitted", "pending", "accepted", "finalized_unverified"].includes(tx.stage) && <button className="text-button small" onClick={() => dismiss(tx.hash)}>Dismiss</button>}
           </article>)}
         </div>
       </aside>}

@@ -7,11 +7,11 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "test": "vitest run"
+    "test": "vitest run --pool=forks --maxWorkers=2"
   },
   "dependencies": {
     "genlayer-js": "1.1.8",
-    "next": "16.3.2",
+    "next": "16.3.8",
     "react": "19.2.4",
     "react-dom": "19.2.4"
   },
@@ -20,9 +20,9 @@
     "@types/react": "19.1.8",
     "@types/react-dom": "19.1.6",
     "eslint": "9.28.0",
-    "eslint-config-next": "16.3.2",
+    "eslint-config-next": "16.3.8",
     "jsdom": "26.1.0",
     "typescript": "5.8.3",
-    "vitest": "3.2.4"
+    "vitest": "3.2.7"
   }
 }

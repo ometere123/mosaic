@@ -6,6 +6,10 @@ import type { TxRecord } from "@/lib/types";
 
 const STORAGE_KEY = "mosaic:transactions:v1";
 const ACTIVE = new Set(["submitted", "pending", "accepted", "finalized_unverified"]);
+const ALL_STAGES = new Set([
+  "submitted", "pending", "accepted", "finalized", "finalized_unverified",
+  "failed", "undetermined", "canceled", "timeout",
+]);
 
 type TxContextValue = {
   transactions: TxRecord[];
@@ -18,7 +22,14 @@ function load(): TxRecord[] {
   if (typeof window === "undefined") return [];
   try {
     const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "[]");
-    return Array.isArray(parsed) ? parsed.slice(0, 30) : [];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((item): item is TxRecord => (
+      !!item && typeof item === "object"
+      && typeof item.hash === "string" && /^0x[0-9a-fA-F]{64}$/.test(item.hash)
+      && typeof item.action === "string" && item.action.length > 0
+      && typeof item.submittedAt === "number" && Number.isFinite(item.submittedAt)
+      && typeof item.stage === "string" && ALL_STAGES.has(item.stage)
+    )).slice(0, 30);
   } catch { return []; }
 }
 
@@ -28,7 +39,10 @@ export function TransactionProvider({ children }: { children: React.ReactNode })
   useEffect(() => setTransactions(load()), []);
   useEffect(() => {
     transactionsRef.current = transactions;
-    if (typeof window !== "undefined") localStorage.setItem(STORAGE_KEY, JSON.stringify(transactions));
+    if (typeof window !== "undefined") {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(transactions)); }
+      catch { /* Storage may be disabled or full; transaction tracking remains in memory. */ }
+    }
   }, [transactions]);
 
   useEffect(() => {
