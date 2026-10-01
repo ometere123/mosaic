@@ -2,7 +2,7 @@
 
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMission } from "@/hooks/use-mission";
 import { useWallet } from "@/hooks/use-wallet";
 import { useTransactions } from "@/hooks/use-transactions";
@@ -23,6 +23,12 @@ export default function MissionPage() {
   const [funding, setFunding] = useState("5");
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [now, setNow] = useState(() => Math.floor(Date.now() / 1000));
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Math.floor(Date.now() / 1000)), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const submit = async (action: "fund" | "resolve" | "expire") => {
     if (!mission || !wallet.provider || !wallet.address) { await wallet.connect(); return; }
@@ -47,7 +53,6 @@ export default function MissionPage() {
   if (error) return <main className="page"><div className="notice bad"><strong>Mission read failed.</strong><span>{error}</span></div></main>;
   if (!mission) return <main className="page"><div className="empty-state"><h1>Mission not found.</h1><Link className="text-link" href="/">Return to mission ledger</Link></div></main>;
 
-  const now = Math.floor(Date.now() / 1000);
   const phase = missionPhase(mission, now);
   const closed = now > mission.close_at;
   const graceElapsed = now > mission.close_at + UNRESOLVED_GRACE_SECONDS;
