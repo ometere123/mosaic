@@ -14,7 +14,8 @@
     "check:network": "node scripts/check-network.mjs",
     "check:architecture": "node scripts/audit-architecture.mjs",
     "check:cli": "node scripts/check-cli-version.mjs",
-    "check": "npm run check:network && npm run check:architecture && npm run check:cli && npm run contract:lint && npm run contract:test && npm run frontend:lint && npm run frontend:test && npm run frontend:build"
+    "check:integrity": "node scripts/check-integrity.mjs",
+    "check": "npm run check:network && npm run check:architecture && npm run check:cli && npm run check:integrity && npm run contract:lint && npm run contract:test && npm run frontend:lint && npm run frontend:test && npm run frontend:build"
   },
   "devDependencies": {
     "genlayer": "0.39.1"
