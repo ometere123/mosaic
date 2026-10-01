@@ -1,8 +1,14 @@
+import hashlib
 import json
 
 from helpers import mock_baseline, mock_compare, mock_pr, mock_repo_probe, set_block_time
 
 WEI = 10**18
+
+
+def canonical_digest(value):
+    raw = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
 def wallet(addr):
@@ -108,6 +114,37 @@ def test_seal_contribution_binds_author_wallet_and_merge(direct_vm, direct_deplo
     assert item["merge_sha"] == "b" * 40
     assert item["status"] == "SEALED"
     assert len(item["evidence_digest"]) == 64
+    assert item["capsule_digest"] == canonical_digest(item["capsule"])
+    assert item["contribution_commitment"] == canonical_digest({
+        "mission_id": int(mission_id),
+        "repo": mission_terms["repo"],
+        "target_ref": mission_terms["target_ref"],
+        "pr_number": 7,
+        "proof_comment_id": 99,
+        "author": "dev",
+        "wallet": wallet(direct_bob),
+        "head_sha": "c" * 40,
+        "merge_sha": "b" * 40,
+        "source_evidence_digest": item["evidence_digest"],
+        "capsule_digest": item["capsule_digest"],
+    })
+
+
+def test_capsule_rejects_unexpected_fields(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/mosaic.py")
+    mission_id = open_mission(contract, direct_vm, direct_alice, mission_terms)
+    direct_vm.value = 0
+    direct_vm.sender = direct_bob
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob), capsule={
+        "summary": "Bounded summary.",
+        "relevance": "Directly relevant.",
+        "substantive_changes": ["One change"],
+        "risk_flags": [],
+        "payout_role": "CORE",
+    })
+    with direct_vm.expect_revert("capsule_schema_mismatch"):
+        contract.seal_contribution(mission_id, 7, 99)
 
 
 def test_duplicate_pr_rejected(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
@@ -407,6 +444,100 @@ def test_achieved_settlement_splits_by_roles(direct_vm, direct_deploy, direct_al
     assert int(contract.get_balance(wallet(direct_bob))) == 50 * WEI
     assert int(contract.get_balance(wallet(direct_charlie))) == 30 * WEI
     assert int(contract.get_balance(wallet(direct_alice))) == 0
+
+
+def test_evidence_root_and_settlement_digest_are_reproducible(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/mosaic.py")
+    mission_id = open_mission(contract, direct_vm, direct_alice, mission_terms, funding=10 * WEI)
+    direct_vm.value = 0
+    direct_vm.sender = direct_bob
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob))
+    contract.seal_contribution(mission_id, 7, 99)
+    contribution = json.loads(contract.get_contribution(mission_id, 0))
+
+    set_block_time(direct_vm, "2026-10-06T10:00:00Z")
+    direct_vm.clear_mocks()
+    mock_repo_probe(direct_vm)
+    direct_vm.mock_llm(
+        r"allocating a funded open-source engineering mission",
+        json.dumps({
+            "mission_outcome": "ACHIEVED",
+            "roles": {wallet(direct_bob): "CORE"},
+            "rationale": "The sealed work achieved the objective.",
+        }),
+    )
+    contract.resolve_mission(mission_id)
+    mission = json.loads(contract.get_mission(mission_id))
+    expected_root = canonical_digest({
+        "mission_id": int(mission_id),
+        "repo": mission_terms["repo"],
+        "target_ref": mission_terms["target_ref"],
+        "baseline_sha": mission_terms["baseline"],
+        "ordered_contributions": [{"index": 0, "commitment": contribution["contribution_commitment"]}],
+    })
+    assert mission["mission_evidence_root"] == expected_root
+    settlement = mission["settlement"]
+    expected_settlement = canonical_digest({
+        "mission_id": int(mission_id),
+        "mission_evidence_root": expected_root,
+        "outcome": "ACHIEVED",
+        "roles": {wallet(direct_bob): "CORE"},
+        "released_wei": str(10 * WEI),
+        "residual_wei": "0",
+        "contributor_allocations": {wallet(direct_bob): str(10 * WEI)},
+        "sponsor_allocations": {},
+        "settled_at": settlement["settled_at"],
+    })
+    assert settlement["settlement_digest"] == expected_settlement
+    assert mission["settlement_digest"] == expected_settlement
+
+
+def test_resolution_rejects_unexpected_output_fields(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/mosaic.py")
+    mission_id = open_mission(contract, direct_vm, direct_alice, mission_terms)
+    direct_vm.value = 0
+    direct_vm.sender = direct_bob
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob))
+    contract.seal_contribution(mission_id, 7, 99)
+    set_block_time(direct_vm, "2026-10-06T10:00:00Z")
+    direct_vm.clear_mocks()
+    mock_repo_probe(direct_vm)
+    direct_vm.mock_llm(
+        r"allocating a funded open-source engineering mission",
+        json.dumps({
+            "mission_outcome": "ACHIEVED",
+            "roles": {wallet(direct_bob): "CORE"},
+            "rationale": "Valid-looking response with an injected field.",
+            "released_wei": str(100 * WEI),
+        }),
+    )
+    with direct_vm.expect_revert("resolution_schema_mismatch"):
+        contract.resolve_mission(mission_id)
+
+
+def test_insufficient_outcome_cannot_assign_positive_role(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/mosaic.py")
+    mission_id = open_mission(contract, direct_vm, direct_alice, mission_terms)
+    direct_vm.value = 0
+    direct_vm.sender = direct_bob
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob))
+    contract.seal_contribution(mission_id, 7, 99)
+    set_block_time(direct_vm, "2026-10-06T10:00:00Z")
+    direct_vm.clear_mocks()
+    mock_repo_probe(direct_vm)
+    direct_vm.mock_llm(
+        r"allocating a funded open-source engineering mission",
+        json.dumps({
+            "mission_outcome": "INSUFFICIENT_EVIDENCE",
+            "roles": {wallet(direct_bob): "CORE"},
+            "rationale": "Evidence is inconclusive.",
+        }),
+    )
+    with direct_vm.expect_revert("nonpositive_outcome_cannot_credit_impact"):
+        contract.resolve_mission(mission_id)
 
 
 def test_material_progress_releases_40_percent_and_refunds_residual(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):

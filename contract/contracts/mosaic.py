@@ -51,6 +51,14 @@ IMPACT_ROLES = {"CORE", "MAJOR", "SUPPORTING", "NO_CREDIT"}
 ROLE_WEIGHT = {"CORE": 5, "MAJOR": 3, "SUPPORTING": 1, "NO_CREDIT": 0}
 
 
+def _canonical_json(value) -> str:
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def _canonical_digest(value) -> str:
+    return hashlib.sha256(_canonical_json(value).encode("utf-8")).hexdigest()
+
+
 def _now_unix() -> int:
     raw = gl.message_raw["datetime"]
     if raw.endswith("Z"):
@@ -97,6 +105,10 @@ def _repo_ok(repo: str) -> bool:
 
 def _sha_ok(sha: str) -> bool:
     return re.fullmatch(r"[0-9a-fA-F]{40}", sha) is not None
+
+
+def _digest_ok(digest: str) -> bool:
+    return re.fullmatch(r"[0-9a-f]{64}", digest) is not None
 
 
 def _target_ref_ok(target_ref: str) -> bool:
@@ -260,8 +272,7 @@ def _fetch_pr_evidence(context_json: str) -> str:
             result["reason"] = reason_text
         if isinstance(extra, dict):
             result.update(extra)
-        canonical = json.dumps(result, sort_keys=True, separators=(",", ":"))
-        result["evidence_digest"] = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+        result["evidence_digest"] = _canonical_digest(result)
         return json.dumps(result, sort_keys=True)
 
     try:
@@ -354,8 +365,7 @@ def _fetch_pr_evidence(context_json: str) -> str:
         "deletions": deletions,
         "files": normalized_files,
     })
-    canonical = json.dumps(evidence, sort_keys=True, separators=(",", ":"))
-    evidence["evidence_digest"] = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    evidence["evidence_digest"] = _canonical_digest(evidence)
     return json.dumps(evidence, sort_keys=True)
 
 
@@ -554,6 +564,8 @@ class Mosaic(gl.Contract):
             "last_evidence_status": "",
             "released_wei": "0",
             "residual_wei": "0",
+            "mission_evidence_root": "",
+            "settlement_digest": "",
             "settlement": None,
         }
         self.missions[mission_id] = json.dumps(mission, sort_keys=True)
@@ -700,6 +712,8 @@ class Mosaic(gl.Contract):
         capsule = _safe_json(capsule_raw)
         if not isinstance(capsule, dict):
             raise gl.vm.UserError("capsule_not_json")
+        if set(capsule.keys()) != {"summary", "relevance", "substantive_changes", "risk_flags"}:
+            raise gl.vm.UserError("capsule_schema_mismatch")
         summary = capsule.get("summary")
         relevance = capsule.get("relevance")
         changes = capsule.get("substantive_changes")
@@ -722,6 +736,7 @@ class Mosaic(gl.Contract):
             "substantive_changes": [item.strip() for item in changes],
             "risk_flags": [item.strip() for item in risks],
         }
+        capsule_digest = _canonical_digest(capsule)
 
         author_key = f"{int(mission_id)}:{author}"
         wallet_key = f"{int(mission_id)}:{caller}"
@@ -737,6 +752,20 @@ class Mosaic(gl.Contract):
             contributors.append(caller)
 
         index = int(mission["contribution_count"])
+        contribution_identity = {
+            "mission_id": int(mission_id),
+            "repo": mission["repo"],
+            "target_ref": mission["target_ref"],
+            "pr_number": pr_number,
+            "proof_comment_id": proof_comment_id,
+            "author": author,
+            "wallet": caller,
+            "head_sha": str(evidence.get("head_sha") or "").lower(),
+            "merge_sha": merge_sha,
+            "source_evidence_digest": str(evidence.get("evidence_digest") or ""),
+            "capsule_digest": capsule_digest,
+        }
+        contribution_commitment = _canonical_digest(contribution_identity)
         record = {
             "index": index,
             "mission_id": int(mission_id),
@@ -751,6 +780,8 @@ class Mosaic(gl.Contract):
             "author": author,
             "evidence_digest": str(evidence.get("evidence_digest") or ""),
             "capsule": capsule,
+            "capsule_digest": capsule_digest,
+            "contribution_commitment": contribution_commitment,
             "sealed_at": _now_unix(),
         }
         self.contributions[f"{int(mission_id)}:{index}"] = json.dumps(record, sort_keys=True)
@@ -794,6 +825,7 @@ class Mosaic(gl.Contract):
             return "source_unavailable"
 
         portfolios = {}
+        ordered_commitments = []
         sealed_count = 0
         insufficient_count = 0
         for i in range(int(mission["contribution_count"])):
@@ -805,6 +837,10 @@ class Mosaic(gl.Contract):
             if item.get("status") != "SEALED":
                 continue
             sealed_count += 1
+            commitment = str(item.get("contribution_commitment") or "")
+            if not _digest_ok(commitment):
+                raise gl.vm.UserError("invalid_contribution_commitment")
+            ordered_commitments.append({"index": i, "commitment": commitment})
             wallet = item["wallet"]
             if wallet not in portfolios:
                 portfolios[wallet] = []
@@ -813,6 +849,8 @@ class Mosaic(gl.Contract):
                     "pr_number": item["pr_number"],
                     "merge_sha": item["merge_sha"],
                     "evidence_digest": item["evidence_digest"],
+                    "capsule_digest": item["capsule_digest"],
+                    "contribution_commitment": commitment,
                     "capsule": item["capsule"],
                 }
             )
@@ -823,12 +861,23 @@ class Mosaic(gl.Contract):
             self._save_mission(mission_id, mission)
             return "insufficient_evidence"
 
+        mission_evidence_root = _canonical_digest(
+            {
+                "mission_id": int(mission_id),
+                "repo": mission["repo"],
+                "target_ref": mission["target_ref"],
+                "baseline_sha": mission["baseline_sha"],
+                "ordered_contributions": ordered_commitments,
+            }
+        )
+
         judge_context = json.dumps(
             {
                 "title": mission["title"],
                 "objective": mission["objective"],
                 "criteria": mission["criteria"],
                 "baseline_sha": mission["baseline_sha"],
+                "mission_evidence_root": mission_evidence_root,
                 "portfolios_json": json.dumps(
                     {
                         "portfolios": portfolios,
@@ -854,6 +903,8 @@ class Mosaic(gl.Contract):
         verdict = _safe_json(verdict_raw)
         if not isinstance(verdict, dict):
             raise gl.vm.UserError("resolution_not_json")
+        if set(verdict.keys()) != {"mission_outcome", "roles", "rationale"}:
+            raise gl.vm.UserError("resolution_schema_mismatch")
         outcome = str(verdict.get("mission_outcome") or "")
         if outcome not in MISSION_OUTCOMES or outcome == "SOURCE_UNAVAILABLE":
             raise gl.vm.UserError("invalid_mission_outcome")
@@ -864,8 +915,17 @@ class Mosaic(gl.Contract):
         if set(roles.keys()) != expected_wallets:
             raise gl.vm.UserError("roles_do_not_match_contributors")
         for role in roles.values():
-            if role not in IMPACT_ROLES:
+            if not isinstance(role, str) or role not in IMPACT_ROLES:
                 raise gl.vm.UserError("invalid_impact_role")
+
+        rationale = verdict.get("rationale")
+        if not isinstance(rationale, str) or not rationale.strip() or len(rationale) > MAX_RESOLUTION_RATIONALE_CHARS:
+            raise gl.vm.UserError("invalid_resolution_rationale")
+        rationale = rationale.strip()
+        if outcome == "NOT_ACHIEVED" and any(ROLE_WEIGHT[role] > 0 for role in roles.values()):
+            raise gl.vm.UserError("not_achieved_cannot_credit_impact")
+        if outcome == "INSUFFICIENT_EVIDENCE" and any(ROLE_WEIGHT[role] > 0 for role in roles.values()):
+            raise gl.vm.UserError("nonpositive_outcome_cannot_credit_impact")
 
         mission["resolution_attempts"] = int(mission["resolution_attempts"]) + 1
         mission["last_resolution"] = outcome
@@ -873,12 +933,7 @@ class Mosaic(gl.Contract):
             self._save_mission(mission_id, mission)
             return "insufficient_evidence"
 
-        if outcome == "NOT_ACHIEVED" and any(ROLE_WEIGHT[role] > 0 for role in roles.values()):
-            raise gl.vm.UserError("not_achieved_cannot_credit_impact")
-        rationale = verdict.get("rationale")
-        if not isinstance(rationale, str) or not rationale.strip() or len(rationale) > MAX_RESOLUTION_RATIONALE_CHARS:
-            raise gl.vm.UserError("invalid_resolution_rationale")
-        rationale = rationale.strip()
+        mission["mission_evidence_root"] = mission_evidence_root
         self._settle(mission_id, mission, outcome, roles, rationale)
         return f"settled_{outcome.lower()}"
 
@@ -890,17 +945,34 @@ class Mosaic(gl.Contract):
         if _now_unix() <= int(mission["close_at"]) + UNRESOLVED_GRACE_SECONDS:
             raise gl.vm.UserError("resolution_grace_active")
         pool = int(mission["pool_wei"])
-        self._credit_sponsor_residuals(mission_id, mission, pool)
+        sponsor_allocations = self._credit_sponsor_residuals(mission_id, mission, pool)
+        settled_at = _now_unix()
+        settlement_digest = _canonical_digest({
+            "mission_id": int(mission_id),
+            "mission_evidence_root": mission.get("mission_evidence_root", ""),
+            "outcome": "EXPIRED",
+            "roles": {},
+            "released_wei": "0",
+            "residual_wei": str(pool),
+            "contributor_allocations": {},
+            "sponsor_allocations": sponsor_allocations,
+            "settled_at": settled_at,
+        })
         mission["status"] = "EXPIRED"
         mission["residual_wei"] = str(pool)
         mission["released_wei"] = "0"
         mission["pool_wei"] = "0"
         mission["last_resolution"] = "EXPIRED"
+        mission["settlement_digest"] = settlement_digest
         mission["settlement"] = {
             "outcome": "EXPIRED",
             "roles": {},
             "rationale": "Resolution grace elapsed without a conclusive settlement.",
-            "settled_at": _now_unix(),
+            "contributor_allocations": {},
+            "sponsor_allocations": sponsor_allocations,
+            "evidence_root": mission.get("mission_evidence_root", ""),
+            "settlement_digest": settlement_digest,
+            "settled_at": settled_at,
         }
         self._save_mission(mission_id, mission)
         return "expired_refunded"
@@ -969,10 +1041,11 @@ class Mosaic(gl.Contract):
         previous = int(self.balances[wallet]) if wallet in self.balances else 0
         self.balances[wallet] = str(previous + amount)
 
-    def _credit_sponsor_residuals(self, mission_id: u256, mission, residual: int) -> None:
+    def _credit_sponsor_residuals(self, mission_id: u256, mission, residual: int):
         sponsors = list(mission["sponsor_wallets"])
+        allocations = {}
         if residual <= 0 or not sponsors:
-            return
+            return allocations
         pool = int(mission["pool_wei"])
         if pool <= 0:
             raise gl.vm.UserError("invalid_pool")
@@ -984,9 +1057,11 @@ class Mosaic(gl.Contract):
             else:
                 share = residual * contributed // pool
             self._credit(sponsor, share)
+            allocations[sponsor] = str(share)
             distributed += share
         if distributed != residual:
             raise gl.vm.UserError("residual_conservation_failed")
+        return allocations
 
     def _settle(self, mission_id: u256, mission, outcome: str, roles: dict, rationale: str) -> None:
         pool = int(mission["pool_wei"])
@@ -1011,27 +1086,46 @@ class Mosaic(gl.Contract):
             raise gl.vm.UserError("positive_release_without_eligible_contributor")
 
         paid = 0
+        contributor_allocations = {}
         for idx, (wallet, weight) in enumerate(eligible):
             if idx == len(eligible) - 1:
                 share = released - paid
             else:
                 share = released * weight // total_weight
             self._credit(wallet, share)
+            contributor_allocations[wallet] = str(share)
             paid += share
         if paid != released:
             raise gl.vm.UserError("contributor_conservation_failed")
 
         residual = pool - released
-        self._credit_sponsor_residuals(mission_id, mission, residual)
+        sponsor_allocations = self._credit_sponsor_residuals(mission_id, mission, residual)
+        settled_at = _now_unix()
+        settlement_digest = _canonical_digest({
+            "mission_id": int(mission_id),
+            "mission_evidence_root": mission.get("mission_evidence_root", ""),
+            "outcome": outcome,
+            "roles": roles,
+            "released_wei": str(released),
+            "residual_wei": str(residual),
+            "contributor_allocations": contributor_allocations,
+            "sponsor_allocations": sponsor_allocations,
+            "settled_at": settled_at,
+        })
         mission["status"] = "SETTLED"
         mission["pool_wei"] = "0"
         mission["released_wei"] = str(released)
         mission["residual_wei"] = str(residual)
         mission["last_resolution"] = outcome
+        mission["settlement_digest"] = settlement_digest
         mission["settlement"] = {
             "outcome": outcome,
             "roles": roles,
             "rationale": rationale,
-            "settled_at": _now_unix(),
+            "contributor_allocations": contributor_allocations,
+            "sponsor_allocations": sponsor_allocations,
+            "evidence_root": mission.get("mission_evidence_root", ""),
+            "settlement_digest": settlement_digest,
+            "settled_at": settled_at,
         }
         self._save_mission(mission_id, mission)

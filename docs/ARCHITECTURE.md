@@ -36,6 +36,18 @@ Contribution sealing first establishes objective provenance from GitHub: exact b
 
 Final resolution uses the sealed capsules grouped by wallet. Validators decide mission outcome and impact roles. The application never asks the browser or a server to decide payout.
 
+## Canonical commitment chain
+
+All commitments use UTF-8 JSON with lexicographically sorted object keys and compact separators (`,` and `:`); hashes are lowercase SHA-256 hex.
+
+1. `evidence_digest` commits to the normalized, bounded GitHub response used for a contribution.
+2. `capsule_digest` commits to the exact validated capsule fields.
+3. `contribution_commitment` commits to mission/repository/ref, PR and proof identifiers, author/wallet, head and merge SHAs, and both preceding digests.
+4. `mission_evidence_root` commits to the exact ordered list of sealed contribution commitments used for resolution.
+5. `settlement_digest` commits to mission ID, evidence root, outcome, exact roles, released/residual amounts, exact contributor and sponsor allocations, and settlement timestamp.
+
+Changing any consequential upstream identity or allocation changes its downstream commitment. Human-readable summaries never replace immutable source identity.
+
 ## Transaction truth
 
 The frontend records a returned transaction hash immediately and monitors it independently of route navigation. Consensus status and execution result are separate. An Accepted receipt is provisional; a finalized execution error remains an error. Contract state is re-read after transaction updates rather than guessed from button completion.

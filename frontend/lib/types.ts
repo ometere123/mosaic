@@ -13,6 +13,10 @@ export type Settlement = {
   outcome: MissionOutcome;
   roles: Record<string, ImpactRole>;
   rationale: string;
+  contributor_allocations: Record<string, string>;
+  sponsor_allocations: Record<string, string>;
+  evidence_root: string;
+  settlement_digest: string;
   settled_at: number;
 };
 
@@ -39,6 +43,8 @@ export type Mission = {
   last_evidence_status: string;
   released_wei: string;
   residual_wei: string;
+  mission_evidence_root: string;
+  settlement_digest: string;
   settlement: Settlement | null;
 };
 
@@ -61,6 +67,8 @@ export type Contribution = {
     substantive_changes: string[];
     risk_flags: string[];
   };
+  capsule_digest?: string;
+  contribution_commitment?: string;
   sealed_at: number;
 };
 
