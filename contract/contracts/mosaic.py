@@ -111,6 +111,26 @@ def _digest_ok(digest: str) -> bool:
     return re.fullmatch(r"[0-9a-f]{64}", digest) is not None
 
 
+def _normalise_judgment(value, expected_wallets):
+    verdict = _safe_json(value)
+    if not isinstance(verdict, dict):
+        return None
+    if set(verdict.keys()) != {"mission_outcome", "roles", "rationale"}:
+        return None
+    outcome = verdict.get("mission_outcome")
+    roles = verdict.get("roles")
+    rationale = verdict.get("rationale")
+    if not isinstance(outcome, str) or outcome not in MISSION_OUTCOMES or outcome == "SOURCE_UNAVAILABLE":
+        return None
+    if not isinstance(roles, dict) or set(roles.keys()) != set(expected_wallets):
+        return None
+    if any(not isinstance(role, str) or role not in IMPACT_ROLES for role in roles.values()):
+        return None
+    if not isinstance(rationale, str) or not rationale.strip() or len(rationale) > MAX_RESOLUTION_RATIONALE_CHARS:
+        return None
+    return {"mission_outcome": outcome, "roles": roles, "rationale": rationale.strip()}
+
+
 def _target_ref_ok(target_ref: str) -> bool:
     if not target_ref or len(target_ref) > MAX_TARGET_REF_CHARS:
         return False
@@ -181,6 +201,7 @@ def _fetch_pr_evidence(context_json: str) -> str:
     target_ref = context["target_ref"]
     pr_number = int(context["pr_number"])
     comment_id = int(context["comment_id"])
+    revalidate_immutable_only = bool(context.get("revalidate_immutable_only", False))
 
     pr, reason = _read_json_url(f"https://api.github.com/repos/{repo}/pulls/{pr_number}")
     if pr is None:
@@ -201,13 +222,15 @@ def _fetch_pr_evidence(context_json: str) -> str:
     if not _sha_ok(head_sha):
         return json.dumps({"status": "INVALID", "reason": "missing_head_sha"}, sort_keys=True)
 
-    comment, reason = _read_json_url(
-        f"https://api.github.com/repos/{repo}/issues/comments/{comment_id}"
-    )
-    if comment is None:
-        return json.dumps({"status": "SOURCE_UNAVAILABLE", "reason": f"comment:{reason}"}, sort_keys=True)
-    if not isinstance(comment, dict):
-        return json.dumps({"status": "INVALID", "reason": "malformed_comment_payload"}, sort_keys=True)
+    comment = {}
+    if not revalidate_immutable_only:
+        comment, reason = _read_json_url(
+            f"https://api.github.com/repos/{repo}/issues/comments/{comment_id}"
+        )
+        if comment is None:
+            return json.dumps({"status": "SOURCE_UNAVAILABLE", "reason": f"comment:{reason}"}, sort_keys=True)
+        if not isinstance(comment, dict):
+            return json.dumps({"status": "INVALID", "reason": "malformed_comment_payload"}, sort_keys=True)
 
     merge_sha = str(pr.get("merge_commit_sha") or "").lower()
     if _sha_ok(merge_sha):
@@ -365,6 +388,21 @@ def _fetch_pr_evidence(context_json: str) -> str:
         "deletions": deletions,
         "files": normalized_files,
     })
+    immutable_source = {
+        "repo": repo,
+        "pr_number": pr_number,
+        "author": author,
+        "merged_at": base_evidence["merged_at"],
+        "merge_sha": merge_sha,
+        "head_sha": head_sha,
+        "base_repo": base_full_name,
+        "base_ref": base_ref,
+        "changed_files": changed_files,
+        "additions": additions,
+        "deletions": deletions,
+        "files": normalized_files,
+    }
+    evidence["immutable_source_digest"] = _canonical_digest(immutable_source)
     evidence["evidence_digest"] = _canonical_digest(evidence)
     return json.dumps(evidence, sort_keys=True)
 
@@ -721,6 +759,21 @@ class Mosaic(gl.Contract):
             "risk_flags": [item.strip() for item in risks],
         }
         capsule_digest = _canonical_digest(capsule)
+        immutable_source_digest = str(evidence.get("immutable_source_digest") or "")
+        if not _digest_ok(immutable_source_digest):
+            raise gl.vm.UserError("invalid_immutable_source_digest")
+        proof_auth_digest = _canonical_digest(
+            {
+                "mission_id": int(mission_id),
+                "repo": mission["repo"],
+                "pr_number": pr_number,
+                "proof_comment_id": proof_comment_id,
+                "github_author": author,
+                "wallet": caller,
+                "marker": expected_marker,
+                "authenticated_at_seal": True,
+            }
+        )
 
         author_key = f"{int(mission_id)}:{author}"
         wallet_key = f"{int(mission_id)}:{caller}"
@@ -746,7 +799,9 @@ class Mosaic(gl.Contract):
             "wallet": caller,
             "head_sha": str(evidence.get("head_sha") or "").lower(),
             "merge_sha": merge_sha,
-            "source_evidence_digest": str(evidence.get("evidence_digest") or ""),
+            "immutable_source_digest": immutable_source_digest,
+            "evidence_snapshot_digest": str(evidence.get("evidence_digest") or ""),
+            "proof_auth_digest": proof_auth_digest,
             "capsule_digest": capsule_digest,
         }
         contribution_commitment = _canonical_digest(contribution_identity)
@@ -763,6 +818,8 @@ class Mosaic(gl.Contract):
             "target_ref": mission["target_ref"],
             "author": author,
             "evidence_digest": str(evidence.get("evidence_digest") or ""),
+            "immutable_source_digest": immutable_source_digest,
+            "proof_auth_digest": proof_auth_digest,
             "capsule": capsule,
             "capsule_digest": capsule_digest,
             "contribution_commitment": contribution_commitment,
@@ -812,6 +869,7 @@ class Mosaic(gl.Contract):
                     "baseline": mission["baseline_sha"],
                     "pr_number": int(item["pr_number"]),
                     "comment_id": int(item["proof_comment_id"]),
+                    "revalidate_immutable_only": True,
                 },
                 sort_keys=True,
             )
@@ -825,7 +883,7 @@ class Mosaic(gl.Contract):
                 mission["last_resolution"] = "SOURCE_UNAVAILABLE"
                 self._save_mission(mission_id, mission)
                 return "source_unavailable"
-            if refreshed_status != "OK" or refreshed.get("evidence_digest") != item.get("evidence_digest"):
+            if refreshed_status != "OK" or refreshed.get("immutable_source_digest") != item.get("immutable_source_digest"):
                 mission["resolution_attempts"] = int(mission["resolution_attempts"]) + 1
                 mission["last_resolution"] = "EVIDENCE_CHANGED"
                 self._save_mission(mission_id, mission)
@@ -846,7 +904,9 @@ class Mosaic(gl.Contract):
                     "wallet": item["wallet"],
                     "head_sha": item["head_sha"],
                     "merge_sha": item["merge_sha"],
-                    "source_evidence_digest": item["evidence_digest"],
+                    "immutable_source_digest": item["immutable_source_digest"],
+                    "evidence_snapshot_digest": item["evidence_digest"],
+                    "proof_auth_digest": item["proof_auth_digest"],
                     "capsule_digest": capsule_digest,
                 }
             )
@@ -902,40 +962,32 @@ class Mosaic(gl.Contract):
             },
             sort_keys=True,
         )
-        def judge_mission():
-            return _judge_mission(judge_context)
-
-        verdict_raw = gl.eq_principle.prompt_comparative(
-            judge_mission,
-            principle=(
-                "The mission_outcome must match exactly and every contributor wallet must receive the "
-                "same impact role. Rationales may be worded differently but must rely on the same sealed "
-                "evidence. Any disagreement on ACHIEVED vs MATERIAL_PROGRESS vs NOT_ACHIEVED vs "
-                "INSUFFICIENT_EVIDENCE, or on CORE/MAJOR/SUPPORTING/NO_CREDIT, is not equivalent."
-            ),
-        )
-        verdict = _safe_json(verdict_raw)
-        if not isinstance(verdict, dict):
-            raise gl.vm.UserError("resolution_not_json")
-        if set(verdict.keys()) != {"mission_outcome", "roles", "rationale"}:
-            raise gl.vm.UserError("resolution_schema_mismatch")
-        outcome = str(verdict.get("mission_outcome") or "")
-        if outcome not in MISSION_OUTCOMES or outcome == "SOURCE_UNAVAILABLE":
-            raise gl.vm.UserError("invalid_mission_outcome")
-        roles = verdict.get("roles")
-        if not isinstance(roles, dict):
-            raise gl.vm.UserError("invalid_roles")
         expected_wallets = set(portfolios.keys())
-        if set(roles.keys()) != expected_wallets:
-            raise gl.vm.UserError("roles_do_not_match_contributors")
-        for role in roles.values():
-            if not isinstance(role, str) or role not in IMPACT_ROLES:
-                raise gl.vm.UserError("invalid_impact_role")
+        def judge_mission():
+            verdict = _normalise_judgment(_judge_mission(judge_context), expected_wallets)
+            if verdict is None:
+                raise gl.vm.UserError("invalid_resolution_judgment")
+            return verdict
 
-        rationale = verdict.get("rationale")
-        if not isinstance(rationale, str) or not rationale.strip() or len(rationale) > MAX_RESOLUTION_RATIONALE_CHARS:
-            raise gl.vm.UserError("invalid_resolution_rationale")
-        rationale = rationale.strip()
+        def validate_judgment(leaders_res) -> bool:
+            try:
+                if not isinstance(leaders_res, gl.vm.Return):
+                    return False
+                leader = _normalise_judgment(leaders_res.calldata, expected_wallets)
+                validator = judge_mission()
+                if leader is None:
+                    return False
+                return (
+                    leader["mission_outcome"] == validator["mission_outcome"]
+                    and leader["roles"] == validator["roles"]
+                )
+            except Exception:
+                return False
+
+        verdict = gl.vm.run_nondet_unsafe(judge_mission, validate_judgment)
+        outcome = verdict["mission_outcome"]
+        roles = verdict["roles"]
+        rationale = verdict["rationale"]
         if outcome == "NOT_ACHIEVED" and any(ROLE_WEIGHT[role] > 0 for role in roles.values()):
             raise gl.vm.UserError("not_achieved_cannot_credit_impact")
         if outcome == "INSUFFICIENT_EVIDENCE" and any(ROLE_WEIGHT[role] > 0 for role in roles.values()):

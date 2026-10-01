@@ -32,21 +32,23 @@ Contributor weights are applied only after validators fix the role labels. Round
 
 ## Evidence phases
 
-Contribution sealing first establishes objective provenance from GitHub: exact base repository and target branch, PR, normalized author, proof comment, head SHA, merge timestamp, unique merge SHA and changed-file evidence. A successfully sealed contribution permanently binds that GitHub author to the submitting wallet, and that wallet to the author, for the mission. Insufficient or invalid evidence does not reserve an identity. The semantic capsule is then produced via comparative validator judgment from that normalized bounded evidence.
+Contribution sealing first establishes objective provenance from GitHub: exact base repository and target branch, PR, normalized author, proof comment, head SHA, merge timestamp, unique merge SHA and changed-file evidence. A successfully sealed contribution permanently binds that GitHub author to the submitting wallet, and that wallet to the author, for the mission. The seal stores a separate proof-authentication commitment, immutable source digest, and full semantic-evidence snapshot digest. Later edits or deletion of PR prose or the public proof comment cannot erase the consensus-authenticated on-chain proof; they also cannot rewrite the sealed capsule. Insufficient or invalid evidence does not reserve an identity. The semantic capsule is then produced via comparative validator judgment from that normalized bounded evidence.
 
-Final resolution re-fetches every sealed PR, proof comment, ancestry comparison and bounded changed-file response under `strict_eq`. Resolution proceeds only when each normalized evidence digest exactly reproduces its sealed digest and each capsule and contribution commitment recomputes correctly. Source unavailability or changed evidence leaves the mission open and moves no GEN; the unresolved-grace recovery remains available. The former repository-existence probe was removed because it did not authenticate the evidence used for judgment.
+Final resolution re-fetches every sealed PR's immutable repository/ref/head/merge/ancestry and bounded changed-file response under `strict_eq`. Resolution proceeds only when each immutable source digest exactly reproduces its sealed digest and each capsule and contribution commitment recomputes correctly. Mutable titles, bodies, and proof-comment text are intentionally outside this revalidation veto. Immutable-source unavailability or disagreement leaves the mission open and moves no GEN; the unresolved-grace recovery remains available.
 
-Only after that revalidation does resolution group sealed capsules by wallet. Validators decide mission outcome and impact roles. The application never asks the browser or a server to decide payout.
+Only after that revalidation does resolution group sealed capsules by wallet. The leader and every validator independently run the mission judgment over the same committed context. A custom validator requires exact agreement on the mission outcome and complete normalized wallet-to-role map; rationales may differ and are non-economic. Invalid schemas, omitted or extra wallets, and validator exceptions disagree. The application never asks the browser or a server to decide payout.
 
 ## Canonical commitment chain
 
 All commitments use UTF-8 JSON with lexicographically sorted object keys and compact separators (`,` and `:`); hashes are lowercase SHA-256 hex.
 
-1. `evidence_digest` commits to the normalized, bounded GitHub response used for a contribution.
-2. `capsule_digest` commits to the exact validated capsule fields.
-3. `contribution_commitment` commits to mission/repository/ref, PR and proof identifiers, author/wallet, head and merge SHAs, and both preceding digests.
-4. `mission_evidence_root` commits to the exact ordered list of sealed contribution commitments used for resolution.
-5. `settlement_digest` commits to mission ID, evidence root, outcome, exact roles, released/residual amounts, exact contributor and sponsor allocations, and settlement timestamp.
+1. `evidence_digest` commits to the normalized, bounded GitHub snapshot used to create a capsule, including descriptive metadata.
+2. `immutable_source_digest` commits separately to repository/ref, PR author, head and merge identities, merge time, counts, and normalized file patches.
+3. `proof_auth_digest` commits to the mission-scoped author/comment/wallet proof successfully authenticated at sealing.
+4. `capsule_digest` commits to the exact validated capsule fields.
+5. `contribution_commitment` commits to mission/repository/ref, PR and proof identifiers, author/wallet, head and merge SHAs, and all preceding digests.
+6. `mission_evidence_root` commits to the exact ordered list of sealed contribution commitments used for resolution.
+7. `settlement_digest` commits to mission ID, evidence root, outcome, exact roles, released/residual amounts, exact contributor and sponsor allocations, and settlement timestamp.
 
 Changing any consequential upstream identity or allocation changes its downstream commitment. Human-readable summaries never replace immutable source identity.
 
