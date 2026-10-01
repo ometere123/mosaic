@@ -28,13 +28,6 @@ def mock_baseline(vm, repo="acme/widget", sha=None, target_ref="main", tip_sha=N
         mock_compare(vm, repo, sha, tip_sha)
 
 
-def mock_repo_probe(vm, repo="acme/widget"):
-    vm.mock_web(
-        rf"api\.github\.com/repos/{repo}$",
-        {"status": 200, "body": json.dumps({"full_name": repo, "archived": False})},
-    )
-
-
 def mock_compare(vm, repo="acme/widget", baseline=None, merge_sha=None, status="ahead", merge_base=None):
     baseline = baseline or ("a" * 40)
     merge_sha = merge_sha or ("b" * 40)
@@ -72,6 +65,9 @@ def mock_pr(
     target_ref="main",
     base_repo="acme/widget",
     head_sha=None,
+    title="fix wallet recovery",
+    body="Makes account changes and rejected signatures recover safely.",
+    comment_body=None,
 ):
     repo = "acme/widget"
     baseline = baseline or ("a" * 40)
@@ -85,8 +81,8 @@ def mock_pr(
             "status": 200,
             "body": json.dumps(
                 {
-                    "title": "fix wallet recovery",
-                    "body": "Makes account changes and rejected signatures recover safely.",
+                    "title": title,
+                    "body": body,
                     "user": {"login": author},
                     "merged_at": merged_at,
                     "merge_commit_sha": merge_sha,
@@ -106,7 +102,7 @@ def mock_pr(
             "body": json.dumps(
                 {
                     "user": {"login": author},
-                    "body": f"mosaic:{mission_id}:{wallet}",
+                    "body": comment_body if comment_body is not None else f"mosaic:{mission_id}:{wallet}",
                     "issue_url": f"https://api.github.com/repos/{repo}/issues/{issue_pr_number}",
                 }
             ),

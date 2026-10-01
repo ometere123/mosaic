@@ -34,7 +34,9 @@ Contributor weights are applied only after validators fix the role labels. Round
 
 Contribution sealing first establishes objective provenance from GitHub: exact base repository and target branch, PR, normalized author, proof comment, head SHA, merge timestamp, unique merge SHA and changed-file evidence. A successfully sealed contribution permanently binds that GitHub author to the submitting wallet, and that wallet to the author, for the mission. Insufficient or invalid evidence does not reserve an identity. The semantic capsule is then produced via comparative validator judgment from that normalized bounded evidence.
 
-Final resolution uses the sealed capsules grouped by wallet. Validators decide mission outcome and impact roles. The application never asks the browser or a server to decide payout.
+Final resolution re-fetches every sealed PR, proof comment, ancestry comparison and bounded changed-file response under `strict_eq`. Resolution proceeds only when each normalized evidence digest exactly reproduces its sealed digest and each capsule and contribution commitment recomputes correctly. Source unavailability or changed evidence leaves the mission open and moves no GEN; the unresolved-grace recovery remains available. The former repository-existence probe was removed because it did not authenticate the evidence used for judgment.
+
+Only after that revalidation does resolution group sealed capsules by wallet. Validators decide mission outcome and impact roles. The application never asks the browser or a server to decide payout.
 
 ## Canonical commitment chain
 

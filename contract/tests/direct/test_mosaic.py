@@ -1,7 +1,7 @@
 import hashlib
 import json
 
-from helpers import mock_baseline, mock_compare, mock_pr, mock_repo_probe, set_block_time
+from helpers import mock_baseline, mock_compare, mock_pr, set_block_time
 
 WEI = 10**18
 
@@ -431,7 +431,8 @@ def test_achieved_settlement_splits_by_roles(direct_vm, direct_deploy, direct_al
 
     set_block_time(direct_vm, "2026-10-06T10:00:00Z")
     direct_vm.clear_mocks()
-    mock_repo_probe(direct_vm)
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob), pr_number=7, comment_id=99, author="bob")
+    mock_pr(direct_vm, int(mission_id), wallet(direct_charlie), pr_number=8, comment_id=100, author="charlie")
     direct_vm.mock_llm(
         r"allocating a funded open-source engineering mission",
         json.dumps({
@@ -458,7 +459,7 @@ def test_evidence_root_and_settlement_digest_are_reproducible(direct_vm, direct_
 
     set_block_time(direct_vm, "2026-10-06T10:00:00Z")
     direct_vm.clear_mocks()
-    mock_repo_probe(direct_vm)
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob))
     direct_vm.mock_llm(
         r"allocating a funded open-source engineering mission",
         json.dumps({
@@ -503,7 +504,7 @@ def test_resolution_rejects_unexpected_output_fields(direct_vm, direct_deploy, d
     contract.seal_contribution(mission_id, 7, 99)
     set_block_time(direct_vm, "2026-10-06T10:00:00Z")
     direct_vm.clear_mocks()
-    mock_repo_probe(direct_vm)
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob))
     direct_vm.mock_llm(
         r"allocating a funded open-source engineering mission",
         json.dumps({
@@ -527,7 +528,7 @@ def test_insufficient_outcome_cannot_assign_positive_role(direct_vm, direct_depl
     contract.seal_contribution(mission_id, 7, 99)
     set_block_time(direct_vm, "2026-10-06T10:00:00Z")
     direct_vm.clear_mocks()
-    mock_repo_probe(direct_vm)
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob))
     direct_vm.mock_llm(
         r"allocating a funded open-source engineering mission",
         json.dumps({
@@ -551,7 +552,7 @@ def test_material_progress_releases_40_percent_and_refunds_residual(direct_vm, d
 
     set_block_time(direct_vm, "2026-10-06T10:00:00Z")
     direct_vm.clear_mocks()
-    mock_repo_probe(direct_vm)
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob))
     direct_vm.mock_llm(
         r"allocating a funded open-source engineering mission",
         json.dumps({"mission_outcome": "MATERIAL_PROGRESS", "roles": {wallet(direct_bob): "CORE"}, "rationale": "Meaningful but incomplete."}),
@@ -575,7 +576,7 @@ def test_not_achieved_returns_all_sponsor_funds_pro_rata(direct_vm, direct_deplo
 
     set_block_time(direct_vm, "2026-10-06T10:00:00Z")
     direct_vm.clear_mocks()
-    mock_repo_probe(direct_vm)
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob))
     direct_vm.mock_llm(
         r"allocating a funded open-source engineering mission",
         json.dumps({"mission_outcome": "NOT_ACHIEVED", "roles": {wallet(direct_bob): "NO_CREDIT"}, "rationale": "Work was unrelated."}),
@@ -597,7 +598,7 @@ def test_insufficient_resolution_does_not_move_money(direct_vm, direct_deploy, d
 
     set_block_time(direct_vm, "2026-10-06T10:00:00Z")
     direct_vm.clear_mocks()
-    mock_repo_probe(direct_vm)
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob))
     direct_vm.mock_llm(
         r"allocating a funded open-source engineering mission",
         json.dumps({"mission_outcome": "INSUFFICIENT_EVIDENCE", "roles": {wallet(direct_bob): "NO_CREDIT"}, "rationale": "Evidence cannot support settlement."}),
@@ -608,7 +609,7 @@ def test_insufficient_resolution_does_not_move_money(direct_vm, direct_deploy, d
     assert mission["pool_wei"] == str(100 * WEI)
 
 
-def test_repo_unavailable_during_resolution_moves_no_money(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
+def test_contribution_source_unavailable_during_resolution_moves_no_money(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
     set_block_time(direct_vm, "2026-10-01T10:00:00Z")
     contract = direct_deploy("contract/contracts/mosaic.py")
     mission_id = open_mission(contract, direct_vm, direct_alice, mission_terms)
@@ -618,9 +619,32 @@ def test_repo_unavailable_during_resolution_moves_no_money(direct_vm, direct_dep
     contract.seal_contribution(mission_id, 7, 99)
     set_block_time(direct_vm, "2026-10-06T10:00:00Z")
     direct_vm.clear_mocks()
-    direct_vm.mock_web(r"api\.github\.com/repos/acme/widget$", {"status": 503, "body": "{}"})
+    direct_vm.mock_web(r"api\.github\.com/repos/acme/widget/pulls/7$", {"status": 503, "body": "{}"})
     assert contract.resolve_mission(mission_id) == "source_unavailable"
     assert contract.get_balance(wallet(direct_alice)) == "0"
+    mission = json.loads(contract.get_mission(mission_id))
+    assert mission["last_resolution"] == "SOURCE_UNAVAILABLE"
+    assert mission["pool_wei"] == str(100 * WEI)
+
+
+def test_changed_contribution_evidence_blocks_resolution_and_moves_no_money(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/mosaic.py")
+    mission_id = open_mission(contract, direct_vm, direct_alice, mission_terms)
+    direct_vm.value = 0
+    direct_vm.sender = direct_bob
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob))
+    contract.seal_contribution(mission_id, 7, 99)
+
+    set_block_time(direct_vm, "2026-10-06T10:00:00Z")
+    direct_vm.clear_mocks()
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob), title="edited after sealing")
+    assert contract.resolve_mission(mission_id) == "evidence_changed"
+    mission = json.loads(contract.get_mission(mission_id))
+    assert mission["last_resolution"] == "EVIDENCE_CHANGED"
+    assert mission["status"] == "OPEN"
+    assert mission["pool_wei"] == str(100 * WEI)
+    assert contract.get_balance(wallet(direct_bob)) == "0"
 
 
 def test_unresolved_grace_eventually_refunds(direct_vm, direct_deploy, direct_alice, mission_terms):
@@ -720,7 +744,7 @@ def test_not_achieved_cannot_store_positive_impact_role(direct_vm, direct_deploy
     contract.seal_contribution(mission_id, 7, 99)
     set_block_time(direct_vm, "2026-10-06T10:00:00Z")
     direct_vm.clear_mocks()
-    mock_repo_probe(direct_vm)
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob))
     direct_vm.mock_llm(
         r"allocating a funded open-source engineering mission",
         json.dumps({"mission_outcome": "NOT_ACHIEVED", "roles": {wallet(direct_bob): "CORE"}, "rationale": "contradictory"}),

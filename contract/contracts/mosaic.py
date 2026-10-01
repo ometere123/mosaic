@@ -398,22 +398,6 @@ Return ONLY JSON with exactly these fields:
     return gl.nondet.exec_prompt(prompt, response_format="json")
 
 
-def _probe_repository(context_json: str) -> str:
-    context = json.loads(context_json)
-    repo = context["repo"]
-    data, reason = _read_json_url(f"https://api.github.com/repos/{repo}")
-    if data is None:
-        return json.dumps({"status": "SOURCE_UNAVAILABLE", "reason": reason}, sort_keys=True)
-    return json.dumps(
-        {
-            "status": "OK",
-            "full_name": str(data.get("full_name") or "").lower(),
-            "archived": bool(data.get("archived") or False),
-        },
-        sort_keys=True,
-    )
-
-
 def _judge_mission(context_json: str) -> str:
     context = json.loads(context_json)
     prompt = f"""You are allocating a funded open-source engineering mission from immutable, consensus-sealed contribution capsules.
@@ -808,22 +792,6 @@ class Mosaic(gl.Contract):
             self._settle(mission_id, mission, "NOT_ACHIEVED", {}, "No valid contribution was sealed.")
             return "settled_not_achieved"
 
-        probe_context = json.dumps({"repo": mission["repo"]}, sort_keys=True)
-        def probe_repository():
-            return _probe_repository(probe_context)
-
-        probe = json.loads(gl.eq_principle.strict_eq(probe_repository))
-        if probe.get("status") != "OK":
-            mission["resolution_attempts"] = int(mission["resolution_attempts"]) + 1
-            mission["last_resolution"] = "SOURCE_UNAVAILABLE"
-            self._save_mission(mission_id, mission)
-            return "source_unavailable"
-        if str(probe.get("full_name") or "").lower() != str(mission["repo"]).lower():
-            mission["resolution_attempts"] = int(mission["resolution_attempts"]) + 1
-            mission["last_resolution"] = "SOURCE_UNAVAILABLE"
-            self._save_mission(mission_id, mission)
-            return "source_unavailable"
-
         portfolios = {}
         ordered_commitments = []
         sealed_count = 0
@@ -836,9 +804,55 @@ class Mosaic(gl.Contract):
                 continue
             if item.get("status") != "SEALED":
                 continue
+
+            revalidation_context = json.dumps(
+                {
+                    "repo": mission["repo"],
+                    "target_ref": mission["target_ref"],
+                    "baseline": mission["baseline_sha"],
+                    "pr_number": int(item["pr_number"]),
+                    "comment_id": int(item["proof_comment_id"]),
+                },
+                sort_keys=True,
+            )
+            def revalidate_evidence():
+                return _fetch_pr_evidence(revalidation_context)
+
+            refreshed = json.loads(gl.eq_principle.strict_eq(revalidate_evidence))
+            refreshed_status = refreshed.get("status")
+            if refreshed_status == "SOURCE_UNAVAILABLE":
+                mission["resolution_attempts"] = int(mission["resolution_attempts"]) + 1
+                mission["last_resolution"] = "SOURCE_UNAVAILABLE"
+                self._save_mission(mission_id, mission)
+                return "source_unavailable"
+            if refreshed_status != "OK" or refreshed.get("evidence_digest") != item.get("evidence_digest"):
+                mission["resolution_attempts"] = int(mission["resolution_attempts"]) + 1
+                mission["last_resolution"] = "EVIDENCE_CHANGED"
+                self._save_mission(mission_id, mission)
+                return "evidence_changed"
+
+            capsule = item.get("capsule")
+            capsule_digest = str(item.get("capsule_digest") or "")
+            if not isinstance(capsule, dict) or _canonical_digest(capsule) != capsule_digest:
+                raise gl.vm.UserError("invalid_capsule_commitment")
+            expected_commitment = _canonical_digest(
+                {
+                    "mission_id": int(mission_id),
+                    "repo": mission["repo"],
+                    "target_ref": mission["target_ref"],
+                    "pr_number": int(item["pr_number"]),
+                    "proof_comment_id": int(item["proof_comment_id"]),
+                    "author": item["author"],
+                    "wallet": item["wallet"],
+                    "head_sha": item["head_sha"],
+                    "merge_sha": item["merge_sha"],
+                    "source_evidence_digest": item["evidence_digest"],
+                    "capsule_digest": capsule_digest,
+                }
+            )
             sealed_count += 1
             commitment = str(item.get("contribution_commitment") or "")
-            if not _digest_ok(commitment):
+            if not _digest_ok(commitment) or commitment != expected_commitment:
                 raise gl.vm.UserError("invalid_contribution_commitment")
             ordered_commitments.append({"index": i, "commitment": commitment})
             wallet = item["wallet"]
