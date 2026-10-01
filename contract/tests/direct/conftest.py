@@ -1,4 +1,25 @@
 import pytest
+from pathlib import Path
+
+from gltest.direct.loader import deploy_contract
+
+
+GENVM_DIRECT_VERSION = "v0.2.12"
+
+
+@pytest.fixture
+def direct_deploy(direct_vm):
+    """Deploy every test against the project's pinned stable GenVM runtime."""
+    def _deploy(contract_path, *args, **kwargs):
+        return deploy_contract(
+            Path(contract_path).resolve(),
+            direct_vm,
+            *args,
+            sdk_version=GENVM_DIRECT_VERSION,
+            **kwargs,
+        )
+
+    return _deploy
 
 
 @pytest.fixture
