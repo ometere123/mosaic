@@ -1,0 +1,41 @@
+# Architecture
+
+## Boundaries
+
+MOSAIC is deliberately limited to a browser frontend and one GenLayer Intelligent Contract.
+
+Canonical product state is contract state. Local browser storage keeps only non-authoritative transaction hashes so a refresh can resume monitoring a submitted write. GitHub browser previews are non-authoritative convenience reads.
+
+## Mission lifecycle
+
+Stored terminal states are `SETTLED` and `EXPIRED`. While a mission remains stored as `OPEN`, the frontend derives `CLOSED · UNRESOLVED` once chain time passes its closing timestamp. This avoids pretending a timer itself performed an on-chain transition.
+
+Writes:
+
+1. `open_mission` — payable; freezes source, baseline, objective, criteria and deadline after consensus verifies the public baseline.
+2. `add_funding` — payable while open.
+3. `seal_contribution` — verifies merged PR provenance and creates a consensus-sealed evidence capsule.
+4. `resolve_mission` — permissionless after close; produces the substantive mission outcome and per-wallet impact role.
+5. `expire_unresolved` — permissionless safety exit after the unresolved grace period.
+6. `withdraw` — pull transfer for contributor allocations and sponsor residuals.
+
+## Economic invariants
+
+The full mission pool is accounted for exactly once.
+
+- `ACHIEVED`: 100% released to positive-impact contributors.
+- `MATERIAL_PROGRESS`: 40% released to positive-impact contributors; 60% sponsor residual.
+- `NOT_ACHIEVED`: 0% contributor release; 100% sponsor residual.
+- uncertainty: no state settlement and no GEN movement.
+
+Contributor weights are applied only after validators fix the role labels. Rounding dust is assigned deterministically to the last positive-impact wallet in first-appearance order. Sponsor residual dust is likewise assigned deterministically to the final sponsor in first-funding order. Withdrawal order never changes entitlement.
+
+## Evidence phases
+
+Contribution sealing first establishes objective provenance from GitHub: PR, author, proof comment, merge timestamp, merge SHA and changed-file evidence. The semantic capsule is then produced via comparative validator judgment from that normalized bounded evidence.
+
+Final resolution uses the sealed capsules grouped by wallet. Validators decide mission outcome and impact roles. The application never asks the browser or a server to decide payout.
+
+## Transaction truth
+
+The frontend records a returned transaction hash immediately and monitors it independently of route navigation. Consensus status and execution result are separate. An Accepted receipt is provisional; a finalized execution error remains an error. Contract state is re-read after transaction updates rather than guessed from button completion.

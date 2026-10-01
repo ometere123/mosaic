@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install local GenLayer CLI
+        run: npm install
+      - name: Verify local CLI version
+        run: npm run check:cli
+      - name: Install frontend
+        run: npm --prefix frontend install
+      - name: Install contract tooling
+        run: python -m pip install -r contract/requirements.txt
+      - name: Network guard
+        run: npm run check:network
+      - name: Python syntax
+        run: python -m py_compile contract/contracts/mosaic.py contract/tests/direct/conftest.py contract/tests/direct/helpers.py contract/tests/direct/test_mosaic.py
+      - name: Pin GenVM runtime
+        run: genvm-lint download --version v0.2.12
+      - name: Contract lint
+        run: genvm-lint check contract/contracts/mosaic.py
+      - name: Direct Mode
+        run: python -m pytest contract/tests/direct -q
+      - name: Frontend lint
+        run: npm --prefix frontend run lint
+      - name: Frontend tests
+        run: npm --prefix frontend run test
+      - name: Frontend build
+        run: npm --prefix frontend run build
