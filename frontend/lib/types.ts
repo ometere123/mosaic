@@ -20,6 +20,7 @@ export type Mission = {
   id: number;
   creator: string;
   repo: string;
+  target_ref: string;
   baseline_sha: string;
   title: string;
   objective: string;
@@ -50,6 +51,8 @@ export type Contribution = {
   status: "SEALED" | "INSUFFICIENT_EVIDENCE";
   reason: string;
   merge_sha: string;
+  head_sha: string;
+  target_ref: string;
   author: string;
   evidence_digest: string;
   capsule: null | {

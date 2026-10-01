@@ -42,12 +42,12 @@ function writer(provider: Eip1193Provider, account: `0x${string}`) {
 }
 
 export async function openMission(provider: Eip1193Provider, account: `0x${string}`, input: {
-  repo: string; baseline: string; title: string; objective: string; criteria: string[]; closeAt: number; value: bigint;
+  repo: string; targetRef: string; baseline: string; title: string; objective: string; criteria: string[]; closeAt: number; value: bigint;
 }) {
   const client = writer(provider, account);
   return client.writeContract({
     address: requireContractAddress(), functionName: "open_mission",
-    args: [input.repo, input.baseline, input.title, input.objective, JSON.stringify(input.criteria), input.closeAt], value: input.value,
+    args: [input.repo, input.targetRef, input.baseline, input.title, input.objective, JSON.stringify(input.criteria), input.closeAt], value: input.value,
   });
 }
 

@@ -26,6 +26,7 @@ def direct_deploy(direct_vm):
 def mission_terms():
     return {
         "repo": "acme/widget",
+        "target_ref": "main",
         "baseline": "a" * 40,
         "title": "Wallet reliability pass",
         "objective": "Make injected-wallet account switching and rejected-signature recovery reliable.",

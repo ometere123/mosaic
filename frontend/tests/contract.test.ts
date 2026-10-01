@@ -19,7 +19,7 @@ vi.mock("@/lib/deployment", () => ({
   requireContractAddress: () => "0x1111111111111111111111111111111111111111",
 }));
 
-import { addFunding } from "@/lib/contract";
+import { addFunding, openMission } from "@/lib/contract";
 
 describe("injected-wallet writes", () => {
   beforeEach(() => {
@@ -41,5 +41,29 @@ describe("injected-wallet writes", () => {
       args: [7n],
       value: 5n,
     });
+  });
+
+  it("freezes the target branch between repository and baseline arguments", async () => {
+    const provider = { request: vi.fn() };
+    const account = "0x2222222222222222222222222222222222222222" as const;
+
+    await openMission(provider, account, {
+      repo: "acme/widget",
+      targetRef: "release/v2",
+      baseline: "a".repeat(40),
+      title: "Release reliability",
+      objective: "Harden the release line.",
+      criteria: ["Recovery works"],
+      closeAt: 1_800_000_000,
+      value: 10n ** 18n,
+    });
+
+    expect(writeContract).toHaveBeenCalledWith({
+      address: "0x1111111111111111111111111111111111111111",
+      functionName: "open_mission",
+      args: ["acme/widget", "release/v2", "a".repeat(40), "Release reliability", "Harden the release line.", '["Recovery works"]', 1_800_000_000],
+      value: 10n ** 18n,
+    });
+    expect(connect).not.toHaveBeenCalled();
   });
 });

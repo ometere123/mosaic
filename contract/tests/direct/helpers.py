@@ -13,12 +13,19 @@ def set_block_time(vm, iso: str):
 
 
 
-def mock_baseline(vm, repo="acme/widget", sha=None):
+def mock_baseline(vm, repo="acme/widget", sha=None, target_ref="main", tip_sha=None):
     sha = sha or ("a" * 40)
+    tip_sha = tip_sha or sha
     vm.mock_web(
         rf"api\.github\.com/repos/{repo}/commits/{sha}",
         {"status": 200, "body": json.dumps({"sha": sha})},
     )
+    vm.mock_web(
+        rf"api\.github\.com/repos/{repo}/branches/{target_ref}$",
+        {"status": 200, "body": json.dumps({"name": target_ref, "commit": {"sha": tip_sha}})},
+    )
+    if tip_sha != sha:
+        mock_compare(vm, repo, sha, tip_sha)
 
 
 def mock_repo_probe(vm, repo="acme/widget"):
@@ -62,12 +69,16 @@ def mock_pr(
     capsule=None,
     changed_files=1,
     issue_pr_number=None,
+    target_ref="main",
+    base_repo="acme/widget",
+    head_sha=None,
 ):
     repo = "acme/widget"
     baseline = baseline or ("a" * 40)
-    merge_sha = merge_sha or ("b" * 40)
+    merge_sha = merge_sha or (("b" * 40) if pr_number == 7 else f"{pr_number:040x}")
     merge_base = baseline if merge_base is None else merge_base
     issue_pr_number = pr_number if issue_pr_number is None else issue_pr_number
+    head_sha = head_sha or ("c" * 40)
     vm.mock_web(
         rf"api\.github\.com/repos/{repo}/pulls/{pr_number}$",
         {
@@ -79,6 +90,8 @@ def mock_pr(
                     "user": {"login": author},
                     "merged_at": merged_at,
                     "merge_commit_sha": merge_sha,
+                    "base": {"ref": target_ref, "repo": {"full_name": base_repo}},
+                    "head": {"sha": head_sha},
                     "changed_files": changed_files,
                     "additions": 42,
                     "deletions": 8,

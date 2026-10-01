@@ -12,7 +12,7 @@ Stored terminal states are `SETTLED` and `EXPIRED`. While a mission remains stor
 
 Writes:
 
-1. `open_mission` — payable; freezes source, baseline, objective, criteria and deadline after consensus verifies the public baseline.
+1. `open_mission` — payable; freezes repository, target branch, baseline, objective, criteria and deadline after consensus verifies that the baseline belongs to the public target branch.
 2. `add_funding` — payable while open.
 3. `seal_contribution` — verifies merged PR provenance and creates a consensus-sealed evidence capsule.
 4. `resolve_mission` — permissionless after close; produces the substantive mission outcome and per-wallet impact role.
@@ -32,7 +32,7 @@ Contributor weights are applied only after validators fix the role labels. Round
 
 ## Evidence phases
 
-Contribution sealing first establishes objective provenance from GitHub: PR, author, proof comment, merge timestamp, merge SHA and changed-file evidence. The semantic capsule is then produced via comparative validator judgment from that normalized bounded evidence.
+Contribution sealing first establishes objective provenance from GitHub: exact base repository and target branch, PR, normalized author, proof comment, head SHA, merge timestamp, unique merge SHA and changed-file evidence. A successfully sealed contribution permanently binds that GitHub author to the submitting wallet, and that wallet to the author, for the mission. Insufficient or invalid evidence does not reserve an identity. The semantic capsule is then produced via comparative validator judgment from that normalized bounded evidence.
 
 Final resolution uses the sealed capsules grouped by wallet. Validators decide mission outcome and impact roles. The application never asks the browser or a server to decide payout.
 

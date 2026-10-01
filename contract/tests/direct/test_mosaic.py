@@ -14,9 +14,10 @@ def wallet(addr):
 def open_mission(contract, vm, sender, mission_terms, funding=100 * WEI):
     vm.sender = sender
     vm.value = funding
-    mock_baseline(vm, mission_terms["repo"], mission_terms["baseline"])
+    mock_baseline(vm, mission_terms["repo"], mission_terms["baseline"], mission_terms["target_ref"])
     return contract.open_mission(
         mission_terms["repo"],
+        mission_terms["target_ref"],
         mission_terms["baseline"],
         mission_terms["title"],
         mission_terms["objective"],
@@ -35,6 +36,40 @@ def test_open_mission_and_multiple_sponsors(direct_vm, direct_deploy, direct_ali
     mission = json.loads(contract.get_mission(mission_id))
     assert mission["pool_wei"] == str(125 * WEI)
     assert mission["sponsor_wallets"] == [wallet(direct_alice), wallet(direct_bob)]
+    assert mission["target_ref"] == "main"
+
+
+def test_open_mission_verifies_baseline_is_on_target_branch(direct_vm, direct_deploy, direct_alice, mission_terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/mosaic.py")
+    direct_vm.sender = direct_alice
+    direct_vm.value = 10 * WEI
+    mock_baseline(
+        direct_vm,
+        mission_terms["repo"],
+        mission_terms["baseline"],
+        mission_terms["target_ref"],
+        tip_sha="c" * 40,
+    )
+    mission_id = contract.open_mission(
+        mission_terms["repo"], mission_terms["target_ref"], mission_terms["baseline"],
+        mission_terms["title"], mission_terms["objective"],
+        json.dumps(mission_terms["criteria"]), 1791201600,
+    )
+    assert json.loads(contract.get_mission(mission_id))["baseline_sha"] == "a" * 40
+
+
+def test_invalid_target_ref_rejected_before_source_read(direct_vm, direct_deploy, direct_alice, mission_terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/mosaic.py")
+    direct_vm.sender = direct_alice
+    direct_vm.value = 10 * WEI
+    with direct_vm.expect_revert("invalid_target_ref"):
+        contract.open_mission(
+            mission_terms["repo"], "../main", mission_terms["baseline"],
+            mission_terms["title"], mission_terms["objective"],
+            json.dumps(mission_terms["criteria"]), 1791201600,
+        )
 
 
 def test_rejects_bad_terms(direct_vm, direct_deploy, direct_alice, mission_terms):
@@ -43,7 +78,7 @@ def test_rejects_bad_terms(direct_vm, direct_deploy, direct_alice, mission_terms
     direct_vm.sender = direct_alice
     direct_vm.value = 10 * WEI
     with direct_vm.expect_revert("invalid_repository"):
-        contract.open_mission("not a repo", "a" * 40, "x", "y", '["z"]', 1791201600)
+        contract.open_mission("not a repo", "main", "a" * 40, "x", "y", '["z"]', 1791201600)
 
 
 def test_baseline_unavailable_fails_before_lock(direct_vm, direct_deploy, direct_alice, mission_terms):
@@ -54,7 +89,7 @@ def test_baseline_unavailable_fails_before_lock(direct_vm, direct_deploy, direct
     direct_vm.mock_web(r"api\.github\.com/repos/acme/widget/commits/", {"status": 503, "body": "{}"})
     with direct_vm.expect_revert("baseline_source_unavailable"):
         contract.open_mission(
-            mission_terms["repo"], mission_terms["baseline"], mission_terms["title"],
+            mission_terms["repo"], mission_terms["target_ref"], mission_terms["baseline"], mission_terms["title"],
             mission_terms["objective"], json.dumps(mission_terms["criteria"]), 1791201600,
         )
 
@@ -113,6 +148,103 @@ def test_merge_must_descend_from_frozen_baseline(direct_vm, direct_deploy, direc
     )
     with direct_vm.expect_revert("merge_not_descended_from_baseline"):
         contract.seal_contribution(mission_id, 7, 99)
+
+
+def test_pr_must_target_frozen_branch(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/mosaic.py")
+    mission_id = open_mission(contract, direct_vm, direct_alice, mission_terms)
+    direct_vm.value = 0
+    direct_vm.sender = direct_bob
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob), target_ref="release")
+    with direct_vm.expect_revert("wrong_target_ref"):
+        contract.seal_contribution(mission_id, 7, 99)
+
+
+def test_pr_must_target_frozen_repository(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/mosaic.py")
+    mission_id = open_mission(contract, direct_vm, direct_alice, mission_terms)
+    direct_vm.value = 0
+    direct_vm.sender = direct_bob
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob), base_repo="attacker/widget")
+    with direct_vm.expect_revert("wrong_base_repository"):
+        contract.seal_contribution(mission_id, 7, 99)
+
+
+def test_pr_requires_immutable_head_sha(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/mosaic.py")
+    mission_id = open_mission(contract, direct_vm, direct_alice, mission_terms)
+    direct_vm.value = 0
+    direct_vm.sender = direct_bob
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob), head_sha="bad")
+    with direct_vm.expect_revert("missing_head_sha"):
+        contract.seal_contribution(mission_id, 7, 99)
+
+
+def test_duplicate_merge_sha_rejected_across_pr_numbers(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/mosaic.py")
+    mission_id = open_mission(contract, direct_vm, direct_alice, mission_terms)
+    direct_vm.value = 0
+    direct_vm.sender = direct_bob
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob), pr_number=7, comment_id=99, author="dev")
+    contract.seal_contribution(mission_id, 7, 99)
+    direct_vm.clear_mocks()
+    mock_pr(
+        direct_vm, int(mission_id), wallet(direct_bob), pr_number=8,
+        comment_id=100, author="dev", merge_sha="b" * 40,
+    )
+    with direct_vm.expect_revert("merge_already_sealed"):
+        contract.seal_contribution(mission_id, 8, 100)
+
+
+def test_github_author_cannot_bind_to_second_wallet(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie, mission_terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/mosaic.py")
+    mission_id = open_mission(contract, direct_vm, direct_alice, mission_terms)
+    direct_vm.value = 0
+    direct_vm.sender = direct_bob
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob), author="DevUser")
+    contract.seal_contribution(mission_id, 7, 99)
+    assert contract.get_author_wallet(mission_id, "devuser") == wallet(direct_bob)
+    direct_vm.clear_mocks()
+    direct_vm.sender = direct_charlie
+    mock_pr(direct_vm, int(mission_id), wallet(direct_charlie), pr_number=8, comment_id=100, author="devuser", merge_sha="d" * 40)
+    with direct_vm.expect_revert("github_author_bound_to_another_wallet"):
+        contract.seal_contribution(mission_id, 8, 100)
+
+
+def test_wallet_cannot_bind_to_second_github_author(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/mosaic.py")
+    mission_id = open_mission(contract, direct_vm, direct_alice, mission_terms)
+    direct_vm.value = 0
+    direct_vm.sender = direct_bob
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob), author="alice-gh")
+    contract.seal_contribution(mission_id, 7, 99)
+    assert contract.get_wallet_author(mission_id, wallet(direct_bob).upper()) == "alice-gh"
+    direct_vm.clear_mocks()
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob), pr_number=8, comment_id=100, author="bob-gh", merge_sha="d" * 40)
+    with direct_vm.expect_revert("wallet_bound_to_another_github_author"):
+        contract.seal_contribution(mission_id, 8, 100)
+
+
+def test_insufficient_record_does_not_grief_identity_binding(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie, mission_terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/mosaic.py")
+    mission_id = open_mission(contract, direct_vm, direct_alice, mission_terms)
+    direct_vm.value = 0
+    direct_vm.sender = direct_bob
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob), author="shared", changed_files=31)
+    assert contract.seal_contribution(mission_id, 7, 99) == "insufficient_evidence"
+    assert contract.get_author_wallet(mission_id, "shared") == ""
+    direct_vm.clear_mocks()
+    direct_vm.sender = direct_charlie
+    mock_pr(direct_vm, int(mission_id), wallet(direct_charlie), pr_number=8, comment_id=100, author="SHARED", merge_sha="d" * 40)
+    assert contract.seal_contribution(mission_id, 8, 100) == "sealed_1"
+    assert contract.get_author_wallet(mission_id, "shared") == wallet(direct_charlie)
 
 
 def test_capsule_storage_output_is_bounded(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
@@ -232,6 +364,8 @@ def test_oversized_evidence_is_explicit_and_not_retryable(direct_vm, direct_depl
         {"status": 200, "body": json.dumps({
             "title": "huge", "body": "", "user": {"login": "dev"},
             "merged_at": "2026-10-03T10:00:00Z", "merge_commit_sha": "b" * 40,
+            "base": {"ref": "main", "repo": {"full_name": "acme/widget"}},
+            "head": {"sha": "c" * 40},
             "changed_files": 31, "additions": 5000, "deletions": 1,
         })},
     )
@@ -419,6 +553,8 @@ def test_missing_patch_evidence_is_not_semantically_judged(direct_vm, direct_dep
         {"status": 200, "body": json.dumps({
             "title": "binary-only", "body": "", "user": {"login": "bob"},
             "merged_at": "2026-10-03T10:00:00Z", "merge_commit_sha": "b" * 40,
+            "base": {"ref": "main", "repo": {"full_name": "acme/widget"}},
+            "head": {"sha": "c" * 40},
             "changed_files": 1, "additions": 0, "deletions": 0,
         })},
     )

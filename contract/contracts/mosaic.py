@@ -12,6 +12,7 @@ import hashlib
 import json
 import re
 from datetime import datetime, timezone
+from urllib.parse import quote
 
 
 MIN_FUND_WEI = 10**18
@@ -25,6 +26,7 @@ MAX_CRITERIA = 5
 MAX_TITLE_CHARS = 120
 MAX_OBJECTIVE_CHARS = 1200
 MAX_CRITERION_CHARS = 320
+MAX_TARGET_REF_CHARS = 120
 MAX_CHANGED_FILES = 30
 MAX_PATCH_CHARS = 24000
 MAX_TOTAL_CHANGES = 2500
@@ -97,6 +99,14 @@ def _sha_ok(sha: str) -> bool:
     return re.fullmatch(r"[0-9a-fA-F]{40}", sha) is not None
 
 
+def _target_ref_ok(target_ref: str) -> bool:
+    if not target_ref or len(target_ref) > MAX_TARGET_REF_CHARS:
+        return False
+    if target_ref.startswith("/") or target_ref.endswith("/") or ".." in target_ref:
+        return False
+    return re.fullmatch(r"[A-Za-z0-9._/-]+", target_ref) is not None
+
+
 def _read_json_url(url: str):
     try:
         response = gl.nondet.web.get(url)
@@ -115,6 +125,7 @@ def _fetch_baseline(context_json: str) -> str:
     context = json.loads(context_json)
     repo = context["repo"]
     baseline = context["baseline"]
+    target_ref = context["target_ref"]
     data, reason = _read_json_url(
         f"https://api.github.com/repos/{repo}/commits/{baseline}"
     )
@@ -123,13 +134,39 @@ def _fetch_baseline(context_json: str) -> str:
     resolved = str(data.get("sha") or "").lower()
     if not _sha_ok(resolved):
         return json.dumps({"status": "INVALID", "reason": "missing_commit_sha"}, sort_keys=True)
-    return json.dumps({"status": "OK", "sha": resolved}, sort_keys=True)
+    branch, reason = _read_json_url(
+        f"https://api.github.com/repos/{repo}/branches/{quote(target_ref, safe='')}"
+    )
+    if branch is None:
+        return json.dumps({"status": "SOURCE_UNAVAILABLE", "reason": f"branch:{reason}"}, sort_keys=True)
+    if not isinstance(branch, dict) or str(branch.get("name") or "") != target_ref:
+        return json.dumps({"status": "INVALID", "reason": "target_ref_not_verified"}, sort_keys=True)
+    branch_commit = branch.get("commit")
+    if not isinstance(branch_commit, dict):
+        return json.dumps({"status": "INVALID", "reason": "malformed_target_ref"}, sort_keys=True)
+    tip_sha = str(branch_commit.get("sha") or "").lower()
+    if not _sha_ok(tip_sha):
+        return json.dumps({"status": "INVALID", "reason": "missing_target_tip_sha"}, sort_keys=True)
+    if tip_sha != baseline:
+        comparison, reason = _read_json_url(
+            f"https://api.github.com/repos/{repo}/compare/{baseline}...{tip_sha}"
+        )
+        if comparison is None:
+            return json.dumps({"status": "SOURCE_UNAVAILABLE", "reason": f"target_compare:{reason}"}, sort_keys=True)
+        if not isinstance(comparison, dict):
+            return json.dumps({"status": "INVALID", "reason": "malformed_target_compare"}, sort_keys=True)
+        merge_base = comparison.get("merge_base_commit")
+        merge_base_sha = str(merge_base.get("sha") or "").lower() if isinstance(merge_base, dict) else ""
+        if str(comparison.get("status") or "").lower() not in {"ahead", "identical"} or merge_base_sha != baseline:
+            return json.dumps({"status": "INVALID", "reason": "baseline_not_on_target_ref"}, sort_keys=True)
+    return json.dumps({"status": "OK", "sha": resolved, "target_ref": target_ref, "tip_sha": tip_sha}, sort_keys=True)
 
 
 def _fetch_pr_evidence(context_json: str) -> str:
     context = json.loads(context_json)
     repo = context["repo"]
     baseline = context["baseline"]
+    target_ref = context["target_ref"]
     pr_number = int(context["pr_number"])
     comment_id = int(context["comment_id"])
 
@@ -138,6 +175,19 @@ def _fetch_pr_evidence(context_json: str) -> str:
         return json.dumps({"status": "SOURCE_UNAVAILABLE", "reason": f"pr:{reason}"}, sort_keys=True)
     if not isinstance(pr, dict):
         return json.dumps({"status": "INVALID", "reason": "malformed_pr_payload"}, sort_keys=True)
+
+    base = pr.get("base")
+    base_repo = base.get("repo") if isinstance(base, dict) else None
+    base_full_name = str(base_repo.get("full_name") or "") if isinstance(base_repo, dict) else ""
+    base_ref = str(base.get("ref") or "") if isinstance(base, dict) else ""
+    head = pr.get("head")
+    head_sha = str(head.get("sha") or "").lower() if isinstance(head, dict) else ""
+    if base_full_name.lower() != repo.lower():
+        return json.dumps({"status": "INVALID", "reason": "wrong_base_repository"}, sort_keys=True)
+    if base_ref != target_ref:
+        return json.dumps({"status": "INVALID", "reason": "wrong_target_ref"}, sort_keys=True)
+    if not _sha_ok(head_sha):
+        return json.dumps({"status": "INVALID", "reason": "missing_head_sha"}, sort_keys=True)
 
     comment, reason = _read_json_url(
         f"https://api.github.com/repos/{repo}/issues/comments/{comment_id}"
@@ -195,6 +245,9 @@ def _fetch_pr_evidence(context_json: str) -> str:
         "author": author,
         "merged_at": str(pr.get("merged_at") or ""),
         "merge_sha": merge_sha,
+        "head_sha": head_sha,
+        "base_repo": base_full_name,
+        "base_ref": base_ref,
         "comment_author": commenter,
         "comment_body": str(comment.get("body") or "").strip(),
         "comment_issue_url": issue_url,
@@ -403,6 +456,9 @@ class Mosaic(gl.Contract):
     sponsor_totals: TreeMap[str, str]
     contributions: TreeMap[str, str]
     used_prs: TreeMap[str, bool]
+    used_merge_shas: TreeMap[str, bool]
+    author_wallets: TreeMap[str, str]
+    wallet_authors: TreeMap[str, str]
     balances: TreeMap[str, str]
     next_mission_id: u256
 
@@ -413,6 +469,7 @@ class Mosaic(gl.Contract):
     def open_mission(
         self,
         repo_slug: str,
+        target_ref: str,
         baseline_sha: str,
         title: str,
         objective: str,
@@ -420,11 +477,14 @@ class Mosaic(gl.Contract):
         close_at_unix: int,
     ) -> u256:
         repo_slug = repo_slug.strip()
+        target_ref = target_ref.strip()
         baseline_sha = baseline_sha.strip().lower()
         title = title.strip()
         objective = objective.strip()
         if not _repo_ok(repo_slug):
             raise gl.vm.UserError("invalid_repository")
+        if not _target_ref_ok(target_ref):
+            raise gl.vm.UserError("invalid_target_ref")
         if not _sha_ok(baseline_sha):
             raise gl.vm.UserError("invalid_baseline_sha")
         if not title or len(title) > MAX_TITLE_CHARS:
@@ -455,7 +515,10 @@ class Mosaic(gl.Contract):
         if amount < MIN_FUND_WEI:
             raise gl.vm.UserError("funding_below_minimum")
 
-        baseline_context = json.dumps({"repo": repo_slug, "baseline": baseline_sha}, sort_keys=True)
+        baseline_context = json.dumps(
+            {"repo": repo_slug, "target_ref": target_ref, "baseline": baseline_sha},
+            sort_keys=True,
+        )
         def fetch_baseline():
             return _fetch_baseline(baseline_context)
 
@@ -472,6 +535,7 @@ class Mosaic(gl.Contract):
             "id": int(mission_id),
             "creator": sponsor,
             "repo": repo_slug,
+            "target_ref": target_ref,
             "baseline_sha": baseline_sha,
             "title": title,
             "objective": objective,
@@ -536,6 +600,7 @@ class Mosaic(gl.Contract):
         caller = _wallet(gl.message.sender_address)
         context = {
             "repo": mission["repo"],
+            "target_ref": mission["target_ref"],
             "baseline": mission["baseline_sha"],
             "pr_number": pr_number,
             "comment_id": proof_comment_id,
@@ -582,8 +647,13 @@ class Mosaic(gl.Contract):
         if merged_unix < int(mission["created_at"]) or merged_unix > int(mission["close_at"]):
             raise gl.vm.UserError("merge_outside_mission_window")
 
+        merge_key = f"{int(mission_id)}:{merge_sha}"
+        if merge_key in self.used_merge_shas and self.used_merge_shas[merge_key]:
+            raise gl.vm.UserError("merge_already_sealed")
+
         if status == "INSUFFICIENT_EVIDENCE":
             self.used_prs[pr_key] = True
+            self.used_merge_shas[merge_key] = True
             index = int(mission["contribution_count"])
             record = {
                 "index": index,
@@ -594,6 +664,8 @@ class Mosaic(gl.Contract):
                 "status": "INSUFFICIENT_EVIDENCE",
                 "reason": str(evidence.get("reason") or "insufficient_evidence"),
                 "merge_sha": merge_sha,
+                "head_sha": str(evidence.get("head_sha") or "").lower(),
+                "target_ref": mission["target_ref"],
                 "author": author,
                 "evidence_digest": str(evidence.get("evidence_digest") or ""),
                 "capsule": None,
@@ -651,6 +723,13 @@ class Mosaic(gl.Contract):
             "risk_flags": [item.strip() for item in risks],
         }
 
+        author_key = f"{int(mission_id)}:{author}"
+        wallet_key = f"{int(mission_id)}:{caller}"
+        if author_key in self.author_wallets and self.author_wallets[author_key] != caller:
+            raise gl.vm.UserError("github_author_bound_to_another_wallet")
+        if wallet_key in self.wallet_authors and self.wallet_authors[wallet_key] != author:
+            raise gl.vm.UserError("wallet_bound_to_another_github_author")
+
         contributors = list(mission["contributor_wallets"])
         if caller not in contributors:
             if len(contributors) >= MAX_CONTRIBUTORS:
@@ -667,6 +746,8 @@ class Mosaic(gl.Contract):
             "status": "SEALED",
             "reason": "",
             "merge_sha": merge_sha,
+            "head_sha": str(evidence.get("head_sha") or "").lower(),
+            "target_ref": mission["target_ref"],
             "author": author,
             "evidence_digest": str(evidence.get("evidence_digest") or ""),
             "capsule": capsule,
@@ -674,6 +755,9 @@ class Mosaic(gl.Contract):
         }
         self.contributions[f"{int(mission_id)}:{index}"] = json.dumps(record, sort_keys=True)
         self.used_prs[pr_key] = True
+        self.used_merge_shas[merge_key] = True
+        self.author_wallets[author_key] = caller
+        self.wallet_authors[wallet_key] = author
         mission["contributor_wallets"] = contributors
         mission["last_evidence_status"] = "SEALED"
         mission["contribution_count"] = index + 1
@@ -850,6 +934,16 @@ class Mosaic(gl.Contract):
     def get_balance(self, wallet: str) -> str:
         key = wallet.lower()
         return self.balances[key] if key in self.balances else "0"
+
+    @gl.public.view
+    def get_author_wallet(self, mission_id: u256, author: str) -> str:
+        key = f"{int(mission_id)}:{author.strip().lower()}"
+        return self.author_wallets[key] if key in self.author_wallets else ""
+
+    @gl.public.view
+    def get_wallet_author(self, mission_id: u256, wallet: str) -> str:
+        key = f"{int(mission_id)}:{wallet.strip().lower()}"
+        return self.wallet_authors[key] if key in self.wallet_authors else ""
 
     @gl.public.view
     def get_next_mission_id(self) -> u256:
