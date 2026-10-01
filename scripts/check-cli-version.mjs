@@ -1,13 +1,13 @@
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const root = new URL("..", import.meta.url).pathname;
+const root = fileURLToPath(new URL("..", import.meta.url));
 const expected = "0.39.1";
-const bin = process.platform === "win32" ? "genlayer.cmd" : "genlayer";
-const localBin = join(root, "node_modules", ".bin", bin);
+const localBin = join(root, "node_modules", "genlayer", "dist", "index.js");
 let output = "";
 try {
-  output = execFileSync(localBin, ["--version"], { encoding: "utf8" }).trim();
+  output = execFileSync(process.execPath, [localBin, "--version"], { encoding: "utf8" }).trim();
 } catch (error) {
   console.error("Repository-local GenLayer CLI is not installed. Run npm install at the repository root first.");
   process.exit(1);

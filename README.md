@@ -60,7 +60,7 @@ There is no application backend, database, webhook relay, cron worker, server si
 - `genlayer-js`: **1.1.8**
 - `genlayer-py`: **0.16.3**
 - `genlayer-test`: **0.29.2**
-- `genvm-linter`: **0.10.0**
+- `genvm-linter`: **0.11.0**
 - Next.js: **16.3.2**
 - React: **19.2.4**
 
