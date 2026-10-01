@@ -2,10 +2,12 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { execFileSync } from "node:child_process";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const contractPath = join(root, "contract", "contracts", "mosaic.py");
-const contract = readFileSync(contractPath, "utf8");
+const contractBytes = readFileSync(contractPath);
+const contract = contractBytes.toString("utf8");
 const requirements = readFileSync(join(root, "contract", "requirements.txt"), "utf8");
 const rootPackage = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
 const frontendPackage = JSON.parse(readFileSync(join(root, "frontend", "package.json"), "utf8"));
@@ -36,9 +38,24 @@ if (JSON.stringify(publicMethods) !== JSON.stringify(expectedMethods)) {
   findings.push(`Contract public surface changed: ${publicMethods.join(", ")}`);
 }
 
+let blobBytes;
+try {
+  blobBytes = execFileSync("git", ["show", "HEAD:contract/contracts/mosaic.py"], {
+    cwd: root,
+    encoding: "buffer",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+} catch (error) {
+  findings.push(`Unable to read contract Git blob: ${error.message}`);
+}
+if (blobBytes && !contractBytes.equals(blobBytes)) {
+  findings.push("Working-tree contract bytes differ from the canonical HEAD Git blob");
+}
+
 if (findings.length) {
   console.error(`Integrity audit failed:\n${findings.join("\n")}`);
   process.exit(1);
 }
-const sha256 = createHash("sha256").update(contract, "utf8").digest("hex");
-console.log(`Integrity audit passed: 5 exact pins, ${publicMethods.length} public methods, source SHA-256 ${sha256}.`);
+const sha256 = createHash("sha256").update(contractBytes).digest("hex");
+const blobSha256 = createHash("sha256").update(blobBytes).digest("hex");
+console.log(`Integrity audit passed: 5 exact pins, ${publicMethods.length} public methods, canonical source SHA-256 ${sha256}, Git blob SHA-256 ${blobSha256}.`);
