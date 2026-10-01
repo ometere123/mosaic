@@ -1,11 +1,13 @@
 import json
 
-from helpers import mock_baseline, mock_pr, mock_repo_probe, set_block_time
+from helpers import mock_baseline, mock_compare, mock_pr, mock_repo_probe, set_block_time
 
 WEI = 10**18
 
 
 def wallet(addr):
+    if isinstance(addr, bytes):
+        return "0x" + addr.hex()
     return addr.as_hex.lower() if hasattr(addr, "as_hex") else str(addr).lower()
 
 
@@ -96,6 +98,116 @@ def test_wrong_wallet_marker_rejected(direct_vm, direct_deploy, direct_alice, di
         contract.seal_contribution(mission_id, 7, 99)
 
 
+def test_merge_must_descend_from_frozen_baseline(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/mosaic.py")
+    mission_id = open_mission(contract, direct_vm, direct_alice, mission_terms)
+    direct_vm.value = 0
+    direct_vm.sender = direct_bob
+    mock_pr(
+        direct_vm,
+        int(mission_id),
+        wallet(direct_bob),
+        compare_status="diverged",
+        merge_base="c" * 40,
+    )
+    with direct_vm.expect_revert("merge_not_descended_from_baseline"):
+        contract.seal_contribution(mission_id, 7, 99)
+
+
+def test_capsule_storage_output_is_bounded(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/mosaic.py")
+    mission_id = open_mission(contract, direct_vm, direct_alice, mission_terms)
+    direct_vm.value = 0
+    direct_vm.sender = direct_bob
+    mock_pr(
+        direct_vm,
+        int(mission_id),
+        wallet(direct_bob),
+        capsule={
+            "summary": "x" * 601,
+            "relevance": "Relevant.",
+            "substantive_changes": [],
+            "risk_flags": [],
+        },
+    )
+    with direct_vm.expect_revert("capsule_missing_summary"):
+        contract.seal_contribution(mission_id, 7, 99)
+
+
+def test_capsule_list_growth_is_bounded(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/mosaic.py")
+    mission_id = open_mission(contract, direct_vm, direct_alice, mission_terms)
+    direct_vm.value = 0
+    direct_vm.sender = direct_bob
+    mock_pr(
+        direct_vm,
+        int(mission_id),
+        wallet(direct_bob),
+        capsule={
+            "summary": "Bounded summary.",
+            "relevance": "Relevant.",
+            "substantive_changes": ["change"] * 5,
+            "risk_flags": [],
+        },
+    )
+    with direct_vm.expect_revert("capsule_invalid_changes"):
+        contract.seal_contribution(mission_id, 7, 99)
+
+
+def test_wrong_pull_request_proof_rejected(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/mosaic.py")
+    mission_id = open_mission(contract, direct_vm, direct_alice, mission_terms)
+    direct_vm.value = 0
+    direct_vm.sender = direct_bob
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob), issue_pr_number=8)
+    with direct_vm.expect_revert("proof_comment_wrong_pull_request"):
+        contract.seal_contribution(mission_id, 7, 99)
+
+
+def test_naive_merge_timestamp_rejected(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/mosaic.py")
+    mission_id = open_mission(contract, direct_vm, direct_alice, mission_terms)
+    direct_vm.value = 0
+    direct_vm.sender = direct_bob
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob), merged_at="2026-10-03T10:00:00")
+    with direct_vm.expect_revert("invalid_merge_timestamp"):
+        contract.seal_contribution(mission_id, 7, 99)
+
+
+def test_malformed_compare_payload_rejected(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/mosaic.py")
+    mission_id = open_mission(contract, direct_vm, direct_alice, mission_terms)
+    direct_vm.value = 0
+    direct_vm.sender = direct_bob
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob), merge_base=[])
+    with direct_vm.expect_revert("malformed_compare_payload"):
+        contract.seal_contribution(mission_id, 7, 99)
+
+
+def test_insufficient_evidence_still_requires_wallet_proof(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie, mission_terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/mosaic.py")
+    mission_id = open_mission(contract, direct_vm, direct_alice, mission_terms)
+    direct_vm.value = 0
+    direct_vm.sender = direct_bob
+    mock_pr(
+        direct_vm,
+        int(mission_id),
+        wallet(direct_charlie),
+        changed_files=31,
+    )
+    with direct_vm.expect_revert("proof_marker_mismatch"):
+        contract.seal_contribution(mission_id, 7, 99)
+    mission = json.loads(contract.get_mission(mission_id))
+    assert mission["contribution_count"] == 0
+
+
 def test_source_unavailable_is_not_low_impact(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
     set_block_time(direct_vm, "2026-10-01T10:00:00Z")
     contract = direct_deploy("contract/contracts/mosaic.py")
@@ -123,6 +235,7 @@ def test_oversized_evidence_is_explicit_and_not_retryable(direct_vm, direct_depl
             "changed_files": 31, "additions": 5000, "deletions": 1,
         })},
     )
+    mock_compare(direct_vm)
     direct_vm.mock_web(
         r"api\.github\.com/repos/acme/widget/issues/comments/99$",
         {"status": 200, "body": json.dumps({"user": {"login": "dev"}, "body": f"mosaic:{int(mission_id)}:{wallet(direct_bob)}", "issue_url": "https://api.github.com/repos/acme/widget/issues/7"})},
@@ -309,6 +422,7 @@ def test_missing_patch_evidence_is_not_semantically_judged(direct_vm, direct_dep
             "changed_files": 1, "additions": 0, "deletions": 0,
         })},
     )
+    mock_compare(direct_vm)
     direct_vm.mock_web(
         r"api\.github\.com/repos/acme/widget/issues/comments/99$",
         {"status": 200, "body": json.dumps({

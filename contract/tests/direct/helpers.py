@@ -28,8 +28,46 @@ def mock_repo_probe(vm, repo="acme/widget"):
     )
 
 
-def mock_pr(vm, mission_id, wallet, pr_number=7, comment_id=99, author="dev", merged_at="2026-10-03T10:00:00Z"):
+def mock_compare(vm, repo="acme/widget", baseline=None, merge_sha=None, status="ahead", merge_base=None):
+    baseline = baseline or ("a" * 40)
+    merge_sha = merge_sha or ("b" * 40)
+    merge_base = baseline if merge_base is None else merge_base
+    vm.mock_web(
+        rf"api\.github\.com/repos/{repo}/compare/{baseline}\.\.\.{merge_sha}$",
+        {
+            "status": 200,
+            "body": json.dumps({
+                "status": status,
+                "ahead_by": 1,
+                "merge_base_commit": (
+                    {"sha": merge_base} if isinstance(merge_base, str) else merge_base
+                ),
+            }),
+        },
+    )
+
+
+def mock_pr(
+    vm,
+    mission_id,
+    wallet,
+    pr_number=7,
+    comment_id=99,
+    author="dev",
+    merged_at="2026-10-03T10:00:00Z",
+    baseline=None,
+    merge_sha=None,
+    compare_status="ahead",
+    merge_base=None,
+    capsule=None,
+    changed_files=1,
+    issue_pr_number=None,
+):
     repo = "acme/widget"
+    baseline = baseline or ("a" * 40)
+    merge_sha = merge_sha or ("b" * 40)
+    merge_base = baseline if merge_base is None else merge_base
+    issue_pr_number = pr_number if issue_pr_number is None else issue_pr_number
     vm.mock_web(
         rf"api\.github\.com/repos/{repo}/pulls/{pr_number}$",
         {
@@ -40,8 +78,8 @@ def mock_pr(vm, mission_id, wallet, pr_number=7, comment_id=99, author="dev", me
                     "body": "Makes account changes and rejected signatures recover safely.",
                     "user": {"login": author},
                     "merged_at": merged_at,
-                    "merge_commit_sha": "b" * 40,
-                    "changed_files": 1,
+                    "merge_commit_sha": merge_sha,
+                    "changed_files": changed_files,
                     "additions": 42,
                     "deletions": 8,
                 }
@@ -56,11 +94,12 @@ def mock_pr(vm, mission_id, wallet, pr_number=7, comment_id=99, author="dev", me
                 {
                     "user": {"login": author},
                     "body": f"mosaic:{mission_id}:{wallet}",
-                    "issue_url": f"https://api.github.com/repos/{repo}/issues/{pr_number}",
+                    "issue_url": f"https://api.github.com/repos/{repo}/issues/{issue_pr_number}",
                 }
             ),
         },
     )
+    mock_compare(vm, repo, baseline, merge_sha, compare_status, merge_base)
     vm.mock_web(
         rf"api\.github\.com/repos/{repo}/pulls/{pr_number}/files\?per_page=30",
         {
@@ -81,12 +120,10 @@ def mock_pr(vm, mission_id, wallet, pr_number=7, comment_id=99, author="dev", me
     )
     vm.mock_llm(
         r"analysing one immutable merged software contribution",
-        json.dumps(
-            {
-                "summary": "Improves injected-wallet state and rejected-signature recovery.",
-                "relevance": "Directly addresses both frozen mission dimensions.",
-                "substantive_changes": ["Tracks account changes", "Recovers rejected signatures"],
-                "risk_flags": [],
-            }
-        ),
+        json.dumps(capsule or {
+            "summary": "Improves injected-wallet state and rejected-signature recovery.",
+            "relevance": "Directly addresses both frozen mission dimensions.",
+            "substantive_changes": ["Tracks account changes", "Recovers rejected signatures"],
+            "risk_flags": [],
+        }),
     )

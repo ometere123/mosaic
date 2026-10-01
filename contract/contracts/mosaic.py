@@ -30,6 +30,13 @@ MAX_PATCH_CHARS = 24000
 MAX_TOTAL_CHANGES = 2500
 MAX_SINGLE_FILE_CHANGES = 1200
 MAX_PR_BODY_CHARS = 4000
+MAX_CAPSULE_SUMMARY_CHARS = 600
+MAX_CAPSULE_RELEVANCE_CHARS = 800
+MAX_CAPSULE_CHANGES = 4
+MAX_CAPSULE_CHANGE_CHARS = 400
+MAX_CAPSULE_RISK_FLAGS = 4
+MAX_CAPSULE_RISK_CHARS = 400
+MAX_RESOLUTION_RATIONALE_CHARS = 1200
 
 MISSION_OUTCOMES = {
     "ACHIEVED",
@@ -46,7 +53,10 @@ def _now_unix() -> int:
     raw = gl.message_raw["datetime"]
     if raw.endswith("Z"):
         raw = raw[:-1] + "+00:00"
-    return int(datetime.fromisoformat(raw).timestamp())
+    parsed = datetime.fromisoformat(raw)
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise gl.vm.UserError("invalid_block_timestamp")
+    return int(parsed.timestamp())
 
 
 def _wallet(value) -> str:
@@ -119,31 +129,96 @@ def _fetch_baseline(context_json: str) -> str:
 def _fetch_pr_evidence(context_json: str) -> str:
     context = json.loads(context_json)
     repo = context["repo"]
+    baseline = context["baseline"]
     pr_number = int(context["pr_number"])
     comment_id = int(context["comment_id"])
 
     pr, reason = _read_json_url(f"https://api.github.com/repos/{repo}/pulls/{pr_number}")
     if pr is None:
         return json.dumps({"status": "SOURCE_UNAVAILABLE", "reason": f"pr:{reason}"}, sort_keys=True)
+    if not isinstance(pr, dict):
+        return json.dumps({"status": "INVALID", "reason": "malformed_pr_payload"}, sort_keys=True)
 
     comment, reason = _read_json_url(
         f"https://api.github.com/repos/{repo}/issues/comments/{comment_id}"
     )
     if comment is None:
         return json.dumps({"status": "SOURCE_UNAVAILABLE", "reason": f"comment:{reason}"}, sort_keys=True)
+    if not isinstance(comment, dict):
+        return json.dumps({"status": "INVALID", "reason": "malformed_comment_payload"}, sort_keys=True)
 
-    changed_files = int(pr.get("changed_files") or 0)
+    merge_sha = str(pr.get("merge_commit_sha") or "").lower()
+    if _sha_ok(merge_sha):
+        comparison, reason = _read_json_url(
+            f"https://api.github.com/repos/{repo}/compare/{baseline}...{merge_sha}"
+        )
+        if comparison is None:
+            return json.dumps(
+                {"status": "SOURCE_UNAVAILABLE", "reason": f"compare:{reason}"},
+                sort_keys=True,
+            )
+        if not isinstance(comparison, dict):
+            return json.dumps(
+                {"status": "INVALID", "reason": "malformed_compare_payload"},
+                sort_keys=True,
+            )
+        comparison_status = str(comparison.get("status") or "").lower()
+        merge_base = comparison.get("merge_base_commit")
+        if not isinstance(merge_base, dict):
+            return json.dumps(
+                {"status": "INVALID", "reason": "malformed_compare_payload"},
+                sort_keys=True,
+            )
+        merge_base_sha = str(merge_base.get("sha") or "").lower()
+        if comparison_status not in {"ahead", "identical"} or merge_base_sha != baseline:
+            return json.dumps(
+                {"status": "INVALID", "reason": "merge_not_descended_from_baseline"},
+                sort_keys=True,
+            )
+
+    pr_user = pr.get("user")
+    comment_user = comment.get("user")
+    author = str((pr_user.get("login") if isinstance(pr_user, dict) else "") or "").lower()
+    commenter = str((comment_user.get("login") if isinstance(comment_user, dict) else "") or "").lower()
+    issue_url = str(comment.get("issue_url") or "")
+    body = str(pr.get("body") or "")
+    body_was_truncated = len(body) > MAX_PR_BODY_CHARS
+    if body_was_truncated:
+        body = body[:MAX_PR_BODY_CHARS]
+
+    base_evidence = {
+        "repo": repo,
+        "pr_number": pr_number,
+        "title": str(pr.get("title") or ""),
+        "body": body,
+        "body_truncated": body_was_truncated,
+        "author": author,
+        "merged_at": str(pr.get("merged_at") or ""),
+        "merge_sha": merge_sha,
+        "comment_author": commenter,
+        "comment_body": str(comment.get("body") or "").strip(),
+        "comment_issue_url": issue_url,
+    }
+
+    def finish(status: str, reason_text: str = "", extra=None) -> str:
+        result = dict(base_evidence)
+        result["status"] = status
+        if reason_text:
+            result["reason"] = reason_text
+        if isinstance(extra, dict):
+            result.update(extra)
+        canonical = json.dumps(result, sort_keys=True, separators=(",", ":"))
+        result["evidence_digest"] = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+        return json.dumps(result, sort_keys=True)
+
+    try:
+        changed_files = int(pr.get("changed_files") or 0)
+    except Exception:
+        return finish("INSUFFICIENT_EVIDENCE", "invalid_changed_files")
     if changed_files < 0:
         changed_files = 0
     if changed_files > MAX_CHANGED_FILES:
-        return json.dumps(
-            {
-                "status": "INSUFFICIENT_EVIDENCE",
-                "reason": "too_many_changed_files",
-                "changed_files": changed_files,
-            },
-            sort_keys=True,
-        )
+        return finish("INSUFFICIENT_EVIDENCE", "too_many_changed_files", {"changed_files": changed_files})
 
     files, reason = _read_json_url(
         f"https://api.github.com/repos/{repo}/pulls/{pr_number}/files?per_page={MAX_CHANGED_FILES}"
@@ -151,16 +226,12 @@ def _fetch_pr_evidence(context_json: str) -> str:
     if files is None:
         return json.dumps({"status": "SOURCE_UNAVAILABLE", "reason": f"files:{reason}"}, sort_keys=True)
     if not isinstance(files, list):
-        return json.dumps({"status": "INSUFFICIENT_EVIDENCE", "reason": "files_not_list"}, sort_keys=True)
+        return finish("INSUFFICIENT_EVIDENCE", "files_not_list")
     if len(files) != changed_files:
-        return json.dumps(
-            {
-                "status": "INSUFFICIENT_EVIDENCE",
-                "reason": "incomplete_files_page",
-                "expected": changed_files,
-                "received": len(files),
-            },
-            sort_keys=True,
+        return finish(
+            "INSUFFICIENT_EVIDENCE",
+            "incomplete_files_page",
+            {"expected": changed_files, "received": len(files)},
         )
 
     normalized_files = []
@@ -168,19 +239,27 @@ def _fetch_pr_evidence(context_json: str) -> str:
     total_changes = 0
     missing_patch = 0
     for item in files:
+        if not isinstance(item, dict):
+            return finish("INSUFFICIENT_EVIDENCE", "malformed_file_payload")
         patch = item.get("patch")
         if patch is None:
             patch = ""
             missing_patch += 1
         else:
             patch = str(patch)
-        additions = int(item.get("additions") or 0)
-        deletions = int(item.get("deletions") or 0)
-        changes = int(item.get("changes") or 0)
+        try:
+            additions = int(item.get("additions") or 0)
+            deletions = int(item.get("deletions") or 0)
+            changes = int(item.get("changes") or 0)
+        except Exception:
+            return finish("INSUFFICIENT_EVIDENCE", "invalid_file_counts")
+        if additions < 0 or deletions < 0 or changes < 0:
+            return finish("INSUFFICIENT_EVIDENCE", "invalid_file_counts")
         if changes > MAX_SINGLE_FILE_CHANGES:
-            return json.dumps(
-                {"status": "INSUFFICIENT_EVIDENCE", "reason": "single_file_change_budget_exceeded", "changes": changes},
-                sort_keys=True,
+            return finish(
+                "INSUFFICIENT_EVIDENCE",
+                "single_file_change_budget_exceeded",
+                {"changes": changes},
             )
         total_changes += changes
         patch_chars += len(patch)
@@ -196,55 +275,32 @@ def _fetch_pr_evidence(context_json: str) -> str:
         )
 
     if total_changes > MAX_TOTAL_CHANGES:
-        return json.dumps(
-            {"status": "INSUFFICIENT_EVIDENCE", "reason": "total_change_budget_exceeded", "changes": total_changes},
-            sort_keys=True,
-        )
+        return finish("INSUFFICIENT_EVIDENCE", "total_change_budget_exceeded", {"changes": total_changes})
     if patch_chars > MAX_PATCH_CHARS:
-        return json.dumps(
-            {
-                "status": "INSUFFICIENT_EVIDENCE",
-                "reason": "patch_budget_exceeded",
-                "patch_chars": patch_chars,
-            },
-            sort_keys=True,
-        )
+        return finish("INSUFFICIENT_EVIDENCE", "patch_budget_exceeded", {"patch_chars": patch_chars})
     if missing_patch > 0:
-        return json.dumps(
-            {
-                "status": "INSUFFICIENT_EVIDENCE",
-                "reason": "missing_patch_evidence",
-                "missing_patch_files": missing_patch,
-            },
-            sort_keys=True,
+        return finish(
+            "INSUFFICIENT_EVIDENCE",
+            "missing_patch_evidence",
+            {"missing_patch_files": missing_patch},
         )
 
-    author = str(((pr.get("user") or {}).get("login") or "")).lower()
-    commenter = str(((comment.get("user") or {}).get("login") or "")).lower()
-    issue_url = str(comment.get("issue_url") or "")
-    body = str(pr.get("body") or "")
-    body_was_truncated = len(body) > MAX_PR_BODY_CHARS
-    if body_was_truncated:
-        body = body[:MAX_PR_BODY_CHARS]
+    try:
+        additions = int(pr.get("additions") or 0)
+        deletions = int(pr.get("deletions") or 0)
+    except Exception:
+        return finish("INSUFFICIENT_EVIDENCE", "invalid_pr_counts")
+    if additions < 0 or deletions < 0:
+        return finish("INSUFFICIENT_EVIDENCE", "invalid_pr_counts")
 
-    evidence = {
+    evidence = dict(base_evidence)
+    evidence.update({
         "status": "OK",
-        "repo": repo,
-        "pr_number": pr_number,
-        "title": str(pr.get("title") or ""),
-        "body": body,
-        "body_truncated": body_was_truncated,
-        "author": author,
-        "merged_at": str(pr.get("merged_at") or ""),
-        "merge_sha": str(pr.get("merge_commit_sha") or "").lower(),
         "changed_files": changed_files,
-        "additions": int(pr.get("additions") or 0),
-        "deletions": int(pr.get("deletions") or 0),
-        "comment_author": commenter,
-        "comment_body": str(comment.get("body") or "").strip(),
-        "comment_issue_url": issue_url,
+        "additions": additions,
+        "deletions": deletions,
         "files": normalized_files,
-    }
+    })
     canonical = json.dumps(evidence, sort_keys=True, separators=(",", ":"))
     evidence["evidence_digest"] = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
     return json.dumps(evidence, sort_keys=True)
@@ -383,7 +439,9 @@ class Mosaic(gl.Contract):
             raise gl.vm.UserError("invalid_criteria_count")
         cleaned_criteria = []
         for item in criteria:
-            value = str(item).strip()
+            if not isinstance(item, str):
+                raise gl.vm.UserError("invalid_criterion")
+            value = item.strip()
             if not value or len(value) > MAX_CRITERION_CHARS:
                 raise gl.vm.UserError("invalid_criterion")
             cleaned_criteria.append(value)
@@ -398,7 +456,10 @@ class Mosaic(gl.Contract):
             raise gl.vm.UserError("funding_below_minimum")
 
         baseline_context = json.dumps({"repo": repo_slug, "baseline": baseline_sha}, sort_keys=True)
-        baseline_result = json.loads(gl.eq_principle.strict_eq(lambda: _fetch_baseline(baseline_context)))
+        def fetch_baseline():
+            return _fetch_baseline(baseline_context)
+
+        baseline_result = json.loads(gl.eq_principle.strict_eq(fetch_baseline))
         if baseline_result.get("status") == "SOURCE_UNAVAILABLE":
             raise gl.vm.UserError("baseline_source_unavailable")
         if baseline_result.get("status") != "OK" or baseline_result.get("sha") != baseline_sha:
@@ -475,12 +536,15 @@ class Mosaic(gl.Contract):
         caller = _wallet(gl.message.sender_address)
         context = {
             "repo": mission["repo"],
+            "baseline": mission["baseline_sha"],
             "pr_number": pr_number,
             "comment_id": proof_comment_id,
         }
-        raw = gl.eq_principle.strict_eq(
-            lambda: _fetch_pr_evidence(json.dumps(context, sort_keys=True))
-        )
+        evidence_context = json.dumps(context, sort_keys=True)
+        def fetch_evidence():
+            return _fetch_pr_evidence(evidence_context)
+
+        raw = gl.eq_principle.strict_eq(fetch_evidence)
         evidence = json.loads(raw)
         status = evidence.get("status")
         if status == "SOURCE_UNAVAILABLE":
@@ -488,30 +552,8 @@ class Mosaic(gl.Contract):
             mission["last_evidence_status"] = "SOURCE_UNAVAILABLE"
             self._save_mission(mission_id, mission)
             return "source_unavailable"
-        if status == "INSUFFICIENT_EVIDENCE":
-            self.used_prs[pr_key] = True
-            index = int(mission["contribution_count"])
-            record = {
-                "index": index,
-                "mission_id": int(mission_id),
-                "wallet": caller,
-                "pr_number": pr_number,
-                "proof_comment_id": proof_comment_id,
-                "status": "INSUFFICIENT_EVIDENCE",
-                "reason": str(evidence.get("reason") or "insufficient_evidence"),
-                "merge_sha": "",
-                "author": "",
-                "evidence_digest": "",
-                "capsule": None,
-                "sealed_at": _now_unix(),
-            }
-            self.contributions[f"{int(mission_id)}:{index}"] = json.dumps(record, sort_keys=True)
-            mission["last_evidence_status"] = "INSUFFICIENT_EVIDENCE"
-            mission["contribution_count"] = index + 1
-            self._save_mission(mission_id, mission)
-            return "insufficient_evidence"
-        if status != "OK":
-            raise gl.vm.UserError("evidence_invalid")
+        if status not in {"OK", "INSUFFICIENT_EVIDENCE"}:
+            raise gl.vm.UserError(str(evidence.get("reason") or "evidence_invalid"))
 
         author = str(evidence.get("author") or "").lower()
         commenter = str(evidence.get("comment_author") or "").lower()
@@ -523,7 +565,8 @@ class Mosaic(gl.Contract):
             raise gl.vm.UserError("proof_author_mismatch")
         if str(evidence.get("comment_body") or "").strip() != expected_marker:
             raise gl.vm.UserError("proof_marker_mismatch")
-        if not issue_url.endswith(f"/issues/{pr_number}"):
+        expected_issue_url = f"https://api.github.com/repos/{mission['repo']}/issues/{pr_number}"
+        if issue_url.lower() != expected_issue_url.lower():
             raise gl.vm.UserError("proof_comment_wrong_pull_request")
         if not _sha_ok(merge_sha):
             raise gl.vm.UserError("missing_merge_sha")
@@ -531,11 +574,36 @@ class Mosaic(gl.Contract):
             raise gl.vm.UserError("pull_request_not_merged")
         try:
             merged_dt = datetime.fromisoformat(merged_at.replace("Z", "+00:00"))
-            merged_unix = int(merged_dt.timestamp())
         except Exception:
             raise gl.vm.UserError("invalid_merge_timestamp")
+        if merged_dt.tzinfo is None or merged_dt.utcoffset() is None:
+            raise gl.vm.UserError("invalid_merge_timestamp")
+        merged_unix = int(merged_dt.timestamp())
         if merged_unix < int(mission["created_at"]) or merged_unix > int(mission["close_at"]):
             raise gl.vm.UserError("merge_outside_mission_window")
+
+        if status == "INSUFFICIENT_EVIDENCE":
+            self.used_prs[pr_key] = True
+            index = int(mission["contribution_count"])
+            record = {
+                "index": index,
+                "mission_id": int(mission_id),
+                "wallet": caller,
+                "pr_number": pr_number,
+                "proof_comment_id": proof_comment_id,
+                "status": "INSUFFICIENT_EVIDENCE",
+                "reason": str(evidence.get("reason") or "insufficient_evidence"),
+                "merge_sha": merge_sha,
+                "author": author,
+                "evidence_digest": str(evidence.get("evidence_digest") or ""),
+                "capsule": None,
+                "sealed_at": _now_unix(),
+            }
+            self.contributions[f"{int(mission_id)}:{index}"] = json.dumps(record, sort_keys=True)
+            mission["last_evidence_status"] = "INSUFFICIENT_EVIDENCE"
+            mission["contribution_count"] = index + 1
+            self._save_mission(mission_id, mission)
+            return "insufficient_evidence"
 
         capsule_context = json.dumps(
             {
@@ -545,8 +613,11 @@ class Mosaic(gl.Contract):
             },
             sort_keys=True,
         )
+        def analyse_capsule():
+            return _analyse_capsule(capsule_context)
+
         capsule_raw = gl.eq_principle.prompt_comparative(
-            lambda: _analyse_capsule(capsule_context),
+            analyse_capsule,
             principle=(
                 "Both analyses must describe the same substantive merged change and its relationship "
                 "to the frozen mission objective. Concrete change claims must be supported by the same "
@@ -557,14 +628,28 @@ class Mosaic(gl.Contract):
         capsule = _safe_json(capsule_raw)
         if not isinstance(capsule, dict):
             raise gl.vm.UserError("capsule_not_json")
-        if not str(capsule.get("summary") or "").strip():
+        summary = capsule.get("summary")
+        relevance = capsule.get("relevance")
+        changes = capsule.get("substantive_changes")
+        risks = capsule.get("risk_flags")
+        if not isinstance(summary, str) or not summary.strip() or len(summary) > MAX_CAPSULE_SUMMARY_CHARS:
             raise gl.vm.UserError("capsule_missing_summary")
-        if not str(capsule.get("relevance") or "").strip():
+        if not isinstance(relevance, str) or not relevance.strip() or len(relevance) > MAX_CAPSULE_RELEVANCE_CHARS:
             raise gl.vm.UserError("capsule_missing_relevance")
-        if not isinstance(capsule.get("substantive_changes"), list):
+        if not isinstance(changes, list) or len(changes) > MAX_CAPSULE_CHANGES:
             raise gl.vm.UserError("capsule_invalid_changes")
-        if not isinstance(capsule.get("risk_flags"), list):
+        if any(not isinstance(item, str) or not item.strip() or len(item) > MAX_CAPSULE_CHANGE_CHARS for item in changes):
+            raise gl.vm.UserError("capsule_invalid_changes")
+        if not isinstance(risks, list) or len(risks) > MAX_CAPSULE_RISK_FLAGS:
             raise gl.vm.UserError("capsule_invalid_risks")
+        if any(not isinstance(item, str) or not item.strip() or len(item) > MAX_CAPSULE_RISK_CHARS for item in risks):
+            raise gl.vm.UserError("capsule_invalid_risks")
+        capsule = {
+            "summary": summary.strip(),
+            "relevance": relevance.strip(),
+            "substantive_changes": [item.strip() for item in changes],
+            "risk_flags": [item.strip() for item in risks],
+        }
 
         contributors = list(mission["contributor_wallets"])
         if caller not in contributors:
@@ -609,7 +694,10 @@ class Mosaic(gl.Contract):
             return "settled_not_achieved"
 
         probe_context = json.dumps({"repo": mission["repo"]}, sort_keys=True)
-        probe = json.loads(gl.eq_principle.strict_eq(lambda: _probe_repository(probe_context)))
+        def probe_repository():
+            return _probe_repository(probe_context)
+
+        probe = json.loads(gl.eq_principle.strict_eq(probe_repository))
         if probe.get("status") != "OK":
             mission["resolution_attempts"] = int(mission["resolution_attempts"]) + 1
             mission["last_resolution"] = "SOURCE_UNAVAILABLE"
@@ -667,8 +755,11 @@ class Mosaic(gl.Contract):
             },
             sort_keys=True,
         )
+        def judge_mission():
+            return _judge_mission(judge_context)
+
         verdict_raw = gl.eq_principle.prompt_comparative(
-            lambda: _judge_mission(judge_context),
+            judge_mission,
             principle=(
                 "The mission_outcome must match exactly and every contributor wallet must receive the "
                 "same impact role. Rationales may be worded differently but must rely on the same sealed "
@@ -700,7 +791,10 @@ class Mosaic(gl.Contract):
 
         if outcome == "NOT_ACHIEVED" and any(ROLE_WEIGHT[role] > 0 for role in roles.values()):
             raise gl.vm.UserError("not_achieved_cannot_credit_impact")
-        rationale = str(verdict.get("rationale") or "").strip()
+        rationale = verdict.get("rationale")
+        if not isinstance(rationale, str) or not rationale.strip() or len(rationale) > MAX_RESOLUTION_RATIONALE_CHARS:
+            raise gl.vm.UserError("invalid_resolution_rationale")
+        rationale = rationale.strip()
         self._settle(mission_id, mission, outcome, roles, rationale)
         return f"settled_{outcome.lower()}"
 
