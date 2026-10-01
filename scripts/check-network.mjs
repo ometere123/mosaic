@@ -1,11 +1,21 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const root = new URL("..", import.meta.url).pathname;
+const root = fileURLToPath(new URL("..", import.meta.url));
 const targetChain = "61999";
 const targetRpc = "https://studio.genlayer.com/api";
 const targetExplorer = "https://explorer-studio.genlayer.com";
-const skip = new Set(["node_modules", ".next", ".git", "__pycache__"]);
+const skip = new Set([
+  "node_modules",
+  ".next",
+  ".git",
+  ".venv",
+  "venv",
+  "env",
+  "__pycache__",
+  ".pytest_cache",
+]);
 const findings = [];
 let sawTargetChain = false;
 let sawTargetRpc = false;
