@@ -892,7 +892,7 @@ def test_non_ancestral_contribution_is_exposed_to_terminal_causal_judgment(direc
     contract.seal_contribution(mission_id, 7, 99)
     set_block_time(direct_vm, "2026-10-06T10:00:00Z")
     direct_vm.clear_mocks()
-    mock_pr(direct_vm, int(mission_id), wallet(direct_bob))
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob), terminal_tip="d" * 40)
     direct_vm.mock_web(r"api\.github\.com/repos/acme/widget/branches/main$", {"status": 200, "body": json.dumps({"name": "main", "commit": {"sha": "d" * 40}})})
     mock_compare(direct_vm, "acme/widget", "a" * 40, "d" * 40)
     direct_vm.mock_web(r"api\.github\.com/repos/acme/widget/compare/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\.\.\.dddddddddddddddddddddddddddddddddddddddd$", {"status": 200, "body": json.dumps({"status": "behind", "merge_base_commit": {"sha": "b" * 40}})})

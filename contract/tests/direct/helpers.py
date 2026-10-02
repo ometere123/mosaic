@@ -83,6 +83,7 @@ def mock_pr(
     compare_status="ahead",
     merge_base=None,
     lineage_merge_base=None,
+    terminal_tip=None,
     capsule=None,
     changed_files=1,
     issue_pr_number=None,
@@ -143,7 +144,7 @@ def mock_pr(
     )
     vm.mock_web(
         rf"api\.github\.com/repos/{repo}/branches/{target_ref}$",
-        {"status": 200, "body": json.dumps({"name": target_ref, "commit": {"sha": merge_sha}})},
+        {"status": 200, "body": json.dumps({"name": target_ref, "commit": {"sha": terminal_tip or merge_sha}})},
     )
     vm.mock_web(
         rf"api\.github\.com/repos/{repo}/pulls/{pr_number}/files\?per_page=30",
