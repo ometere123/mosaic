@@ -147,6 +147,10 @@ def _normalise_judgment(value, expected_wallets):
         return None
     if claimant_outcome in {"NOT_ACHIEVED", "INSUFFICIENT_EVIDENCE"} and any(ROLE_WEIGHT[role] > 0 for role in roles.values()):
         return None
+    if claimant_outcome in {"ACHIEVED", "MATERIAL_PROGRESS"} and not any(ROLE_WEIGHT[role] > 0 for role in roles.values()):
+        return None
+    if not expected_wallets and claimant_outcome != "NOT_ACHIEVED":
+        return None
     return {
         "terminal_objective_status": terminal_objective_status,
         "claimant_outcome": claimant_outcome,

@@ -1052,6 +1052,41 @@ def test_zero_claimants_can_truthfully_record_terminal_success_and_refund_sponso
     assert int(contract.get_balance(wallet(direct_alice))) == 10 * WEI
 
 
+def test_zero_claimants_cannot_claim_positive_outcome(direct_vm, direct_deploy, direct_alice, mission_terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/mosaic.py")
+    mission_id = open_mission(contract, direct_vm, direct_alice, mission_terms)
+    direct_vm.value = 0
+    set_block_time(direct_vm, "2026-10-06T10:00:00Z")
+    direct_vm.clear_mocks(); mock_terminal(direct_vm)
+    direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({
+        "terminal_objective_status": "ACHIEVED",
+        "claimant_outcome": "ACHIEVED",
+        "roles": {},
+        "rationale": "There is no registered portfolio.",
+    }))
+    with direct_vm.expect_revert("invalid_resolution_judgment"):
+        contract.resolve_mission(mission_id)
+
+
+def test_positive_claimant_outcome_requires_positive_role(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/mosaic.py")
+    mission_id = open_mission(contract, direct_vm, direct_alice, mission_terms)
+    direct_vm.value = 0; direct_vm.sender = direct_bob
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob)); contract.seal_contribution(mission_id, 7, 99)
+    set_block_time(direct_vm, "2026-10-06T10:00:00Z")
+    direct_vm.clear_mocks(); mock_pr(direct_vm, int(mission_id), wallet(direct_bob))
+    direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({
+        "terminal_objective_status": "ACHIEVED",
+        "claimant_outcome": "MATERIAL_PROGRESS",
+        "roles": {wallet(direct_bob): "NO_CREDIT"},
+        "rationale": "A positive release without a creditable portfolio is invalid.",
+    }))
+    with direct_vm.expect_revert("invalid_resolution_judgment"):
+        contract.resolve_mission(mission_id)
+
+
 def test_terminal_failure_cannot_claim_claimant_achievement(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
     set_block_time(direct_vm, "2026-10-01T10:00:00Z")
     contract = direct_deploy("contract/contracts/mosaic.py")
