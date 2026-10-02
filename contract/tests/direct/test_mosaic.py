@@ -65,6 +65,17 @@ def test_open_mission_verifies_baseline_is_on_target_branch(direct_vm, direct_de
     assert json.loads(contract.get_mission(mission_id))["baseline_sha"] == "a" * 40
 
 
+def test_open_mission_rejects_target_diverged_from_baseline(direct_vm, direct_deploy, direct_alice, mission_terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/mosaic.py")
+    direct_vm.sender = direct_alice; direct_vm.value = 10 * WEI
+    direct_vm.mock_web(r"api\.github\.com/repos/acme/widget/commits/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", {"status": 200, "body": json.dumps({"sha": "a" * 40})})
+    direct_vm.mock_web(r"api\.github\.com/repos/acme/widget/branches/main$", {"status": 200, "body": json.dumps({"name": "main", "commit": {"sha": "c" * 40}})})
+    direct_vm.mock_web(r"api\.github\.com/repos/acme/widget/compare/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\.\.\.cccccccccccccccccccccccccccccccccccccccc$", {"status": 200, "body": json.dumps({"status": "diverged", "merge_base_commit": {"sha": "d" * 40}})})
+    with direct_vm.expect_revert("baseline_not_verified"):
+        contract.open_mission(mission_terms["repo"], mission_terms["target_ref"], mission_terms["baseline"], mission_terms["title"], mission_terms["objective"], json.dumps(mission_terms["criteria"]), 1791201600)
+
+
 def test_invalid_target_ref_rejected_before_source_read(direct_vm, direct_deploy, direct_alice, mission_terms):
     set_block_time(direct_vm, "2026-10-01T10:00:00Z")
     contract = direct_deploy("contract/contracts/mosaic.py")
