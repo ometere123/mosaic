@@ -126,6 +126,10 @@ def mock_pr(
     )
     mock_compare(vm, repo, baseline, merge_sha, compare_status, merge_base)
     vm.mock_web(
+        rf"api\.github\.com/repos/{repo}/compare/[0-9a-f]{{40}}\.\.\.{merge_sha}$",
+        {"status": 200, "body": json.dumps({"status": "ahead", "merge_base_commit": {"sha": merge_sha}})},
+    )
+    vm.mock_web(
         rf"api\.github\.com/repos/{repo}/branches/{target_ref}$",
         {"status": 200, "body": json.dumps({"name": target_ref, "commit": {"sha": merge_sha}})},
     )

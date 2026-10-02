@@ -538,6 +538,28 @@ def _fetch_terminal_state(context_json: str) -> str:
     return _canonical_json(state)
 
 
+def _fetch_terminal_lineage(context_json: str) -> str:
+    """Bounded ancestry proof that a sealed merge remains in the terminal history."""
+    context = json.loads(context_json)
+    repo = context["repo"]
+    merge_sha = str(context["merge_sha"]).lower()
+    terminal_tip_sha = str(context["terminal_tip_sha"]).lower()
+    if not _sha_ok(merge_sha) or not _sha_ok(terminal_tip_sha):
+        return _canonical_json({"status": "INVALID", "reason": "invalid_lineage_sha"})
+    comparison, reason = _read_json_url(
+        f"https://api.github.com/repos/{repo}/compare/{merge_sha}...{terminal_tip_sha}"
+    )
+    if comparison is None:
+        return _canonical_json({"status": "SOURCE_UNAVAILABLE", "reason": f"lineage:{reason}"})
+    if not isinstance(comparison, dict):
+        return _canonical_json({"status": "INVALID", "reason": "malformed_lineage_compare"})
+    comparison_status = str(comparison.get("status") or "").lower()
+    relationship = "IN_TERMINAL_ANCESTRY" if comparison_status in {"ahead", "identical"} else "NOT_IN_TERMINAL_ANCESTRY"
+    result = {"repo": repo, "merge_sha": merge_sha, "terminal_tip_sha": terminal_tip_sha, "relationship": relationship, "status": "OK"}
+    result["terminal_lineage_digest"] = _canonical_digest(result)
+    return _canonical_json(result)
+
+
 def _analyse_capsule(context_json: str) -> str:
     context = json.loads(context_json)
     prompt = f"""You are analysing one immutable merged software contribution for a funded engineering mission.
@@ -724,6 +746,7 @@ class Mosaic(gl.Contract):
             "settlement_digest": "",
             "mission_terms_digest": _canonical_digest({"repo": repo_slug, "target_ref": target_ref, "baseline_sha": baseline_sha, "title": title, "objective": objective, "criteria": cleaned_criteria, "close_at": close_at_unix}),
             "terminal_source_digest": "",
+            "terminal_lineage_root": "",
             "resolution_evidence_root": "",
             "ordered_contribution_root": "",
             "settlement": None,
@@ -1012,6 +1035,7 @@ class Mosaic(gl.Contract):
         portfolios = {}
         ordered_commitments = []
         ordered_records = []
+        lineage_records = []
         sealed_count = 0
         insufficient_count = 0
         for i in range(int(mission["contribution_count"])):
@@ -1052,6 +1076,21 @@ class Mosaic(gl.Contract):
                 self._save_mission(mission_id, mission)
                 return "evidence_changed"
 
+            lineage_context = _canonical_json({"repo": mission["repo"], "merge_sha": item["merge_sha"], "terminal_tip_sha": terminal["terminal_tip_sha"]})
+            def fetch_lineage():
+                return _fetch_terminal_lineage(lineage_context)
+            lineage = json.loads(gl.eq_principle.strict_eq(fetch_lineage))
+            if lineage.get("status") == "SOURCE_UNAVAILABLE":
+                mission["resolution_attempts"] = int(mission["resolution_attempts"]) + 1
+                mission["last_resolution"] = "SOURCE_UNAVAILABLE"
+                self._save_mission(mission_id, mission)
+                return "source_unavailable"
+            if lineage.get("status") != "OK" or not _digest_ok(str(lineage.get("terminal_lineage_digest") or "")):
+                mission["resolution_attempts"] = int(mission["resolution_attempts"]) + 1
+                mission["last_resolution"] = "INSUFFICIENT_EVIDENCE"
+                self._save_mission(mission_id, mission)
+                return "insufficient_evidence"
+
             capsule = item.get("capsule")
             capsule_digest = str(item.get("capsule_digest") or "")
             if not isinstance(capsule, dict) or _canonical_digest(capsule) != capsule_digest:
@@ -1079,6 +1118,7 @@ class Mosaic(gl.Contract):
             if not _digest_ok(commitment) or commitment != expected_commitment:
                 raise gl.vm.UserError("invalid_contribution_commitment")
             ordered_commitments.append({"index": i, "commitment": commitment})
+            lineage_records.append({"index": i, "commitment": commitment, "terminal_lineage_digest": lineage["terminal_lineage_digest"]})
             wallet = item["wallet"]
             if wallet not in portfolios:
                 portfolios[wallet] = []
@@ -1090,6 +1130,8 @@ class Mosaic(gl.Contract):
                     "capsule_digest": item["capsule_digest"],
                     "contribution_commitment": commitment,
                     "capsule": item["capsule"],
+                    "terminal_relationship": lineage["relationship"],
+                    "terminal_lineage_digest": lineage["terminal_lineage_digest"],
                 }
             )
 
@@ -1109,7 +1151,8 @@ class Mosaic(gl.Contract):
             }
         )
         ordered_contribution_root = _canonical_digest({"mission_id": int(mission_id), "records": ordered_records})
-        resolution_evidence_root = _canonical_digest({"mission_terms_digest": mission["mission_terms_digest"], "ordered_contribution_root": ordered_contribution_root, "terminal_source_digest": terminal["terminal_source_digest"]})
+        terminal_lineage_root = _canonical_digest({"mission_id": int(mission_id), "terminal_tip_sha": terminal["terminal_tip_sha"], "records": lineage_records})
+        resolution_evidence_root = _canonical_digest({"mission_terms_digest": mission["mission_terms_digest"], "ordered_contribution_root": ordered_contribution_root, "terminal_source_digest": terminal["terminal_source_digest"], "terminal_lineage_root": terminal_lineage_root})
 
         judge_context = json.dumps(
             {
@@ -1120,6 +1163,7 @@ class Mosaic(gl.Contract):
                 "mission_evidence_root": mission_evidence_root,
                 "resolution_evidence_root": resolution_evidence_root,
                 "ordered_contribution_root": ordered_contribution_root,
+                "terminal_lineage_root": terminal_lineage_root,
                 "terminal_state_json": _canonical_json(terminal),
                 "portfolios_json": json.dumps(
                     {
@@ -1170,6 +1214,7 @@ class Mosaic(gl.Contract):
 
         mission["mission_evidence_root"] = mission_evidence_root
         mission["terminal_source_digest"] = terminal["terminal_source_digest"]
+        mission["terminal_lineage_root"] = terminal_lineage_root
         mission["resolution_evidence_root"] = resolution_evidence_root
         mission["ordered_contribution_root"] = ordered_contribution_root
         self._settle(mission_id, mission, outcome, roles, rationale)
