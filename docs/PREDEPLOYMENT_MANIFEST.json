@@ -1,7 +1,8 @@
 {
   "status": "PREDEPLOYMENT_CANDIDATE",
-  "commit": "814852839b4efcfdac996a4b43b1f97abeed5f47",
-  "tree": "561c6bd0a64a24ca08bbf4826adfbc7368462de6",
+  "frozen_source_commit": "814852839b4efcfdac996a4b43b1f97abeed5f47",
+  "frozen_source_tree": "561c6bd0a64a24ca08bbf4826adfbc7368462de6",
+  "manifest_artifact_commit": "1e9e10e",
   "contract": {
     "path": "contract/contracts/mosaic.py",
     "canonical_sha256": "96ceea3e7d71fd2c0e36461c4b4ca0d425f10fa9c013ff09ad895b8610acf8f5",
