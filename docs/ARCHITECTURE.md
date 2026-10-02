@@ -38,6 +38,8 @@ Final resolution re-fetches every sealed PR through a dedicated immutable-only p
 
 Resolution also captures the first consensus-observed target-branch snapshot in that post-close resolution attempt: the frozen repository and target ref, terminal tip SHA, proof that tip descends from the frozen baseline, and a bounded normalized baseline-to-tip patch set. It is not represented as the exact branch state at `close_at`. A missing branch, force-push away from baseline, incomplete patch, or exceeded source budget fails closed with no GEN movement. The bounded snapshot uses two GitHub calls (branch and compare) and at most 30 changed files, 2,500 changes, and 24,000 patch characters.
 
+For each sealed contribution, resolution also makes one bounded compare request from its merge SHA to the terminal tip (at most 12 additional calls). It commits whether that merge is in terminal ancestry. A non-ancestral merge is factual causal context for the final judgment rather than a historical payout entitlement; the terminal patch and sealed capsules let the judgment distinguish reverts, supersession, independent reimplementation, and overlap. A malformed or unavailable lineage comparison fails closed.
+
 Only after that revalidation does resolution group sealed capsules by wallet. The leader and every validator independently run the mission judgment over the same committed context, including the terminal snapshot. A custom validator requires exact agreement on the mission outcome and complete normalized wallet-to-role map; rationales may differ and are non-economic. Invalid schemas, omitted or extra wallets, and validator exceptions disagree. The application never asks the browser or a server to decide payout.
 
 ## Canonical commitment chain

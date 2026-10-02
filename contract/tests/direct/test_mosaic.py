@@ -783,6 +783,26 @@ def test_terminal_force_push_away_from_baseline_blocks_settlement(direct_vm, dir
     assert json.loads(contract.get_mission(mission_id))["status"] == "OPEN"
 
 
+def test_non_ancestral_contribution_is_exposed_to_terminal_causal_judgment(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/mosaic.py")
+    mission_id = open_mission(contract, direct_vm, direct_alice, mission_terms)
+    direct_vm.value = 0
+    direct_vm.sender = direct_bob
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob))
+    contract.seal_contribution(mission_id, 7, 99)
+    set_block_time(direct_vm, "2026-10-06T10:00:00Z")
+    direct_vm.clear_mocks()
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob))
+    direct_vm.mock_web(r"api\.github\.com/repos/acme/widget/branches/main$", {"status": 200, "body": json.dumps({"name": "main", "commit": {"sha": "d" * 40}})})
+    mock_compare(direct_vm, "acme/widget", "a" * 40, "d" * 40)
+    direct_vm.mock_web(r"api\.github\.com/repos/acme/widget/compare/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\.\.\.dddddddddddddddddddddddddddddddddddddddd$", {"status": 200, "body": json.dumps({"status": "behind", "merge_base_commit": {"sha": "a" * 40}})})
+    direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({"mission_outcome": "NOT_ACHIEVED", "roles": {wallet(direct_bob): "NO_CREDIT"}, "rationale": "The historical merge is absent from terminal ancestry."}))
+    assert contract.resolve_mission(mission_id) == "settled_not_achieved"
+    mission = json.loads(contract.get_mission(mission_id))
+    assert len(mission["terminal_lineage_root"]) == 64
+
+
 def test_validator_rejects_mission_outcome_disagreement(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
     set_block_time(direct_vm, "2026-10-01T10:00:00Z")
     contract = direct_deploy("contract/contracts/mosaic.py")
