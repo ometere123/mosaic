@@ -1,6 +1,13 @@
 # Live Validation Checklist
 
-Do not mark an item complete from a unit test or screenshot. Record actual transaction hashes and observed state.
+The hardened contract and frontend are deployed. The checklist below remains the required live wallet/economic validation record; no user wallet lifecycle is claimed until its real hashes and states are recorded.
+
+## Release deployment evidence
+
+- Contract: `0x8966Da098d86D0E6D2769e59912C6EC5D951c74B`
+- Deployment transaction: `0xbc96f3d51a194d4d3fa876eafed2a31912d3e47441963e991e671d9f18796a72`
+- Frontend: https://mosaic-five-rust.vercel.app
+- Network: Studionet 61999
 
 ## Successful lifecycle
 

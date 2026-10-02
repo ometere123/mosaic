@@ -10,11 +10,16 @@ const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
 const git = (...args) => execFileSync("git", args, { cwd: root, encoding: "utf8" }).trim();
 const fail = (message) => { throw new Error(`Manifest verification failed: ${message}`); };
 
-if (manifest.status !== "PREDEPLOYMENT_CANDIDATE") fail("unexpected status");
+if (!["PREDEPLOYMENT_CANDIDATE", "DEPLOYED_RELEASE_CANDIDATE"].includes(manifest.status)) fail("unexpected status");
 if (manifest.network?.chain_id !== 61999 || manifest.network?.chain_id_hex !== "0xF22F") fail("network is not Studionet 61999");
 if (manifest.network?.rpc !== "https://studio.genlayer.com/api") fail("RPC mismatch");
 if (manifest.toolchain?.genlayer_cli !== "0.39.1" || manifest.toolchain?.genlayer_js !== "1.1.8") fail("toolchain pin mismatch");
-if (manifest.deployment?.performed !== false) fail("deployment must remain explicitly false");
+if (manifest.status === "PREDEPLOYMENT_CANDIDATE" && manifest.deployment?.performed !== false) fail("predeployment must remain explicitly undeployed");
+if (manifest.status === "DEPLOYED_RELEASE_CANDIDATE") {
+  if (manifest.deployment?.performed !== true) fail("deployed candidate must record deployment");
+  if (!/^0x[0-9a-fA-F]{40}$/.test(manifest.deployment?.contract_address ?? "")) fail("deployed address missing");
+  if (manifest.deployment?.transaction?.status !== "FINALIZED" || manifest.deployment?.transaction?.execution !== "SUCCESS") fail("deployment receipt is not final and successful");
+}
 
 const frozen = manifest.frozen_source_commit;
 if (!/^[0-9a-f]{40}$/.test(frozen)) fail("frozen source commit is not a full SHA");
@@ -28,4 +33,4 @@ if (createHash("sha256").update(currentBytes).digest("hex") !== sourceHash) fail
 const head = git("rev-parse", "HEAD");
 if (head !== git("ls-remote", "origin", "refs/heads/main").split(/\s+/)[0]) fail("local HEAD differs from origin/main");
 
-console.log(`Manifest verification passed: frozen ${frozen}, tree ${frozenTree}, contract SHA-256 ${sourceHash}, no deployment.`);
+console.log(`Manifest verification passed: frozen ${frozen}, tree ${frozenTree}, contract SHA-256 ${sourceHash}, status ${manifest.status}.`);

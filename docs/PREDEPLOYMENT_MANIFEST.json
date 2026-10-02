@@ -1,5 +1,5 @@
 {
-  "status": "PREDEPLOYMENT_CANDIDATE",
+  "status": "DEPLOYED_RELEASE_CANDIDATE",
   "frozen_source_commit": "4c969d9d0ac1bd147298f298e7fe6ed70121e7c9",
   "frozen_source_tree": "93003cb2fd069302cdce0af5d10100376d20d235",
   "contract": {
@@ -34,12 +34,12 @@
     "direct_mode": {"passed": 128, "total": 128},
     "validator_adversarial_cases": 9,
     "contract_mutation": {"unique_meaningful": 81, "killed": 81, "surviving": 0, "invalid_syntax": 0, "equivalent": 0},
-    "frontend_tests": {"passed": 117, "total": 117},
+    "frontend_tests": {"passed": 120, "total": 120},
     "frontend_mutation": {"unique_meaningful": 30, "killed": 30, "surviving": 0, "invalid_syntax": 0},
     "browser_smoke": {
       "performed": true,
       "server": "local Next.js 16.3.8 development server",
-      "routes": ["/", "/launch", "/earnings"],
+      "routes": ["/", "/missions", "/docs", "/launch", "/earnings"],
       "http_success": true,
       "home_content_rendered": true,
       "error_overlay": false,
@@ -47,11 +47,11 @@
       "non_fatal_warning": "Next.js smooth-scroll route-transition warning"
     },
     "ci": {
-      "latest_green_run": 37000880955,
-      "ubuntu_job": 110818051981,
-      "contract_mutation_job": 110818052287,
-      "windows_job": 110818052296,
-      "frontend_mutation_job": 110818052225,
+      "latest_green_run": 37009649050,
+      "ubuntu_job": 110846049480,
+      "contract_mutation_job": 110846049549,
+      "windows_job": 110846049482,
+      "frontend_mutation_job": 110846049261,
       "platform_source_sha_equal": true
     }
   },
@@ -60,12 +60,24 @@
     "Terminal and contribution evidence are intentionally bounded; oversized or incomplete evidence cannot settle.",
     "Local Windows Direct Mode can encounter GenVM temporary-file locking; Ubuntu CI is the authoritative Direct Mode execution gate.",
     "The upstream gltest.config.yaml warning remains documented because suppressing it would risk changing the pinned runtime semantics.",
-    "No hardened current-source deployment has been performed; the obsolete historical deployment is not configured."
+    "The live lifecycle and adverse wallet matrix still require real user-wallet/GitHub actions; no fabricated economic evidence is recorded."
   ],
   "deployment": {
-    "performed": false,
-    "contract_address": null,
-    "transaction": null,
-    "vercel_production": null
+    "performed": true,
+    "contract_address": "0x8966Da098d86D0E6D2769e59912C6EC5D951c74B",
+    "transaction": {
+      "hash": "0xbc96f3d51a194d4d3fa876eafed2a31912d3e47441963e991e671d9f18796a72",
+      "status": "FINALIZED",
+      "consensus": "MAJORITY_AGREE",
+      "execution": "SUCCESS"
+    },
+    "vercel_production": {
+      "project": "mosaic",
+      "project_id": "prj_YuwUxgdIrmVoKwkl9LaGQv4i2ftX",
+      "deployment_id": "dpl_8dW5b6rubUs862jZykGBYwJBtBqm",
+      "url": "https://mosaic-five-rust.vercel.app",
+      "contract_address": "0x8966Da098d86D0E6D2769e59912C6EC5D951c74B",
+      "ready": true
+    }
   }
 }
