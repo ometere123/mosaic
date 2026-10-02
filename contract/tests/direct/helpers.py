@@ -81,6 +81,7 @@ def mock_pr(
     title="fix wallet recovery",
     body="Makes account changes and rejected signatures recover safely.",
     comment_body=None,
+    patch="@@ handler @@\n+listen accountsChanged\n+recover rejected signature",
 ):
     repo = "acme/widget"
     baseline = baseline or ("a" * 40)
@@ -145,7 +146,7 @@ def mock_pr(
                         "additions": 42,
                         "deletions": 8,
                         "changes": 50,
-                        "patch": "@@ handler @@\n+listen accountsChanged\n+recover rejected signature",
+                        "patch": patch,
                     }
                 ]
             ),
