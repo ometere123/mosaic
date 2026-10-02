@@ -1,7 +1,7 @@
 {
   "status": "PREDEPLOYMENT_CANDIDATE",
   "frozen_source_commit": "4c969d9d0ac1bd147298f298e7fe6ed70121e7c9",
-  "frozen_source_tree": "561c6bd0a64a24ca08bbf4826adfbc7368462de6",
+  "frozen_source_tree": "93003cb2fd069302cdce0af5d10100376d20d235",
   "contract": {
     "path": "contract/contracts/mosaic.py",
     "canonical_sha256": "96ceea3e7d71fd2c0e36461c4b4ca0d425f10fa9c013ff09ad895b8610acf8f5",
@@ -37,10 +37,10 @@
     "frontend_tests": {"passed": 117, "total": 117},
     "frontend_mutation": {"unique_meaningful": 30, "killed": 30, "surviving": 0, "invalid_syntax": 0},
     "ci": {
-      "latest_green_run": 36997770493,
-      "ubuntu_job": 110808322844,
-      "windows_job": 110808323123,
-      "frontend_mutation_job": 110808323193,
+      "latest_green_run": 36999163497,
+      "ubuntu_job": 110812630851,
+      "windows_job": 110812631031,
+      "frontend_mutation_job": 110812631142,
       "platform_source_sha_equal": true
     }
   },

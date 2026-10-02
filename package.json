@@ -18,6 +18,7 @@
     "check:architecture": "node scripts/audit-architecture.mjs",
     "check:cli": "node scripts/check-cli-version.mjs",
     "check:integrity": "node scripts/check-integrity.mjs",
+    "check:manifest": "node scripts/check-manifest.mjs",
     "check": "npm run check:network && npm run check:architecture && npm run check:cli && npm run check:integrity && npm run contract:lint && npm run contract:test && npm run frontend:lint && npm run frontend:test && npm run frontend:build"
   },
   "devDependencies": {

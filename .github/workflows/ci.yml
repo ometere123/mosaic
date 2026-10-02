@@ -29,6 +29,8 @@ jobs:
         run: npm run check:architecture
       - name: Repository integrity
         run: npm run check:integrity
+      - name: Predeployment manifest
+        run: npm run check:manifest
       - name: Python syntax
         run: python -m py_compile contract/contracts/mosaic.py contract/tests/direct/conftest.py contract/tests/direct/helpers.py contract/tests/direct/test_mosaic.py
       - name: Pin GenVM runtime
@@ -60,7 +62,7 @@ jobs:
       - name: Install frontend dependencies
         run: npm --prefix frontend ci
       - name: Portable repository guards
-        run: npm run check:network && npm run check:architecture && npm run check:cli && npm run check:integrity
+        run: npm run check:network && npm run check:architecture && npm run check:cli && npm run check:integrity && npm run check:manifest
       - name: Frontend lint
         run: npm --prefix frontend run lint
       - name: Frontend typecheck
