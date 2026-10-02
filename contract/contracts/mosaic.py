@@ -579,6 +579,10 @@ def _fetch_terminal_lineage(context_json: str) -> str:
     if not isinstance(comparison, dict):
         return _canonical_json({"status": "INVALID", "reason": "malformed_lineage_compare"})
     comparison_status = str(comparison.get("status") or "").lower()
+    merge_base = comparison.get("merge_base_commit")
+    merge_base_sha = str(merge_base.get("sha") or "").lower() if isinstance(merge_base, dict) else ""
+    if merge_base_sha != merge_sha:
+        return _canonical_json({"status": "INVALID", "reason": "lineage_merge_base_mismatch"})
     relationship = "IN_TERMINAL_ANCESTRY" if comparison_status in {"ahead", "identical"} else "NOT_IN_TERMINAL_ANCESTRY"
     result = {"repo": repo, "merge_sha": merge_sha, "terminal_tip_sha": terminal_tip_sha, "relationship": relationship, "status": "OK"}
     result["terminal_lineage_digest"] = _canonical_digest(result)

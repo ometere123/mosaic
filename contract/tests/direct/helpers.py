@@ -137,7 +137,7 @@ def mock_pr(
     )
     mock_compare(vm, repo, baseline, merge_sha, compare_status, merge_base)
     vm.mock_web(
-        rf"api\.github\.com/repos/{repo}/compare/[0-9a-f]{{40}}\.\.\.{merge_sha}$",
+        rf"api\.github\.com/repos/{repo}/compare/{merge_sha}\.\.\.{merge_sha}$",
         {"status": 200, "body": json.dumps({"status": "ahead", "merge_base_commit": {"sha": merge_sha}})},
     )
     vm.mock_web(
@@ -170,4 +170,12 @@ def mock_pr(
             "substantive_changes": ["Tracks account changes", "Recovers rejected signatures"],
             "risk_flags": [],
         }),
+    )
+
+
+def mock_lineage(vm, repo, merge_sha, terminal_tip, *, status="ahead", merge_base=None):
+    """Register the bounded merge-to-terminal compare with its exact base identity."""
+    vm.mock_web(
+        rf"api\.github\.com/repos/{repo}/compare/{merge_sha}\.\.\.{terminal_tip}$",
+        {"status": 200, "body": json.dumps({"status": status, "merge_base_commit": {"sha": merge_base or merge_sha}})},
     )

@@ -1,7 +1,7 @@
 import hashlib
 import json
 
-from helpers import mock_baseline, mock_compare, mock_pr, mock_terminal, set_block_time
+from helpers import mock_baseline, mock_compare, mock_lineage, mock_pr, mock_terminal, set_block_time
 
 WEI = 10**18
 
@@ -483,6 +483,10 @@ def test_achieved_settlement_splits_by_roles(direct_vm, direct_deploy, direct_al
     direct_vm.clear_mocks()
     mock_pr(direct_vm, int(mission_id), wallet(direct_bob), pr_number=7, comment_id=99, author="bob")
     mock_pr(direct_vm, int(mission_id), wallet(direct_charlie), pr_number=8, comment_id=100, author="charlie")
+    mock_lineage(direct_vm, "acme/widget", "b" * 40, "0" * 39 + "8")
+    mock_lineage(direct_vm, "acme/widget", "0" * 39 + "8", "0" * 39 + "8")
+    mock_lineage(direct_vm, "acme/widget", "b" * 40, "b" * 40)
+    mock_lineage(direct_vm, "acme/widget", "0" * 39 + "8", "b" * 40)
     direct_vm.mock_llm(
         r"allocating a funded open-source engineering mission",
         json.dumps({
@@ -830,7 +834,7 @@ def test_non_ancestral_contribution_is_exposed_to_terminal_causal_judgment(direc
     mock_pr(direct_vm, int(mission_id), wallet(direct_bob))
     direct_vm.mock_web(r"api\.github\.com/repos/acme/widget/branches/main$", {"status": 200, "body": json.dumps({"name": "main", "commit": {"sha": "d" * 40}})})
     mock_compare(direct_vm, "acme/widget", "a" * 40, "d" * 40)
-    direct_vm.mock_web(r"api\.github\.com/repos/acme/widget/compare/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\.\.\.dddddddddddddddddddddddddddddddddddddddd$", {"status": 200, "body": json.dumps({"status": "behind", "merge_base_commit": {"sha": "a" * 40}})})
+    direct_vm.mock_web(r"api\.github\.com/repos/acme/widget/compare/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\.\.\.dddddddddddddddddddddddddddddddddddddddd$", {"status": 200, "body": json.dumps({"status": "behind", "merge_base_commit": {"sha": "b" * 40}})})
     direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({"terminal_objective_status": "ACHIEVED", "claimant_outcome": "NOT_ACHIEVED", "roles": {wallet(direct_bob): "NO_CREDIT"}, "rationale": "The historical merge is absent from terminal ancestry."}))
     assert contract.resolve_mission(mission_id) == "settled_not_achieved"
     mission = json.loads(contract.get_mission(mission_id))

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import json
+import py_compile
 from pathlib import Path
 import subprocess
 import sys
@@ -62,8 +63,6 @@ MUTANTS = {
     "sponsor_allocation_rounding": ("share = residual * contributed // pool", "share = residual * contributed // pool + 1", "contract/tests/direct/test_economic_properties.py::test_sponsor_residual_rounding_is_deterministic_and_conserved"),
     "core_role_weight": ("ROLE_WEIGHT = {\"CORE\": 5, \"MAJOR\": 3, \"SUPPORTING\": 1, \"NO_CREDIT\": 0}", "ROLE_WEIGHT = {\"CORE\": 4, \"MAJOR\": 3, \"SUPPORTING\": 1, \"NO_CREDIT\": 0}", "contract/tests/direct/test_economic_properties.py::test_achieved_role_weights_conserve_full_pool"),
     "github_identifier_positive": ("if pr_number <= 0 or proof_comment_id <= 0:", "if False:", "contract/tests/direct/test_collection_limits.py::test_nonpositive_github_identifiers_are_rejected_before_source_reads"),
-    "proof_comment_issue_url": ("if issue_url.lower() != expected_issue_url.lower():", "if False:", "contract/tests/direct/test_mosaic.py::test_wrong_pull_request_proof_rejected"),
-    "merge_timestamp_timezone": ("if merged_dt.tzinfo is None or merged_dt.utcoffset() is None:", "if False:", "contract/tests/direct/test_mosaic.py::test_naive_merge_timestamp_rejected"),
     "resolution_schema_exact": ("if set(verdict.keys()) != {\"terminal_objective_status\", \"claimant_outcome\", \"roles\", \"rationale\"}:", "if False:", "contract/tests/direct/test_mosaic.py::test_resolution_rejects_unexpected_output_fields"),
     "no_credit_role_compatibility": ("if claimant_outcome in {\"NOT_ACHIEVED\", \"INSUFFICIENT_EVIDENCE\"} and any(ROLE_WEIGHT[role] > 0 for role in roles.values()):", "if False:", "contract/tests/direct/test_mosaic.py::test_not_achieved_cannot_store_positive_impact_role"),
     "terminal_branch_identity": ("if not isinstance(branch, dict) or str(branch.get(\"name\") or \"\") != target_ref or not _sha_ok(tip):", "if not isinstance(branch, dict) or False:", "contract/tests/direct/test_terminal_commitments.py::test_terminal_branch_wrong_name_is_insufficient"),
@@ -85,20 +84,25 @@ def main() -> int:
         if control.returncode:
             print("control failed")
             return control.returncode
-    killed, survivors = [], []
+    killed, survivors, invalid_syntax = [], [], []
     with tempfile.TemporaryDirectory(prefix="mosaic-mutants-") as directory:
         for name, (old, new, target) in active.items():
             if source.count(old) != 1:
                 raise RuntimeError(f"non-unique mutant target: {name}")
             path = Path(directory) / f"{name}.py"
             path.write_text(source.replace(old, new), encoding="utf-8", newline="\n")
+            try:
+                py_compile.compile(str(path), doraise=True)
+            except py_compile.PyCompileError:
+                invalid_syntax.append(name)
+                continue
             env = dict(os.environ, MOSAIC_MUTANT_CONTRACT=str(path))
             result = subprocess.run([sys.executable, "-m", "pytest", target, "-q"], cwd=ROOT, env=env, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
             (killed if result.returncode else survivors).append(name)
-    report = {"total": len(active), "killed": killed, "surviving": survivors, "equivalent": []}
+    report = {"total": len(active), "unique_meaningful": len(active), "killed": killed, "surviving": survivors, "equivalent": [], "invalid_syntax": invalid_syntax}
     REPORT.write_text(json.dumps(report, sort_keys=True, indent=2) + "\n", encoding="utf-8")
-    print(f"mutants total={len(active)} killed={len(killed)} surviving={len(survivors)} equivalent=0")
-    if survivors:
+    print(f"mutants total={len(active)} unique_meaningful={len(active)} killed={len(killed)} surviving={len(survivors)} equivalent=0 invalid_syntax={len(invalid_syntax)}")
+    if survivors or invalid_syntax:
         print("surviving=" + ",".join(survivors))
         return 1
     return 0

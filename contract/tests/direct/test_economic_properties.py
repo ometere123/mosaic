@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from helpers import mock_baseline, mock_pr, set_block_time
+from helpers import mock_baseline, mock_lineage, mock_pr, set_block_time
 
 WEI = 10**18
 
@@ -30,6 +30,10 @@ def resolve_two(contract, vm, mission_id, bob, charlie, terminal, claimant, bob_
     set_block_time(vm, "2026-10-06T10:00:00Z"); vm.clear_mocks()
     mock_pr(vm, int(mission_id), wallet(bob), pr_number=7, comment_id=99, author="bob")
     mock_pr(vm, int(mission_id), wallet(charlie), pr_number=8, comment_id=100, author="charlie")
+    mock_lineage(vm, "acme/widget", "b" * 40, "0" * 39 + "8")
+    mock_lineage(vm, "acme/widget", "0" * 39 + "8", "0" * 39 + "8")
+    mock_lineage(vm, "acme/widget", "b" * 40, "b" * 40)
+    mock_lineage(vm, "acme/widget", "0" * 39 + "8", "b" * 40)
     vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({
         "terminal_objective_status": terminal,
         "claimant_outcome": claimant,
