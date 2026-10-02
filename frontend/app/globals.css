@@ -209,6 +209,21 @@ code, .mono { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monosp
 .explanation-ledger span { font-weight: 700; }
 .explanation-ledger p { margin: 0; color: var(--muted); line-height: 1.55; }
 
+.profile-summary { display: grid; grid-template-columns: 1.4fr repeat(3, 1fr); gap: 1rem; margin: 1.5rem 0 3rem; }
+.profile-summary > div, .profile-activity-card { border: 1px solid var(--line); background: var(--white); padding: 1.1rem; box-shadow: var(--shadow); }
+.profile-summary span, .profile-activity-card span { display: block; color: var(--muted); font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; }
+.profile-summary strong { display: block; margin-top: .5rem; font-size: 1.25rem; overflow-wrap: anywhere; }
+.profile-section { margin-top: 2.5rem; border-top: 1px solid var(--ink); padding-top: 1rem; }
+.profile-section > h2 { margin: 0 0 1rem; font-size: 1.35rem; }
+.profile-activity { display: grid; gap: .75rem; }
+.profile-activity-card { display: grid; gap: .35rem; }
+.profile-activity-card strong { font-size: 1rem; }
+.profile-activity-card p { margin: 0; color: var(--muted); line-height: 1.45; font-size: .8rem; }
+.profile-tx-list { display: grid; gap: .6rem; }
+.profile-tx { display: flex; justify-content: space-between; gap: 1rem; border-bottom: 1px solid var(--line); padding: .8rem 0; font-size: .8rem; }
+.profile-tx small { color: var(--muted); }
+.muted-copy { color: var(--muted); line-height: 1.55; }
+
 .activity-button { position: fixed; right: 1.1rem; bottom: 1rem; z-index: 60; border: 1px solid var(--ink); background: var(--ink); color: var(--paper); padding: .8rem 1rem; cursor: pointer; box-shadow: var(--shadow); }
 .tx-drawer { position: fixed; z-index: 55; top: 68px; right: 0; bottom: 0; width: min(470px, 100vw); background: var(--paper); border-left: 1px solid var(--ink); padding: 1.4rem; overflow-y: auto; box-shadow: -20px 0 50px rgba(0,0,0,.08); }
 .tx-drawer .drawer-heading { align-items: center; border-bottom: 1px solid var(--line); padding-bottom: 1rem; }
@@ -241,6 +256,8 @@ code, .mono { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monosp
   .nav { overflow-x: auto; justify-content: flex-start; gap: 1.5rem; }
   .nav-link { padding: .8rem 0; white-space: nowrap; }
   .entry-grid, .mission-header, .balance-ledger { grid-template-columns: 1fr; }
+  .profile-summary { grid-template-columns: 1fr 1fr; }
+  .profile-summary > div:first-child { grid-column: 1 / -1; }
   .entry-grid { gap: 2rem; }
   .entry-title { font-size: clamp(3rem, 15vw, 5.4rem); }
   .principle-strip { grid-template-columns: 1fr; }

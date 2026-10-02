@@ -1,8 +1,26 @@
 "use client";
 
 import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
+import { CONTRACT_ADDRESS } from "@/lib/deployment";
+import { getMission, getNextMissionId } from "@/lib/contract";
+import type { Mission } from "@/lib/types";
+import { MissionCard } from "@/components/mission-card";
 
 export default function HomePage() {
+  const [recent, setRecent] = useState<Mission[]>([]);
+  const [loading, setLoading] = useState(true);
+  const loadRecent = useCallback(async () => {
+    if (!CONTRACT_ADDRESS) { setLoading(false); return; }
+    try {
+      const next = await getNextMissionId();
+      const ids = Array.from({ length: Math.min(next, 2) }, (_, i) => next - 1 - i);
+      setRecent((await Promise.all(ids.map(getMission))).filter((m): m is Mission => !!m));
+    } catch { setRecent([]); }
+    finally { setLoading(false); }
+  }, []);
+  useEffect(() => { void loadRecent(); }, [loadRecent]);
+  useEffect(() => { const handler = () => void loadRecent(); window.addEventListener("mosaic:transaction-update", handler); return () => window.removeEventListener("mosaic:transaction-update", handler); }, [loadRecent]);
   return (
     <main className="page">
       <section className="entry-grid">
@@ -29,6 +47,10 @@ export default function HomePage() {
         <div><span>TERMINAL OBJECTIVE STATUS</span><strong>What the final software achieved</strong><p>The actual settlement-state target product may succeed, fail, or remain unresolved.</p></div>
         <div><span>CLAIMANT OUTCOME</span><strong>What eligible claimants caused</strong><p>Registered MOSAIC portfolios receive credit only for materially causing the surviving result.</p></div>
         <div><span>DETERMINISTIC SETTLEMENT</span><strong>Consensus decides; code allocates</strong><p>Rationale is explanatory. Roles, outcomes and payouts are bound and conserved on-chain.</p></div>
+      </section>
+      <section className="recent-section" aria-labelledby="recent-heading">
+        <div className="section-heading"><div><span className="eyebrow">Recent missions</span><h2 id="recent-heading">The latest funded outcomes.</h2></div><Link className="text-link" href="/missions">View all missions →</Link></div>
+        {loading ? <div className="loading-ledger"><span /><span /><span /></div> : recent.length === 0 ? <div className="empty-state"><h3>No missions yet.</h3><p>Be the first sponsor to define a public software outcome.</p><Link className="button" href="/launch">Launch a mission</Link></div> : <div className="mission-list">{recent.slice(0, 2).map((mission) => <MissionCard mission={mission} key={mission.id} />)}</div>}
       </section>
     </main>
   );

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import HomePage from "@/app/page";
 import DocsPage from "@/app/docs/page";
+import ProfilePage from "@/app/profile/page";
 import { AppShell } from "@/components/app-shell";
 import { Providers } from "@/components/providers";
 
@@ -13,7 +14,7 @@ describe("release information architecture", () => {
   it("renders the product homepage with both primary calls to action", () => {
     render(<HomePage />);
     expect(screen.getByRole("heading", { name: /Fund the outcome/i })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Launch a mission/i })).toHaveAttribute("href", "/launch");
+    expect(screen.getAllByRole("link", { name: "Launch a mission" })[0]).toHaveAttribute("href", "/launch");
     expect(screen.getByRole("link", { name: /Explore missions/i })).toHaveAttribute("href", "/missions");
     expect(screen.getByText("TERMINAL OBJECTIVE STATUS")).toBeInTheDocument();
     expect(screen.getByText("CLAIMANT OUTCOME")).toBeInTheDocument();
@@ -32,6 +33,12 @@ describe("release information architecture", () => {
     expect(screen.getByRole("link", { name: "Missions" })).toHaveAttribute("href", "/missions");
     expect(screen.getByRole("link", { name: "Docs" })).toHaveAttribute("href", "/docs");
     expect(screen.getByRole("link", { name: "Launch" })).toHaveAttribute("href", "/launch");
-    expect(screen.getByRole("link", { name: "Earnings" })).toHaveAttribute("href", "/earnings");
+    expect(screen.getByRole("link", { name: "Profile" })).toHaveAttribute("href", "/profile");
+  });
+
+  it("renders the wallet-centred profile distinction", () => {
+    render(<Providers><ProfilePage /></Providers>);
+    expect(screen.getByText("On-chain participation", { exact: true })).toBeInTheDocument();
+    expect(screen.getByText(/Stored locally in this browser/i)).toBeInTheDocument();
   });
 });
