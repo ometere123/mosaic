@@ -36,6 +36,16 @@
     "contract_mutation": {"unique_meaningful": 81, "killed": 81, "surviving": 0, "invalid_syntax": 0, "equivalent": 0},
     "frontend_tests": {"passed": 117, "total": 117},
     "frontend_mutation": {"unique_meaningful": 30, "killed": 30, "surviving": 0, "invalid_syntax": 0},
+    "browser_smoke": {
+      "performed": true,
+      "server": "local Next.js 16.3.8 development server",
+      "routes": ["/", "/launch", "/earnings"],
+      "http_success": true,
+      "home_content_rendered": true,
+      "error_overlay": false,
+      "console_errors_observed": [],
+      "non_fatal_warning": "Next.js smooth-scroll route-transition warning"
+    },
     "ci": {
       "latest_green_run": 37000880955,
       "ubuntu_job": 110818051981,
