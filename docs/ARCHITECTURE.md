@@ -36,7 +36,9 @@ Contribution sealing first establishes objective provenance from GitHub: exact b
 
 Final resolution re-fetches every sealed PR's immutable repository/ref/head/merge/ancestry and bounded changed-file response under `strict_eq`. Resolution proceeds only when each immutable source digest exactly reproduces its sealed digest and each capsule and contribution commitment recomputes correctly. Mutable titles, bodies, and proof-comment text are intentionally outside this revalidation veto. Immutable-source unavailability or disagreement leaves the mission open and moves no GEN; the unresolved-grace recovery remains available.
 
-Only after that revalidation does resolution group sealed capsules by wallet. The leader and every validator independently run the mission judgment over the same committed context. A custom validator requires exact agreement on the mission outcome and complete normalized wallet-to-role map; rationales may differ and are non-economic. Invalid schemas, omitted or extra wallets, and validator exceptions disagree. The application never asks the browser or a server to decide payout.
+Resolution also captures the first consensus-observed target-branch snapshot in that post-close resolution attempt: the frozen repository and target ref, terminal tip SHA, proof that tip descends from the frozen baseline, and a bounded normalized baseline-to-tip patch set. It is not represented as the exact branch state at `close_at`. A missing branch, force-push away from baseline, incomplete patch, or exceeded source budget fails closed with no GEN movement. The bounded snapshot uses two GitHub calls (branch and compare) and at most 30 changed files, 2,500 changes, and 24,000 patch characters.
+
+Only after that revalidation does resolution group sealed capsules by wallet. The leader and every validator independently run the mission judgment over the same committed context, including the terminal snapshot. A custom validator requires exact agreement on the mission outcome and complete normalized wallet-to-role map; rationales may differ and are non-economic. Invalid schemas, omitted or extra wallets, and validator exceptions disagree. The application never asks the browser or a server to decide payout.
 
 ## Canonical commitment chain
 
@@ -48,7 +50,10 @@ All commitments use UTF-8 JSON with lexicographically sorted object keys and com
 4. `capsule_digest` commits to the exact validated capsule fields.
 5. `contribution_commitment` commits to mission/repository/ref, PR and proof identifiers, author/wallet, head and merge SHAs, and all preceding digests.
 6. `mission_evidence_root` commits to the exact ordered list of sealed contribution commitments used for resolution.
-7. `settlement_digest` commits to mission ID, evidence root, outcome, exact roles, released/residual amounts, exact contributor and sponsor allocations, and settlement timestamp.
+7. `ordered_contribution_root` commits to every ordered record, including `INSUFFICIENT_EVIDENCE` records when they are reported to the judgment.
+8. `terminal_source_digest` commits to the bounded settlement-state target snapshot.
+9. `resolution_evidence_root` commits to mission terms, the complete ordered contribution root, and terminal source digest.
+10. `settlement_digest` commits to mission ID, evidence root, resolution evidence root, outcome, exact roles, released/residual amounts, exact contributor and sponsor allocations, and settlement timestamp. Expiry also commits its complete ordered contribution root so refunds retain their contribution audit trail.
 
 Changing any consequential upstream identity or allocation changes its downstream commitment. Human-readable summaries never replace immutable source identity.
 

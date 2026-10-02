@@ -42,6 +42,16 @@ def mock_compare(vm, repo="acme/widget", baseline=None, merge_sha=None, status="
                 "merge_base_commit": (
                     {"sha": merge_base} if isinstance(merge_base, str) else merge_base
                 ),
+                "files": [
+                    {
+                        "filename": "src/wallet.ts",
+                        "status": "modified",
+                        "additions": 42,
+                        "deletions": 8,
+                        "changes": 50,
+                        "patch": "@@ handler @@\n+listen accountsChanged\n+recover rejected signature",
+                    }
+                ],
             }),
         },
     )
@@ -109,6 +119,10 @@ def mock_pr(
         },
     )
     mock_compare(vm, repo, baseline, merge_sha, compare_status, merge_base)
+    vm.mock_web(
+        rf"api\.github\.com/repos/{repo}/branches/{target_ref}$",
+        {"status": 200, "body": json.dumps({"name": target_ref, "commit": {"sha": merge_sha}})},
+    )
     vm.mock_web(
         rf"api\.github\.com/repos/{repo}/pulls/{pr_number}/files\?per_page=30",
         {

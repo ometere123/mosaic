@@ -39,6 +39,9 @@ MAX_CAPSULE_CHANGE_CHARS = 400
 MAX_CAPSULE_RISK_FLAGS = 4
 MAX_CAPSULE_RISK_CHARS = 400
 MAX_RESOLUTION_RATIONALE_CHARS = 1200
+MAX_TERMINAL_FILES = 30
+MAX_TERMINAL_PATCH_CHARS = 24000
+MAX_TERMINAL_TOTAL_CHANGES = 2500
 
 MISSION_OUTCOMES = {
     "ACHIEVED",
@@ -407,6 +410,56 @@ def _fetch_pr_evidence(context_json: str) -> str:
     return json.dumps(evidence, sort_keys=True)
 
 
+def _fetch_terminal_state(context_json: str) -> str:
+    context = json.loads(context_json)
+    repo = context["repo"]
+    target_ref = context["target_ref"]
+    baseline = context["baseline"]
+    branch, reason = _read_json_url(f"https://api.github.com/repos/{repo}/branches/{quote(target_ref, safe='')}")
+    if branch is None:
+        return _canonical_json({"status": "SOURCE_UNAVAILABLE", "reason": f"branch:{reason}"})
+    commit = branch.get("commit") if isinstance(branch, dict) else None
+    tip = str(commit.get("sha") or "").lower() if isinstance(commit, dict) else ""
+    if not isinstance(branch, dict) or str(branch.get("name") or "") != target_ref or not _sha_ok(tip):
+        return _canonical_json({"status": "INVALID", "reason": "invalid_terminal_branch"})
+    comparison, reason = _read_json_url(f"https://api.github.com/repos/{repo}/compare/{baseline}...{tip}")
+    if comparison is None:
+        return _canonical_json({"status": "SOURCE_UNAVAILABLE", "reason": f"compare:{reason}"})
+    merge_base = comparison.get("merge_base_commit") if isinstance(comparison, dict) else None
+    merge_base_sha = str(merge_base.get("sha") or "").lower() if isinstance(merge_base, dict) else ""
+    if not isinstance(comparison, dict) or str(comparison.get("status") or "").lower() not in {"ahead", "identical"} or merge_base_sha != baseline:
+        return _canonical_json({"status": "INVALID", "reason": "terminal_not_descended_from_baseline"})
+    files = comparison.get("files")
+    if not isinstance(files, list):
+        return _canonical_json({"status": "INSUFFICIENT_EVIDENCE", "reason": "terminal_files_incomplete"})
+    if len(files) > MAX_TERMINAL_FILES:
+        return _canonical_json({"status": "INSUFFICIENT_EVIDENCE", "reason": "terminal_files_exceed_bound"})
+    normalized = []
+    patch_chars = 0
+    total_changes = 0
+    for item in files:
+        if not isinstance(item, dict) or item.get("patch") is None:
+            return _canonical_json({"status": "INSUFFICIENT_EVIDENCE", "reason": "terminal_patch_incomplete"})
+        try:
+            additions = int(item.get("additions") or 0)
+            deletions = int(item.get("deletions") or 0)
+            changes = int(item.get("changes") or 0)
+        except Exception:
+            return _canonical_json({"status": "INVALID", "reason": "terminal_file_counts_invalid"})
+        if additions < 0 or deletions < 0 or changes < 0:
+            return _canonical_json({"status": "INVALID", "reason": "terminal_file_counts_invalid"})
+        patch = str(item["patch"])
+        patch_chars += len(patch)
+        total_changes += changes
+        normalized.append({"filename": str(item.get("filename") or ""), "status": str(item.get("status") or ""), "additions": additions, "deletions": deletions, "changes": changes, "patch": patch})
+    if patch_chars > MAX_TERMINAL_PATCH_CHARS or total_changes > MAX_TERMINAL_TOTAL_CHANGES:
+        return _canonical_json({"status": "INSUFFICIENT_EVIDENCE", "reason": "terminal_change_budget_exceeded"})
+    state = {"repo": repo, "target_ref": target_ref, "baseline_sha": baseline, "terminal_tip_sha": tip, "files": normalized}
+    state["terminal_source_digest"] = _canonical_digest(state)
+    state["status"] = "OK"
+    return _canonical_json(state)
+
+
 def _analyse_capsule(context_json: str) -> str:
     context = json.loads(context_json)
     prompt = f"""You are analysing one immutable merged software contribution for a funded engineering mission.
@@ -452,11 +505,14 @@ ACCEPTANCE DIMENSIONS:
 BASELINE COMMIT:
 {context['baseline_sha']}
 
+SETTLEMENT-STATE TARGET SNAPSHOT:
+{context['terminal_state_json']}
+
 CONTRIBUTOR PORTFOLIOS:
 {context['portfolios_json']}
 
 The question is NOT who worked hardest and NOT who wrote the most code.
-Judge whether the eligible merged work, considered together, achieved the funded objective. Then classify each contributor wallet's combined eligible portfolio by causal/material impact on that objective.
+Judge whether the settlement-state target product achieved the funded objective, then classify each contributor wallet's sealed portfolio by causal/material impact on the surviving outcome. A historical PR that was reverted, superseded, or made ineffective in the target snapshot is not automatically creditable.
 
 Mission outcome must be exactly one of:
 - ACHIEVED: the evidence shows the funded objective was materially accomplished.
@@ -588,6 +644,10 @@ class Mosaic(gl.Contract):
             "residual_wei": "0",
             "mission_evidence_root": "",
             "settlement_digest": "",
+            "mission_terms_digest": _canonical_digest({"repo": repo_slug, "target_ref": target_ref, "baseline_sha": baseline_sha, "title": title, "objective": objective, "criteria": cleaned_criteria, "close_at": close_at_unix}),
+            "terminal_source_digest": "",
+            "resolution_evidence_root": "",
+            "ordered_contribution_root": "",
             "settlement": None,
         }
         self.missions[mission_id] = json.dumps(mission, sort_keys=True)
@@ -705,6 +765,7 @@ class Mosaic(gl.Contract):
                 "capsule": None,
                 "sealed_at": _now_unix(),
             }
+            record["record_commitment"] = _canonical_digest({key: value for key, value in record.items() if key != "sealed_at"})
             self.contributions[f"{int(mission_id)}:{index}"] = json.dumps(record, sort_keys=True)
             mission["last_evidence_status"] = "INSUFFICIENT_EVIDENCE"
             mission["contribution_count"] = index + 1
@@ -825,6 +886,7 @@ class Mosaic(gl.Contract):
             "contribution_commitment": contribution_commitment,
             "sealed_at": _now_unix(),
         }
+        record["record_commitment"] = contribution_commitment
         self.contributions[f"{int(mission_id)}:{index}"] = json.dumps(record, sort_keys=True)
         self.used_prs[pr_key] = True
         self.used_merge_shas[merge_key] = True
@@ -849,13 +911,33 @@ class Mosaic(gl.Contract):
             self._settle(mission_id, mission, "NOT_ACHIEVED", {}, "No valid contribution was sealed.")
             return "settled_not_achieved"
 
+        terminal_context = _canonical_json({"repo": mission["repo"], "target_ref": mission["target_ref"], "baseline": mission["baseline_sha"]})
+        def fetch_terminal_state():
+            return _fetch_terminal_state(terminal_context)
+        terminal = json.loads(gl.eq_principle.strict_eq(fetch_terminal_state))
+        if terminal.get("status") == "SOURCE_UNAVAILABLE":
+            mission["resolution_attempts"] = int(mission["resolution_attempts"]) + 1
+            mission["last_resolution"] = "SOURCE_UNAVAILABLE"
+            self._save_mission(mission_id, mission)
+            return "source_unavailable"
+        if terminal.get("status") != "OK":
+            mission["resolution_attempts"] = int(mission["resolution_attempts"]) + 1
+            mission["last_resolution"] = "INSUFFICIENT_EVIDENCE"
+            self._save_mission(mission_id, mission)
+            return "insufficient_evidence"
+
         portfolios = {}
         ordered_commitments = []
+        ordered_records = []
         sealed_count = 0
         insufficient_count = 0
         for i in range(int(mission["contribution_count"])):
             raw = self.contributions[f"{int(mission_id)}:{i}"]
             item = json.loads(raw)
+            record_commitment = str(item.get("record_commitment") or "")
+            if not _digest_ok(record_commitment):
+                raise gl.vm.UserError("invalid_record_commitment")
+            ordered_records.append({"index": i, "status": item.get("status"), "commitment": record_commitment})
             if item.get("status") == "INSUFFICIENT_EVIDENCE":
                 insufficient_count += 1
                 continue
@@ -944,6 +1026,8 @@ class Mosaic(gl.Contract):
                 "ordered_contributions": ordered_commitments,
             }
         )
+        ordered_contribution_root = _canonical_digest({"mission_id": int(mission_id), "records": ordered_records})
+        resolution_evidence_root = _canonical_digest({"mission_terms_digest": mission["mission_terms_digest"], "ordered_contribution_root": ordered_contribution_root, "terminal_source_digest": terminal["terminal_source_digest"]})
 
         judge_context = json.dumps(
             {
@@ -952,6 +1036,9 @@ class Mosaic(gl.Contract):
                 "criteria": mission["criteria"],
                 "baseline_sha": mission["baseline_sha"],
                 "mission_evidence_root": mission_evidence_root,
+                "resolution_evidence_root": resolution_evidence_root,
+                "ordered_contribution_root": ordered_contribution_root,
+                "terminal_state_json": _canonical_json(terminal),
                 "portfolios_json": json.dumps(
                     {
                         "portfolios": portfolios,
@@ -1000,6 +1087,9 @@ class Mosaic(gl.Contract):
             return "insufficient_evidence"
 
         mission["mission_evidence_root"] = mission_evidence_root
+        mission["terminal_source_digest"] = terminal["terminal_source_digest"]
+        mission["resolution_evidence_root"] = resolution_evidence_root
+        mission["ordered_contribution_root"] = ordered_contribution_root
         self._settle(mission_id, mission, outcome, roles, rationale)
         return f"settled_{outcome.lower()}"
 
@@ -1010,12 +1100,18 @@ class Mosaic(gl.Contract):
             raise gl.vm.UserError("mission_not_expirable")
         if _now_unix() <= int(mission["close_at"]) + UNRESOLVED_GRACE_SECONDS:
             raise gl.vm.UserError("resolution_grace_active")
+        ordered_contribution_root = self._record_root(mission_id, mission)
+        if not mission.get("ordered_contribution_root"):
+            mission["ordered_contribution_root"] = ordered_contribution_root
+        if not mission.get("mission_evidence_root"):
+            mission["mission_evidence_root"] = ordered_contribution_root
         pool = int(mission["pool_wei"])
         sponsor_allocations = self._credit_sponsor_residuals(mission_id, mission, pool)
         settled_at = _now_unix()
         settlement_digest = _canonical_digest({
             "mission_id": int(mission_id),
             "mission_evidence_root": mission.get("mission_evidence_root", ""),
+            "ordered_contribution_root": ordered_contribution_root,
             "outcome": "EXPIRED",
             "roles": {},
             "released_wei": "0",
@@ -1037,6 +1133,7 @@ class Mosaic(gl.Contract):
             "contributor_allocations": {},
             "sponsor_allocations": sponsor_allocations,
             "evidence_root": mission.get("mission_evidence_root", ""),
+            "ordered_contribution_root": ordered_contribution_root,
             "settlement_digest": settlement_digest,
             "settled_at": settled_at,
         }
@@ -1094,6 +1191,16 @@ class Mosaic(gl.Contract):
 
     def _save_mission(self, mission_id: u256, mission) -> None:
         self.missions[mission_id] = json.dumps(mission, sort_keys=True)
+
+    def _record_root(self, mission_id: u256, mission) -> str:
+        records = []
+        for index in range(int(mission["contribution_count"])):
+            item = json.loads(self.contributions[f"{int(mission_id)}:{index}"])
+            commitment = str(item.get("record_commitment") or "")
+            if not _digest_ok(commitment):
+                raise gl.vm.UserError("invalid_record_commitment")
+            records.append({"index": index, "status": item.get("status"), "commitment": commitment})
+        return _canonical_digest({"mission_id": int(mission_id), "records": records})
 
     def _require_open(self, mission) -> None:
         if mission["status"] != "OPEN":
@@ -1170,6 +1277,7 @@ class Mosaic(gl.Contract):
         settlement_digest = _canonical_digest({
             "mission_id": int(mission_id),
             "mission_evidence_root": mission.get("mission_evidence_root", ""),
+            "resolution_evidence_root": mission.get("resolution_evidence_root", ""),
             "outcome": outcome,
             "roles": roles,
             "released_wei": str(released),
@@ -1191,6 +1299,7 @@ class Mosaic(gl.Contract):
             "contributor_allocations": contributor_allocations,
             "sponsor_allocations": sponsor_allocations,
             "evidence_root": mission.get("mission_evidence_root", ""),
+            "resolution_evidence_root": mission.get("resolution_evidence_root", ""),
             "settlement_digest": settlement_digest,
             "settled_at": settled_at,
         }

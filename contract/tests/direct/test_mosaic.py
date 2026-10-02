@@ -483,7 +483,8 @@ def test_evidence_root_and_settlement_digest_are_reproducible(direct_vm, direct_
     settlement = mission["settlement"]
     expected_settlement = canonical_digest({
         "mission_id": int(mission_id),
-        "mission_evidence_root": expected_root,
+            "mission_evidence_root": expected_root,
+            "resolution_evidence_root": mission["resolution_evidence_root"],
         "outcome": "ACHIEVED",
         "roles": {wallet(direct_bob): "CORE"},
         "released_wei": str(10 * WEI),
@@ -712,6 +713,37 @@ def test_immutable_head_substitution_blocks_resolution(direct_vm, direct_deploy,
     mission = json.loads(contract.get_mission(mission_id))
     assert mission["status"] == "OPEN"
     assert mission["pool_wei"] == str(100 * WEI)
+
+
+def test_terminal_branch_unavailable_keeps_mission_open(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/mosaic.py")
+    mission_id = open_mission(contract, direct_vm, direct_alice, mission_terms)
+    direct_vm.value = 0
+    direct_vm.sender = direct_bob
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob))
+    contract.seal_contribution(mission_id, 7, 99)
+    set_block_time(direct_vm, "2026-10-06T10:00:00Z")
+    direct_vm.clear_mocks()
+    direct_vm.mock_web(r"api\.github\.com/repos/acme/widget/branches/main$", {"status": 503, "body": "{}"})
+    assert contract.resolve_mission(mission_id) == "source_unavailable"
+    assert json.loads(contract.get_mission(mission_id))["status"] == "OPEN"
+
+
+def test_terminal_force_push_away_from_baseline_blocks_settlement(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/mosaic.py")
+    mission_id = open_mission(contract, direct_vm, direct_alice, mission_terms)
+    direct_vm.value = 0
+    direct_vm.sender = direct_bob
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob))
+    contract.seal_contribution(mission_id, 7, 99)
+    set_block_time(direct_vm, "2026-10-06T10:00:00Z")
+    direct_vm.clear_mocks()
+    direct_vm.mock_web(r"api\.github\.com/repos/acme/widget/branches/main$", {"status": 200, "body": json.dumps({"name": "main", "commit": {"sha": "d" * 40}})})
+    direct_vm.mock_web(r"api\.github\.com/repos/acme/widget/compare/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\.\.\.dddddddddddddddddddddddddddddddddddddddd$", {"status": 200, "body": json.dumps({"status": "diverged", "merge_base_commit": {"sha": "e" * 40}, "files": []})})
+    assert contract.resolve_mission(mission_id) == "insufficient_evidence"
+    assert json.loads(contract.get_mission(mission_id))["status"] == "OPEN"
 
 
 def test_validator_rejects_mission_outcome_disagreement(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
