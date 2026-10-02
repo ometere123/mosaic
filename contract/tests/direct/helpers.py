@@ -57,6 +57,16 @@ def mock_compare(vm, repo="acme/widget", baseline=None, merge_sha=None, status="
     )
 
 
+def mock_terminal(vm, repo="acme/widget", target_ref="main", baseline=None, terminal_sha=None):
+    baseline = baseline or ("a" * 40)
+    terminal_sha = terminal_sha or ("d" * 40)
+    vm.mock_web(
+        rf"api\.github\.com/repos/{repo}/branches/{target_ref}$",
+        {"status": 200, "body": json.dumps({"name": target_ref, "commit": {"sha": terminal_sha}})},
+    )
+    mock_compare(vm, repo, baseline, terminal_sha)
+
+
 def mock_pr(
     vm,
     mission_id,

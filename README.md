@@ -1,6 +1,6 @@
 # MOSAIC
 
-MOSAIC funds public software outcomes and uses GenLayer consensus to decide which merged contributions materially produced those outcomes before GEN is allocated.
+MOSAIC funds public software outcomes and uses GenLayer consensus to distinguish the actual terminal product result from the result materially caused by eligible sealed contributions before GEN is allocated.
 
 A mission creator freezes a public GitHub repository, baseline commit, engineering objective, acceptance dimensions and closing time, then locks GEN. Other wallets can add funding. Contributors work normally on GitHub and bind merged pull requests to their wallets with an exact public proof comment. The Intelligent Contract independently verifies GitHub provenance, seals bounded contribution evidence through validator consensus, and later asks validators to determine the mission outcome and each contributor wallet's impact role.
 
@@ -10,7 +10,7 @@ The contract, not the frontend or an application server, controls all money and 
 
 `DEFINE → FUND → BUILD → PROVE → JUDGE → SPLIT → WITHDRAW`
 
-Mission outcomes:
+Claimant outcomes (the only statuses that control payout):
 
 - `ACHIEVED` releases 100% of the pool to credited contributors.
 - `MATERIAL_PROGRESS` releases 40%; the remaining 60% becomes sponsor residual balances.
@@ -61,7 +61,7 @@ There is no application backend, database, webhook relay, cron worker, server si
 - `genlayer-py`: **0.16.3**
 - `genlayer-test`: **0.29.2**
 - `genvm-linter`: **0.11.0**
-- Next.js: **16.3.2**
+- Next.js: **16.3.8**
 - React: **19.2.4**
 
 The repository root pins the CLI as a dev dependency. Use `npm run genlayer -- ...` or `npx --no-install genlayer ...` after installation. Do not use a globally installed CLI.
@@ -215,7 +215,7 @@ Deployment has intentionally not been fabricated in this source package. Before 
 ## Known limitations
 
 - Public GitHub API availability and anonymous rate limits can delay evidence processing.
-- The first release intentionally bounds missions to 12 contribution records and 8 contributor wallets.
+- MOSAIC supports focused, bounded engineering missions, including focused work inside large repositories: up to 12 contribution records and 8 contributor wallets per mission. It does not claim to adjudicate arbitrary whole-repository transformations beyond the evidence bounds.
 - Pull requests beyond the evidence budget are marked insufficient rather than partially judged.
 - Initial attribution binds a wallet to the PR author's GitHub account; multi-author allocation is not attempted.
 - Semantic consensus is judgment, not mathematical proof. Poorly written mission objectives can still produce ambiguous outcomes.

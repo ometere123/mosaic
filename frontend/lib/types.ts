@@ -10,7 +10,8 @@ export type MissionOutcome =
 export type ImpactRole = "CORE" | "MAJOR" | "SUPPORTING" | "NO_CREDIT";
 
 export type Settlement = {
-  outcome: MissionOutcome;
+  terminal_objective_status: MissionOutcome;
+  claimant_outcome: MissionOutcome;
   roles: Record<string, ImpactRole>;
   rationale: string;
   contributor_allocations: Record<string, string>;
@@ -39,6 +40,8 @@ export type Mission = {
   contribution_count: number;
   resolution_attempts: number;
   last_resolution: MissionOutcome;
+  terminal_objective_status: MissionOutcome;
+  claimant_outcome: MissionOutcome;
   evidence_failures: number;
   last_evidence_status: string;
   released_wei: string;
