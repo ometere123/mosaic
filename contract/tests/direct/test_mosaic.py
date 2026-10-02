@@ -855,6 +855,42 @@ def test_validator_rejects_mission_outcome_disagreement(direct_vm, direct_deploy
     assert direct_vm.run_validator() is False
 
 
+def test_validator_rejects_terminal_status_only_disagreement(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/mosaic.py")
+    mission_id = open_mission(contract, direct_vm, direct_alice, mission_terms)
+    direct_vm.value = 0; direct_vm.sender = direct_bob
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob)); contract.seal_contribution(mission_id, 7, 99)
+    set_block_time(direct_vm, "2026-10-06T10:00:00Z"); direct_vm.clear_mocks(); mock_pr(direct_vm, int(mission_id), wallet(direct_bob))
+    direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({"terminal_objective_status": "ACHIEVED", "claimant_outcome": "MATERIAL_PROGRESS", "roles": {wallet(direct_bob): "SUPPORTING"}, "rationale": "Leader."})); contract.resolve_mission(mission_id)
+    direct_vm.clear_mocks(); direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({"terminal_objective_status": "MATERIAL_PROGRESS", "claimant_outcome": "MATERIAL_PROGRESS", "roles": {wallet(direct_bob): "SUPPORTING"}, "rationale": "Validator."}))
+    assert direct_vm.run_validator() is False
+
+
+def test_validator_rejects_claimant_outcome_only_disagreement(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/mosaic.py")
+    mission_id = open_mission(contract, direct_vm, direct_alice, mission_terms)
+    direct_vm.value = 0; direct_vm.sender = direct_bob
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob)); contract.seal_contribution(mission_id, 7, 99)
+    set_block_time(direct_vm, "2026-10-06T10:00:00Z"); direct_vm.clear_mocks(); mock_pr(direct_vm, int(mission_id), wallet(direct_bob))
+    direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({"terminal_objective_status": "ACHIEVED", "claimant_outcome": "ACHIEVED", "roles": {wallet(direct_bob): "CORE"}, "rationale": "Leader."})); contract.resolve_mission(mission_id)
+    direct_vm.clear_mocks(); direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({"terminal_objective_status": "ACHIEVED", "claimant_outcome": "MATERIAL_PROGRESS", "roles": {wallet(direct_bob): "CORE"}, "rationale": "Validator."}))
+    assert direct_vm.run_validator() is False
+
+
+def test_validator_rejects_incompatible_dual_status_schema(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/mosaic.py")
+    mission_id = open_mission(contract, direct_vm, direct_alice, mission_terms)
+    direct_vm.value = 0; direct_vm.sender = direct_bob
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob)); contract.seal_contribution(mission_id, 7, 99)
+    set_block_time(direct_vm, "2026-10-06T10:00:00Z"); direct_vm.clear_mocks(); mock_pr(direct_vm, int(mission_id), wallet(direct_bob))
+    direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({"terminal_objective_status": "ACHIEVED", "claimant_outcome": "ACHIEVED", "roles": {wallet(direct_bob): "CORE"}, "rationale": "Leader."})); contract.resolve_mission(mission_id)
+    direct_vm.clear_mocks(); direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({"terminal_objective_status": "NOT_ACHIEVED", "claimant_outcome": "ACHIEVED", "roles": {wallet(direct_bob): "CORE"}, "rationale": "Invalid validator result."}))
+    assert direct_vm.run_validator() is False
+
+
 def test_validator_rejects_role_map_disagreement(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
     set_block_time(direct_vm, "2026-10-01T10:00:00Z")
     contract = direct_deploy("contract/contracts/mosaic.py")
