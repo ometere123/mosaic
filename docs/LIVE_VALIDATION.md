@@ -9,6 +9,20 @@ The hardened contract and frontend are deployed. The checklist below remains the
 - Frontend: https://mosaic-five-rust.vercel.app
 - Network: Studionet 61999
 
+## Launch transaction observed
+
+The first production validation mission was created on-chain from the injected wallet:
+
+- Mission ID: `1`
+- State: `OPEN`
+- Repository / target ref: `ometere123/mosaic` / `main`
+- Baseline: `12ef178f0c2bced6e43f710c344b763cbaaf7768`
+- Pool: `1 GEN` (`1000000000000000000` wei)
+- Launch transaction: [`0x5bbc95e81288a5e943671495ea501720eeae286a7078f5d8b214d9802ce17acb`](https://explorer-studio.genlayer.com/tx/0x5bbc95e81288a5e943671495ea501720eeae286a7078f5d8b214d9802ce17acb)
+- Receipt: `FINALIZED`, consensus `MAJORITY_AGREE`, leader execution `SUCCESS`
+
+The authoritative `get_mission(1)` read confirms the funded pool and immutable mission terms. No contribution, settlement, or withdrawal is claimed yet.
+
 ## Successful lifecycle
 
 1. Open the deployed frontend.
@@ -55,9 +69,9 @@ Verify desktop and narrow/mobile widths:
 
 ## External action required
 
-The release environment currently has no usable injected-wallet browser session. To finish live validation, a human must use an injected EIP-1193 wallet on Studionet 61999 and a GitHub account that can create and merge a bounded public PR. The required evidence is:
+The injected-wallet browser session has completed the sponsor launch. To finish live validation, a human must use the same wallet session and a GitHub account that can create and merge a bounded public PR. The remaining required evidence is:
 
-1. approve sponsor launch and funding transactions;
+1. optionally approve an additional sponsor-funding transaction;
 2. create and merge the bounded PR, post the exact wallet marker, and approve sealing;
 3. approve resolution and withdrawals;
 4. provide the resulting transaction hashes, mission ID, explorer links, and observed terminal/claimant outcomes.
