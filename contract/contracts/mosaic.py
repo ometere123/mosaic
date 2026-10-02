@@ -746,7 +746,9 @@ class Mosaic(gl.Contract):
             "settlement_digest": "",
             "mission_terms_digest": _canonical_digest({"repo": repo_slug, "target_ref": target_ref, "baseline_sha": baseline_sha, "title": title, "objective": objective, "criteria": cleaned_criteria, "close_at": close_at_unix}),
             "terminal_source_digest": "",
+            "terminal_tip_sha": "",
             "terminal_lineage_root": "",
+            "terminal_lineage_records": [],
             "resolution_evidence_root": "",
             "ordered_contribution_root": "",
             "settlement": None,
@@ -1214,7 +1216,9 @@ class Mosaic(gl.Contract):
 
         mission["mission_evidence_root"] = mission_evidence_root
         mission["terminal_source_digest"] = terminal["terminal_source_digest"]
+        mission["terminal_tip_sha"] = terminal["terminal_tip_sha"]
         mission["terminal_lineage_root"] = terminal_lineage_root
+        mission["terminal_lineage_records"] = lineage_records
         mission["resolution_evidence_root"] = resolution_evidence_root
         mission["ordered_contribution_root"] = ordered_contribution_root
         self._settle(mission_id, mission, outcome, roles, rationale)

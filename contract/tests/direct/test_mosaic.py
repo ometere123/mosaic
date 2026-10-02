@@ -801,6 +801,7 @@ def test_non_ancestral_contribution_is_exposed_to_terminal_causal_judgment(direc
     assert contract.resolve_mission(mission_id) == "settled_not_achieved"
     mission = json.loads(contract.get_mission(mission_id))
     assert len(mission["terminal_lineage_root"]) == 64
+    assert mission["terminal_lineage_root"] == canonical_digest({"mission_id": int(mission_id), "terminal_tip_sha": mission["terminal_tip_sha"], "records": mission["terminal_lineage_records"]})
 
 
 def test_validator_rejects_mission_outcome_disagreement(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
