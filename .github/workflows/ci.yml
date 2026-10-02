@@ -37,6 +37,8 @@ jobs:
         run: genvm-lint check contract/contracts/mosaic.py
       - name: Direct Mode
         run: python -m pytest contract/tests/direct -q
+      - name: Contract mutation control
+        run: python contract/tests/mutation/run.py
       - name: Frontend lint
         run: npm --prefix frontend run lint
       - name: Frontend typecheck

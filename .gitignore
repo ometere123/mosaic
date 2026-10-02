@@ -2,6 +2,7 @@ node_modules/
 frontend/node_modules/
 frontend/.next/
 *.tsbuildinfo
+contract/tests/mutation/latest-report.json
 frontend/out/
 .env*
 !.env.example

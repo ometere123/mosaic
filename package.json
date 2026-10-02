@@ -11,6 +11,7 @@
     "frontend:test": "npm --prefix frontend run test",
     "frontend:typecheck": "npx --prefix frontend tsc -p frontend/tsconfig.json --noEmit",
     "contract:test": "python -m pytest contract/tests/direct -q",
+    "contract:mutation": "python contract/tests/mutation/run.py",
     "contract:lint": "genvm-lint check contract/contracts/mosaic.py",
     "check:network": "node scripts/check-network.mjs",
     "check:architecture": "node scripts/audit-architecture.mjs",

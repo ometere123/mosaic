@@ -1,4 +1,5 @@
 import pytest
+import os
 from pathlib import Path
 
 from gltest.direct.loader import deploy_contract
@@ -11,6 +12,7 @@ GENVM_DIRECT_VERSION = "v0.2.12"
 def direct_deploy(direct_vm):
     """Deploy every test against the project's pinned stable GenVM runtime."""
     def _deploy(contract_path, *args, **kwargs):
+        contract_path = os.environ.get("MOSAIC_MUTANT_CONTRACT", contract_path)
         return deploy_contract(
             Path(contract_path).resolve(),
             direct_vm,
