@@ -101,10 +101,9 @@ def test_lineage_requires_sealed_merge_as_merge_base(direct_vm, direct_deploy, d
     contract.seal_contribution(mission_id, 7, 99)
     set_block_time(direct_vm, "2026-10-06T10:00:00Z")
     direct_vm.clear_mocks()
-    mock_pr(direct_vm, int(mission_id), wallet(direct_bob))
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob), lineage_merge_base="c" * 40)
     direct_vm.mock_web(r"api\.github\.com/repos/acme/widget/branches/main$", {"status": 200, "body": json.dumps({"name": "main", "commit": {"sha": "d" * 40}})})
     mock_compare(direct_vm, "acme/widget", "a" * 40, "d" * 40)
-    mock_lineage(direct_vm, "acme/widget", "b" * 40, "d" * 40, merge_base="c" * 40)
     assert contract.resolve_mission(mission_id) == "insufficient_evidence"
 
 

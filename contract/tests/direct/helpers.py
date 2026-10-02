@@ -82,6 +82,7 @@ def mock_pr(
     merge_sha=None,
     compare_status="ahead",
     merge_base=None,
+    lineage_merge_base=None,
     capsule=None,
     changed_files=1,
     issue_pr_number=None,
@@ -138,7 +139,7 @@ def mock_pr(
     mock_compare(vm, repo, baseline, merge_sha, compare_status, merge_base)
     vm.mock_web(
         rf"api\.github\.com/repos/{repo}/compare/{merge_sha}\.\.\.{merge_sha}$",
-        {"status": 200, "body": json.dumps({"status": "ahead", "merge_base_commit": {"sha": merge_sha}})},
+        {"status": 200, "body": json.dumps({"status": "ahead", "merge_base_commit": {"sha": lineage_merge_base or merge_sha}})},
     )
     vm.mock_web(
         rf"api\.github\.com/repos/{repo}/branches/{target_ref}$",
