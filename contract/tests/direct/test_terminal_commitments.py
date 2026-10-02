@@ -1,9 +1,25 @@
 import hashlib
 import json
 
-from helpers import mock_compare, mock_pr, set_block_time
+from helpers import mock_baseline, mock_compare, mock_pr, set_block_time
 
 WEI = 10**18
+
+
+def wallet(addr):
+    if isinstance(addr, bytes):
+        return "0x" + addr.hex()
+    return addr.as_hex.lower() if hasattr(addr, "as_hex") else str(addr).lower()
+
+
+def open_mission(contract, vm, sender, mission_terms, funding=100 * WEI):
+    vm.sender = sender
+    vm.value = funding
+    mock_baseline(vm, mission_terms["repo"], mission_terms["baseline"], mission_terms["target_ref"])
+    return contract.open_mission(
+        mission_terms["repo"], mission_terms["target_ref"], mission_terms["baseline"],
+        mission_terms["title"], mission_terms["objective"], json.dumps(mission_terms["criteria"]), 1791201600,
+    )
 
 
 def canonical_digest(value):
@@ -73,6 +89,23 @@ def test_terminal_compare_outage_is_retryable_source_unavailable(direct_vm, dire
     direct_vm.mock_web(r"api\.github\.com/repos/acme/widget/branches/main$", {"status": 200, "body": json.dumps({"name": "main", "commit": {"sha": "d" * 40}})})
     direct_vm.mock_web(r"api\.github\.com/repos/acme/widget/compare/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\.\.\.dddddddddddddddddddddddddddddddddddddddd$", {"status": 503, "body": "{}"})
     assert contract.resolve_mission(mission_id) == "source_unavailable"
+
+
+def test_lineage_requires_sealed_merge_as_merge_base(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/mosaic.py")
+    mission_id = open_mission(contract, direct_vm, direct_alice, mission_terms)
+    direct_vm.value = 0
+    direct_vm.sender = direct_bob
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob))
+    contract.seal_contribution(mission_id, 7, 99)
+    set_block_time(direct_vm, "2026-10-06T10:00:00Z")
+    direct_vm.clear_mocks()
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob))
+    direct_vm.mock_web(r"api\.github\.com/repos/acme/widget/branches/main$", {"status": 200, "body": json.dumps({"name": "main", "commit": {"sha": "d" * 40}})})
+    mock_compare(direct_vm, "acme/widget", "a" * 40, "d" * 40)
+    direct_vm.mock_web(r"api\.github\.com/repos/acme/widget/compare/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\.\.\.dddddddddddddddddddddddddddddddddddddddd$", {"status": 200, "body": json.dumps({"status": "ahead", "merge_base_commit": {"sha": "c" * 40}})})
+    assert contract.resolve_mission(mission_id) == "insufficient_evidence"
 
 
 def test_terminal_missing_files_is_insufficient(direct_vm, direct_deploy, direct_alice, mission_terms):
