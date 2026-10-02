@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useMission } from "@/hooks/use-mission";
 import { useWallet } from "@/hooks/use-wallet";
 import { useTransactions } from "@/hooks/use-transactions";
-import { previewPullRequest, type PullPreview } from "@/lib/github";
+import { findProofComments, previewPullRequest, type ProofComment, type PullPreview } from "@/lib/github";
 import { sealContribution } from "@/lib/contract";
 import { ensureStudionet } from "@/lib/eip1193";
 import { shortHex } from "@/lib/format";
@@ -21,17 +21,31 @@ export default function ContributionPage() {
   const [commentId, setCommentId] = useState("");
   const [preview, setPreview] = useState<PullPreview | null>(null);
   const [checking, setChecking] = useState(false);
+  const [discovering, setDiscovering] = useState(false);
+  const [matches, setMatches] = useState<ProofComment[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const marker = useMemo(() => wallet.address ? `mosaic:${id}:${wallet.address.toLowerCase()}` : `mosaic:${id}:<connect-wallet>`, [wallet.address, id]);
 
-  useEffect(() => { setPreview(null); }, [pr]);
+  useEffect(() => { setPreview(null); setMatches([]); }, [pr]);
   const check = async () => {
     if (!mission || !/^\d+$/.test(pr)) return;
     setChecking(true); setError(null);
     try { setPreview(await previewPullRequest(mission.repo, Number(pr))); }
     catch (e) { setError(e instanceof Error ? e.message : "GitHub preview failed."); }
     finally { setChecking(false); }
+  };
+  const discover = async () => {
+    if (!mission || !/^\d+$/.test(pr) || !wallet.address) { setError("Connect your wallet and enter a pull-request number first."); return; }
+    setDiscovering(true); setError(null); setMatches([]);
+    try {
+      const found = await findProofComments(mission.repo, Number(pr), marker);
+      setMatches(found);
+      if (found.length === 1) setCommentId(String(found[0].id));
+      else if (found.length === 0) setError("No exact proof marker was found. Post it on the PR, then enter the comment ID manually.");
+      else setError("Several exact proof markers were found. Choose the intended comment ID below; validators remain authoritative.");
+    } catch (e) { setError(e instanceof Error ? e.message : "GitHub comment discovery failed. You can enter the ID manually."); }
+    finally { setDiscovering(false); }
   };
 
   const submit = async (event: FormEvent) => {
@@ -60,7 +74,7 @@ export default function ContributionPage() {
       <form className="proof-flow" onSubmit={submit}>
         <section className="proof-step"><div className="step-number">01</div><div><h2>Identify the merged work</h2><p>Only PRs merged after the mission opened and before it closed are eligible.</p><div className="inline-action"><input value={pr} onChange={(e) => setPr(e.target.value)} inputMode="numeric" placeholder="Pull request number" /><button type="button" className="outline-button" onClick={() => void check()} disabled={checking}>{checking ? "Checking…" : "Preview"}</button></div>{preview && <div className="preview-panel"><div><span className="eyebrow">Non-authoritative preview</span><strong>PR #{preview.number} · {preview.title}</strong><p>@{preview.author} · {preview.mergedAt ? "merged" : "not merged"} · {preview.changedFiles} changed files</p></div>{preview.mergeSha && <span className="mono">{shortHex(preview.mergeSha, 8, 7)}</span>}</div>}</div></section>
         <section className="proof-step"><div className="step-number">02</div><div><h2>Publish the wallet marker</h2><p>Post this exact text as a normal comment on that PR from the same GitHub account that authored the PR.</p><div className="proof-marker"><code>{marker}</code><button type="button" className="text-button" onClick={() => void navigator.clipboard.writeText(marker)}>Copy</button></div><p className="small-copy">No permanent account is created. The public comment proves only this contribution-to-wallet relationship for this mission.</p></div></section>
-        <section className="proof-step"><div className="step-number">03</div><div><h2>Enter the proof comment ID</h2><p>From a GitHub comment URL ending in <span className="mono">#issuecomment-123456789</span>, enter only the numeric ID.</p><input value={commentId} onChange={(e) => setCommentId(e.target.value)} inputMode="numeric" placeholder="123456789" /></div></section>
+        <section className="proof-step"><div className="step-number">03</div><div><h2>Find or enter the proof comment ID</h2><p>Search public PR comments for the exact marker, or enter the numeric ID from a URL ending in <span className="mono">#issuecomment-123456789</span>.</p><div className="inline-action"><button type="button" className="outline-button" onClick={() => void discover()} disabled={discovering || !wallet.connected}>{discovering ? "Finding…" : "Find my proof comment"}</button><input aria-label="Proof comment ID" value={commentId} onChange={(e) => setCommentId(e.target.value)} inputMode="numeric" placeholder="123456789" /></div>{matches.map((match) => <button className="text-button" type="button" key={match.id} onClick={() => setCommentId(String(match.id))}>Use #{match.id}{match.author ? ` by @${match.author}` : ""}</button>)}</div></section>
         <section className="proof-step final"><div className="step-number">04</div><div><h2>Seal the evidence</h2><p>Validators verify author, marker, mission window, merge SHA and bounded diff evidence, then produce a consensus-sealed contribution capsule.</p>{error && <div className="notice bad"><strong>Cannot seal.</strong><span>{error}</span></div>}<button className="button large" type="submit" disabled={submitting}>{submitting ? "Awaiting wallet…" : wallet.connected ? "Seal contribution" : "Connect to continue"}</button></div></section>
       </form>
     </main>
