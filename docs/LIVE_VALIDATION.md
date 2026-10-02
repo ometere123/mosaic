@@ -52,3 +52,14 @@ Verify desktop and narrow/mobile widths:
 - final contract state reconstructed from reads;
 - correct explorer links;
 - no critical console errors.
+
+## External action required
+
+The release environment currently has no usable injected-wallet browser session. To finish live validation, a human must use an injected EIP-1193 wallet on Studionet 61999 and a GitHub account that can create and merge a bounded public PR. The required evidence is:
+
+1. approve sponsor launch and funding transactions;
+2. create and merge the bounded PR, post the exact wallet marker, and approve sealing;
+3. approve resolution and withdrawals;
+4. provide the resulting transaction hashes, mission ID, explorer links, and observed terminal/claimant outcomes.
+
+No private key, seed phrase or custodial secret should be shared. Until those actions occur, the production deployment is real but the economic lifecycle remains unverified.
