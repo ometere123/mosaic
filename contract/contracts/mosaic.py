@@ -581,10 +581,17 @@ def _fetch_terminal_lineage(context_json: str) -> str:
     comparison_status = str(comparison.get("status") or "").lower()
     merge_base = comparison.get("merge_base_commit")
     merge_base_sha = str(merge_base.get("sha") or "").lower() if isinstance(merge_base, dict) else ""
-    if merge_base_sha != merge_sha:
-        return _canonical_json({"status": "INVALID", "reason": "lineage_merge_base_mismatch"})
-    relationship = "IN_TERMINAL_ANCESTRY" if comparison_status in {"ahead", "identical"} else "NOT_IN_TERMINAL_ANCESTRY"
-    result = {"repo": repo, "merge_sha": merge_sha, "terminal_tip_sha": terminal_tip_sha, "relationship": relationship, "status": "OK"}
+    if not _sha_ok(merge_base_sha):
+        return _canonical_json({"status": "INVALID", "reason": "malformed_lineage_merge_base"})
+    if comparison_status in {"ahead", "identical"}:
+        if merge_base_sha != merge_sha:
+            return _canonical_json({"status": "INVALID", "reason": "lineage_merge_base_mismatch"})
+        relationship = "IN_TERMINAL_ANCESTRY"
+    elif comparison_status in {"behind", "diverged"}:
+        relationship = "NOT_IN_TERMINAL_ANCESTRY"
+    else:
+        return _canonical_json({"status": "INVALID", "reason": "unknown_lineage_compare_status"})
+    result = {"repo": repo, "merge_sha": merge_sha, "terminal_tip_sha": terminal_tip_sha, "comparison_status": comparison_status, "merge_base_sha": merge_base_sha, "relationship": relationship, "status": "OK"}
     result["terminal_lineage_digest"] = _canonical_digest(result)
     return _canonical_json(result)
 

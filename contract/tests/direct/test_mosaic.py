@@ -1,5 +1,6 @@
 import hashlib
 import json
+import pytest
 
 from helpers import mock_baseline, mock_compare, mock_lineage, mock_pr, mock_terminal, set_block_time
 
@@ -585,6 +586,50 @@ def test_resolution_rejects_unexpected_output_fields(direct_vm, direct_deploy, d
             "released_wei": str(100 * WEI),
         }),
     )
+    with direct_vm.expect_revert("invalid_resolution_judgment"):
+        contract.resolve_mission(mission_id)
+
+
+def test_resolution_rejects_invalid_role_enum(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/mosaic.py")
+    mission_id = open_mission(contract, direct_vm, direct_alice, mission_terms)
+    direct_vm.value = 0; direct_vm.sender = direct_bob
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob)); contract.seal_contribution(mission_id, 7, 99)
+    set_block_time(direct_vm, "2026-10-06T10:00:00Z")
+    direct_vm.clear_mocks(); mock_pr(direct_vm, int(mission_id), wallet(direct_bob))
+    direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({
+        "terminal_objective_status": "ACHIEVED", "claimant_outcome": "ACHIEVED",
+        "roles": {wallet(direct_bob): "INVALID_ROLE"}, "rationale": "invalid enum",
+    }))
+    with direct_vm.expect_revert("invalid_resolution_judgment"):
+        contract.resolve_mission(mission_id)
+
+
+@pytest.mark.parametrize("rationale", ["", "   ", "x" * 4001])
+def test_resolution_rejects_empty_whitespace_or_oversized_rationale(direct_vm, direct_deploy, direct_alice, mission_terms, rationale):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/mosaic.py")
+    mission_id = open_mission(contract, direct_vm, direct_alice, mission_terms)
+    direct_vm.value = 0; set_block_time(direct_vm, "2026-10-06T10:00:00Z"); direct_vm.clear_mocks(); mock_terminal(direct_vm)
+    direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({
+        "terminal_objective_status": "ACHIEVED", "claimant_outcome": "NOT_ACHIEVED", "roles": {}, "rationale": rationale,
+    }))
+    with direct_vm.expect_revert("invalid_resolution_judgment"):
+        contract.resolve_mission(mission_id)
+
+
+def test_resolution_rejects_consensus_agreement_on_incompatible_statuses(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/mosaic.py")
+    mission_id = open_mission(contract, direct_vm, direct_alice, mission_terms)
+    direct_vm.value = 0; direct_vm.sender = direct_bob
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob)); contract.seal_contribution(mission_id, 7, 99)
+    set_block_time(direct_vm, "2026-10-06T10:00:00Z"); direct_vm.clear_mocks(); mock_pr(direct_vm, int(mission_id), wallet(direct_bob))
+    direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({
+        "terminal_objective_status": "NOT_ACHIEVED", "claimant_outcome": "ACHIEVED",
+        "roles": {wallet(direct_bob): "CORE"}, "rationale": "incompatible",
+    }))
     with direct_vm.expect_revert("invalid_resolution_judgment"):
         contract.resolve_mission(mission_id)
 
