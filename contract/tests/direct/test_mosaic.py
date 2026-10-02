@@ -546,6 +546,11 @@ def test_evidence_root_and_settlement_digest_are_reproducible(direct_vm, direct_
         "ordered_contributions": [{"index": 0, "commitment": contribution["contribution_commitment"]}],
     })
     assert mission["mission_evidence_root"] == expected_root
+    expected_ordered_root = canonical_digest({
+        "mission_id": int(mission_id),
+        "records": [{"index": 0, "status": "SEALED", "commitment": contribution["record_commitment"]}],
+    })
+    assert mission["ordered_contribution_root"] == expected_ordered_root
     settlement = mission["settlement"]
     expected_settlement = canonical_digest({
             "mission_id": int(mission_id),
