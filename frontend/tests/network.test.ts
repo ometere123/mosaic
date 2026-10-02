@@ -18,4 +18,27 @@ describe("wallet network guard", () => {
     await ensureStudionet({ request });
     expect(request).toHaveBeenCalledWith({ method: "wallet_switchEthereumChain", params: [{ chainId: NETWORK.chainIdHex }] });
   });
+  it("adds Studionet when the wallet reports an unknown chain", async () => {
+    const calls: string[] = [];
+    const request = vi.fn(async ({ method }: { method: string }) => {
+      calls.push(method);
+      if (method === "eth_chainId") return calls.length === 1 ? "0x999" : NETWORK.chainIdHex;
+      if (method === "wallet_switchEthereumChain") throw Object.assign(new Error("unknown"), { code: 4902 });
+      return null;
+    });
+    await ensureStudionet({ request });
+    expect(request).toHaveBeenCalledWith(expect.objectContaining({ method: "wallet_addEthereumChain" }));
+  });
+  it("propagates a wallet rejection instead of hiding it", async () => {
+    const request = vi.fn(async ({ method }: { method: string }) => method === "eth_chainId" ? "0x1" : Promise.reject(Object.assign(new Error("rejected"), { code: 4001 })));
+    await expect(ensureStudionet({ request })).rejects.toThrow("rejected");
+  });
+  it("rejects when switching does not reach Studionet", async () => {
+    const request = vi.fn(async ({ method }: { method: string }) => method === "eth_chainId" ? "0x1" : null);
+    await expect(ensureStudionet({ request })).rejects.toThrow("did not switch");
+  });
+  it.each(["0xF22F", "0xf22f"]) ("reads chain response %s", async (chain) => {
+    const request = vi.fn(async () => chain);
+    await expect(ensureStudionet({ request })).resolves.toBeUndefined();
+  });
 });

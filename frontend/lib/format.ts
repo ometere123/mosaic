@@ -2,7 +2,7 @@ export const WEI = 10n ** 18n;
 
 export function genToWei(value: string): bigint {
   const trimmed = value.trim();
-  if (!/^\d+(?:\.\d{0,18})?$/.test(trimmed)) throw new Error("Enter a valid GEN amount with up to 18 decimals.");
+  if (!/^\d+(?:\.\d{1,18})?$/.test(trimmed)) throw new Error("Enter a valid GEN amount with up to 18 decimals.");
   const [whole, fraction = ""] = trimmed.split(".");
   return BigInt(whole) * WEI + BigInt((fraction + "0".repeat(18)).slice(0, 18));
 }

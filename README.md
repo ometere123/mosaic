@@ -49,6 +49,17 @@ FRONTEND
 
 There is no application backend, database, webhook relay, cron worker, server signer, server-side decision service, GitHub App or centralized AI service.
 
+Technical security and evidence documentation:
+
+- [Consensus model](docs/CONSENSUS.md)
+- [Threat model](docs/THREAT_MODEL.md)
+- [State machine](docs/STATE_MACHINE.md)
+- [Invariants](docs/INVARIANTS.md)
+- [Commitments](docs/COMMITMENTS.md)
+- [Testing and mutation](docs/TESTING.md), [mutation strategy](docs/MUTATION.md)
+- [Proof matrix](docs/PROOF_MATRIX.md)
+- [Pinned toolchain](docs/TOOLCHAIN.md)
+
 ## Network and toolchain
 
 - Network: **Studionet**

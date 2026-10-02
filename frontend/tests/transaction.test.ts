@@ -56,4 +56,39 @@ describe("transaction truthfulness", () => {
     expect(classifyTransaction({ status: 12 }, base).stage).toBe("timeout");
     expect(classifyTransaction({ status: 13 }, base).stage).toBe("timeout");
   });
+
+  it.each([
+    ["PENDING", "pending"], ["PROPOSING", "pending"], ["COMMITTING", "pending"],
+    ["REVEALING", "pending"], ["APPEAL_REVEALING", "pending"], ["APPEAL_COMMITTING", "pending"],
+    ["CANCELED", "canceled"], ["LEADER_TIMEOUT", "timeout"], ["VALIDATORS_TIMEOUT", "timeout"],
+    ["UNDETERMINED", "undetermined"],
+  ] as const)("maps status %s to a non-success stage", (status, stage) => {
+    expect(classifyTransaction({ status_name: status }, base).stage).toBe(stage);
+  });
+  it.each([
+    "REVERTED", "FAILED", "NONDET_VIOLATION", "EXECUTION_TIMEOUT", "FinishedWithError",
+  ])("never presents execution %s as success", (execution) => {
+    expect(classifyTransaction({ status_name: "FINALIZED", tx_execution_result_name: execution }, base).stage).toBe("failed");
+  });
+  it.each([
+    "FINISHED_WITH_RETURN", "FinishedWithReturn", "SUCCESS", "SUCCEEDED",
+  ])("accepts supported finalized execution %s", (execution) => {
+    expect(classifyTransaction({ status_name: "FINALIZED", tx_execution_result_name: execution }, base).stage).toBe("finalized");
+  });
+  it.each([0, 1, 2, 3, 4, 5, 8, 9, 10])("does not confuse numeric status code %s with success", (status) => {
+    expect(classifyTransaction({ status }, base).stage).not.toBe("finalized");
+  });
+  it.each([0, 99, -1])("does not infer success from unsupported execution code %s", (execution) => {
+    expect(classifyTransaction({ status: 7, txExecutionResult: execution }, base).stage).toBe("finalized_unverified");
+  });
+  it("accepts camelCase leader receipt from the pinned response shape", () => {
+    expect(classifyTransaction({ statusName: "Finalized", consensusData: { leaderReceipt: [{ executionResult: 1 }] } }, base).stage).toBe("finalized");
+  });
+  it("rejects multiple leader receipts as non-authoritative", () => {
+    expect(classifyTransaction({ status_name: "FINALIZED", consensus_data: { leader_receipt: [{ execution_result: 1 }, { execution_result: 1 }] } }, base).stage).toBe("finalized_unverified");
+  });
+  it("preserves the prior transaction identity while classifying", () => {
+    const record = { ...base, hash: "0xabc", action: "withdraw" };
+    expect(classifyTransaction({ status_name: "FINALIZED", tx_execution_result_name: "FINISHED_WITH_RETURN" }, record)).toMatchObject({ hash: "0xabc", action: "withdraw", submittedAt: 1 });
+  });
 });
