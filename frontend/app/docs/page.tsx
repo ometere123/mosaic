@@ -1,0 +1,17 @@
+import Link from "next/link";
+
+const sections = [
+  ["lifecycle", "Lifecycle", "Sponsors fund a bounded objective. Contributors build and prove merged work. Validators inspect both the terminal product and registered claimant portfolios. Deterministic contract code then splits GEN."],
+  ["settlement", "Settlement truth", "Terminal objective status describes what the final target product achieved. Claimant outcome describes what eligible, sealed MOSAIC claimants materially caused. Terminal success alone never awards a claimant."],
+  ["evidence", "Evidence and commitments", "Mission terms, baseline identity, immutable PR facts, stable GitHub account IDs, proof authentication, semantic capsules, ordered contribution records, terminal source, lineage, resolution roots and the settlement digest form a tamper-sensitive chain."],
+  ["consensus", "Consensus design", "strict_eq compares exact reproducible source facts. prompt_comparative interprets genuinely semantic capsule text. The final economically binding terminal status, claimant outcome and complete wallet-to-role map use custom run_nondet_unsafe. Allocation arithmetic is deterministic contract code."],
+  ["payouts", "Payout policy", "CORE, MAJOR, SUPPORTING and NO_CREDIT carry weights 5, 3, 1 and 0. Claimant ACHIEVED releases 100%; MATERIAL_PROGRESS releases 40%; NOT_ACHIEVED releases 0%. Sponsor residuals and contributor allocations conserve the funded pool."],
+  ["safety", "Failure and safety", "Public GitHub is an explicit dependency. Unavailable, malformed or oversized evidence fails closed, moves no GEN, and can be retried. Deterministic expiry refunds unresolved funds. Withdrawals zero the balance before transfer."],
+  ["bounds", "Protocol bounds", "Evidence is intentionally bounded for focused engineering missions: maximum sponsors, contributors, records, terminal files, total changes and patch characters are enforced by the contract. MOSAIC does not promise unbounded whole-repository transformations."],
+  ["github", "GitHub dependency", "Reads are public and bounded; anonymous rate limits and outages are real operating conditions. There is no privileged GitHub backend, server signer, indexer or central adjudicator. The contract remains authoritative."],
+  ["faq", "FAQ", "A PR can qualify independently in separate missions, but not twice in one mission. Outside contributors can change the terminal product without becoming MOSAIC claimants. Sponsors fund criteria, not winners. Reverted work is represented through terminal lineage rather than historical existence alone."],
+];
+
+export default function DocsPage() {
+  return <main className="page docs-page"><section className="page-heading"><span className="eyebrow">MOSAIC protocol guide</span><h1>Fund software outcomes with evidence you can audit.</h1><p>Public documentation for sponsors, contributors and reviewers. This page describes implemented behavior, safety boundaries and the exact distinction between terminal success and claimant credit.</p></section><div className="docs-layout"><aside className="docs-toc" aria-label="Documentation contents"><strong>On this page</strong>{sections.map(([id, title]) => <a key={id} href={`#${id}`}>{title}</a>)}<Link href="/launch">Launch a mission →</Link></aside><article className="docs-content">{sections.map(([id, title, text]) => <section id={id} className="docs-section" key={id}><span className="eyebrow">{title}</span><h2>{title}</h2><p>{text}</p></section>)}</article></div></main>;
+}

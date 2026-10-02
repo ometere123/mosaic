@@ -68,6 +68,23 @@ code, .mono { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monosp
 .principle-strip span { font-family: monospace; font-size: .7rem; color: var(--blue); display: block; margin-bottom: 1.5rem; }
 .principle-strip strong { display: block; font-size: 1rem; margin-bottom: .65rem; }
 .principle-strip p { color: var(--muted); line-height: 1.5; font-size: .9rem; margin: 0; }
+.flow-section { padding: 4.5rem 0 1rem; border-bottom: 1px solid var(--line); }
+.flow-grid { display: grid; grid-template-columns: repeat(5, 1fr); border-top: 1px solid var(--ink); }
+.flow-card { min-height: 190px; padding: 1.25rem 1.25rem 1.5rem 0; border-right: 1px solid var(--line); margin-right: 1.25rem; }
+.flow-card:last-child { border-right: 0; margin-right: 0; }
+.flow-card > span { color: var(--blue); font: .7rem monospace; display: block; margin-bottom: 2.2rem; }
+.flow-card strong { display: block; letter-spacing: .08em; font-size: .9rem; }
+.flow-card p { color: var(--muted); font-size: .82rem; line-height: 1.5; margin-top: .7rem; }
+.docs-layout { display: grid; grid-template-columns: 220px minmax(0, 760px); gap: 4rem; align-items: start; }
+.docs-toc { position: sticky; top: 95px; display: grid; gap: .65rem; border-top: 1px solid var(--ink); padding-top: 1rem; }
+.docs-toc strong { font-size: .78rem; margin-bottom: .3rem; }
+.docs-toc a { color: var(--muted); font-size: .8rem; }
+.docs-toc a:hover { color: var(--blue); }
+.docs-toc a:last-child { color: var(--blue); margin-top: .7rem; }
+.docs-content { border-top: 1px solid var(--ink); }
+.docs-section { scroll-margin-top: 100px; padding: 2.4rem 0; border-bottom: 1px solid var(--line); }
+.docs-section h2 { font-size: clamp(1.6rem, 3vw, 2.4rem); letter-spacing: -.04em; margin: 0 0 .8rem; }
+.docs-section p { max-width: 72ch; color: #454740; line-height: 1.75; margin: 0; }
 
 .mission-board { padding-top: 4.5rem; }
 .section-heading, .workspace-heading, .drawer-heading { display: flex; justify-content: space-between; gap: 2rem; align-items: flex-end; margin-bottom: 2rem; }
@@ -244,5 +261,10 @@ code, .mono { font-family: "SFMono-Regular", Consolas, "Liberation Mono", monosp
   .proof-marker { align-items: flex-start; flex-direction: column; }
   .balance-actions { min-width: 0; }
   .explanation-ledger > div { grid-template-columns: 1fr; gap: .4rem; }
+  .flow-grid { grid-template-columns: 1fr; }
+  .flow-card { min-height: 0; border-right: 0; border-bottom: 1px solid var(--line); margin-right: 0; padding: 1.3rem 0; }
+  .flow-card > span { margin-bottom: .8rem; }
+  .docs-layout { grid-template-columns: 1fr; gap: 2rem; }
+  .docs-toc { position: static; }
   .activity-button { right: .6rem; bottom: .6rem; }
 }

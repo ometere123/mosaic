@@ -8,7 +8,7 @@ import { NETWORK } from "@/lib/constants";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const nav = [{ href: "/", label: "Missions" }, { href: "/launch", label: "Launch" }, { href: "/earnings", label: "Earnings" }];
+  const nav = [{ href: "/missions", label: "Missions" }, { href: "/launch", label: "Launch" }, { href: "/docs", label: "Docs" }, { href: "/earnings", label: "Earnings" }];
   return (
     <div className="app-shell">
       <header className="topbar">
