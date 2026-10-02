@@ -34,7 +34,7 @@
     "direct_mode": {"passed": 128, "total": 128},
     "validator_adversarial_cases": 9,
     "contract_mutation": {"unique_meaningful": 81, "killed": 81, "surviving": 0, "invalid_syntax": 0, "equivalent": 0},
-    "frontend_tests": {"passed": 120, "total": 120},
+    "frontend_tests": {"passed": 121, "total": 121},
     "frontend_mutation": {"unique_meaningful": 30, "killed": 30, "surviving": 0, "invalid_syntax": 0},
     "browser_smoke": {
       "performed": true,
@@ -47,11 +47,11 @@
       "non_fatal_warning": "Next.js smooth-scroll route-transition warning"
     },
     "ci": {
-      "latest_green_run": 37024005655,
-      "ubuntu_job": 110893910683,
-      "contract_mutation_job": 110893910310,
-      "windows_job": 110893910617,
-      "frontend_mutation_job": 110893910730,
+      "latest_green_run": 37052006538,
+      "ubuntu_job": 110987428955,
+      "contract_mutation_job": 110987429302,
+      "windows_job": 110987429206,
+      "frontend_mutation_job": 110987429321,
       "platform_source_sha_equal": true
     }
   },
@@ -63,34 +63,29 @@
     "The live lifecycle and adverse wallet matrix still require real GitHub contribution and additional wallet actions; no fabricated economic evidence is recorded."
   ],
   "live_validation": {
-    "mission_id": 1,
-    "status": "OPEN",
-    "pool_wei": "1000000000000000000",
-    "launch_transaction": {
-      "hash": "0x5bbc95e81288a5e943671495ea501720eeae286a7078f5d8b214d9802ce17acb",
-      "status": "FINALIZED",
-      "consensus": "MAJORITY_AGREE",
-      "execution": "SUCCESS"
-    },
-    "contributions": [],
-    "settlement": null
+    "status": "NOT_CANONICAL_PENDING_EXTERNAL_REPO_LIFECYCLE",
+    "note": "The former MOSAIC self-validation mission remains historical evidence only. The canonical external-repository mission has not yet been launched."
   },
   "deployment": {
     "performed": true,
-    "contract_address": "0x8966Da098d86D0E6D2769e59912C6EC5D951c74B",
+    "contract_address": "0xCd019C05232F6b67BB9d75FEB8D96f48AAe57921",
     "transaction": {
-      "hash": "0xbc96f3d51a194d4d3fa876eafed2a31912d3e47441963e991e671d9f18796a72",
+      "hash": "0x366fb0e0c34daa1b743af8f51de94e1b727b28ef84de8d4157255b411274fcd8",
       "status": "FINALIZED",
       "consensus": "MAJORITY_AGREE",
-      "execution": "SUCCESS"
+      "execution": "SUCCESS",
+      "created_at": "2026-10-02T18:00:08.882654+00:00",
+      "source_sha256": "96ceea3e7d71fd2c0e36461c4b4ca0d425f10fa9c013ff09ad895b8610acf8f5"
     },
     "vercel_production": {
       "project": "mosaic",
       "project_id": "prj_YuwUxgdIrmVoKwkl9LaGQv4i2ftX",
-      "deployment_id": "dpl_8dW5b6rubUs862jZykGBYwJBtBqm",
-      "url": "https://mosaic-five-rust.vercel.app",
-      "contract_address": "0x8966Da098d86D0E6D2769e59912C6EC5D951c74B",
-      "ready": true
+      "deployment_id": "dpl_BZKd4oNHCpEsypBX9wvey16YNemm",
+      "url": "https://themosaic.vercel.app",
+      "contract_address": "0xCd019C05232F6b67BB9d75FEB8D96f48AAe57921",
+      "ready": true,
+      "root_directory": "frontend",
+      "source_commit": "53803bcc9d821740689a9b4ce436e21dd94cad03"
     }
   }
 }

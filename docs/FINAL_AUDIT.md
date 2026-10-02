@@ -1,17 +1,16 @@
-# Final release audit
+# Final Release Audit
 
-The hardened source and production surfaces now have the following verified evidence:
+## Verified now
 
-- `main` is clean and remote `HEAD` equals local `HEAD`;
-- repository, architecture, network, dependency-pin, canonical-source, lint, Direct Mode, invariant, frontend, and build gates are green on Ubuntu and Windows;
-- every meaningful contract and frontend mutant is either killed with a specific regression or explicitly proven equivalent;
-- the commitment chain covers mission terms, contribution records, terminal source and lineage, resolution context, economic categorical results, and settlement;
-- source-unavailable paths move no GEN and remain retryable until deterministic expiry/refund;
-- the predeployment manifest records exact source/tree hashes, toolchain, ABI, test and mutation evidence, CI run IDs, and known limitations;
-- exact Studionet deployment is finalized at `0x8966Da098d86D0E6D2769e59912C6EC5D951c74B` with transaction `0xbc96f3d51a194d4d3fa876eafed2a31912d3e47441963e991e671d9f18796a72`;
-- Vercel production deployment is ready at https://mosaic-five-rust.vercel.app and points to that address;
-- route smoke verification passed for `/`, `/missions`, `/docs` and `/launch`.
+- Main commit `53803bcc9d821740689a9b4ce436e21dd94cad03` passed CI run `37052006538` on Ubuntu and Windows, including Direct Mode, contract mutation, frontend mutation, lint, typecheck, tests and build.
+- Frozen contract source, Git blob and retrieved Studionet source all match SHA-256 `96ceea3e7d71fd2c0e36461c4b4ca0d425f10fa9c013ff09ad895b8610acf8f5`.
+- Final contract deployment is finalized at `0xCd019C05232F6b67BB9d75FEB8D96f48AAe57921` with transaction `0x366fb0e0c34daa1b743af8f51de94e1b727b28ef84de8d4157255b411274fcd8`.
+- Existing Vercel project `mosaic` is READY at https://themosaic.vercel.app with deployment `dpl_BZKd4oNHCpEsypBX9wvey16YNemm` and root directory `frontend`.
+- Production routes `/`, `/missions`, `/docs` and `/profile` returned rendered HTML through Vercel’s protected curl verification.
+- The frontend now distinguishes the product homepage, mission explorer, documentation and wallet-centred profile; `/earnings` redirects to `/profile`.
 
-The complete real-wallet positive lifecycle and at least three adverse live classes are still required before calling the release fully verified. They require actual wallet/GitHub actions and must not be inferred from unit tests or deployment success.
+## Not yet claimed
 
-The final hostile review must recheck mutable GitHub metadata, stable account identity, target force-push, reverts and supersession, unregistered decisive work, malformed evidence, validator disagreement, rounding, replay, wrong wallet/network, refresh recovery, and withdrawal safety.
+The canonical live economic proof is incomplete until a separate age-qualified external repository has a genuinely causal PR, real proof comment, sealed contribution, finalized resolution, allocations/residual, withdrawals and at least three live adverse classes. The earlier MOSAIC-self-test mission remains historical only. No wallet or GitHub action is inferred.
+
+The final hostile audit must be rerun after that evidence exists and must verify source correspondence, exact contract configuration, wallet truth, causal lineage, conservation and truthful documentation.

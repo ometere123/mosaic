@@ -22,3 +22,6 @@ playwright/.auth/
 .DS_Store
 .vercel/
 *.zip
+
+.vercel
+.env*
