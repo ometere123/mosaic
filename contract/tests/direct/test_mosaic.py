@@ -875,6 +875,42 @@ def test_validator_allows_rationale_wording_difference(direct_vm, direct_deploy,
     assert direct_vm.run_validator() is True
 
 
+def test_validator_rejects_omitted_wallet_role(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/mosaic.py")
+    mission_id = open_mission(contract, direct_vm, direct_alice, mission_terms)
+    direct_vm.value = 0; direct_vm.sender = direct_bob
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob)); contract.seal_contribution(mission_id, 7, 99)
+    set_block_time(direct_vm, "2026-10-06T10:00:00Z"); direct_vm.clear_mocks(); mock_pr(direct_vm, int(mission_id), wallet(direct_bob))
+    direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({"mission_outcome": "ACHIEVED", "roles": {wallet(direct_bob): "CORE"}, "rationale": "Leader."})); contract.resolve_mission(mission_id)
+    direct_vm.clear_mocks(); direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({"mission_outcome": "ACHIEVED", "roles": {}, "rationale": "Missing wallet."}))
+    assert direct_vm.run_validator() is False
+
+
+def test_validator_rejects_added_wallet_role(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/mosaic.py")
+    mission_id = open_mission(contract, direct_vm, direct_alice, mission_terms)
+    direct_vm.value = 0; direct_vm.sender = direct_bob
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob)); contract.seal_contribution(mission_id, 7, 99)
+    set_block_time(direct_vm, "2026-10-06T10:00:00Z"); direct_vm.clear_mocks(); mock_pr(direct_vm, int(mission_id), wallet(direct_bob))
+    direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({"mission_outcome": "ACHIEVED", "roles": {wallet(direct_bob): "CORE"}, "rationale": "Leader."})); contract.resolve_mission(mission_id)
+    direct_vm.clear_mocks(); direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({"mission_outcome": "ACHIEVED", "roles": {wallet(direct_bob): "CORE", "0x0000000000000000000000000000000000000001": "NO_CREDIT"}, "rationale": "Extra wallet."}))
+    assert direct_vm.run_validator() is False
+
+
+def test_validator_rejects_malformed_economic_schema(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/mosaic.py")
+    mission_id = open_mission(contract, direct_vm, direct_alice, mission_terms)
+    direct_vm.value = 0; direct_vm.sender = direct_bob
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob)); contract.seal_contribution(mission_id, 7, 99)
+    set_block_time(direct_vm, "2026-10-06T10:00:00Z"); direct_vm.clear_mocks(); mock_pr(direct_vm, int(mission_id), wallet(direct_bob))
+    direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({"mission_outcome": "ACHIEVED", "roles": {wallet(direct_bob): "CORE"}, "rationale": "Leader."})); contract.resolve_mission(mission_id)
+    direct_vm.clear_mocks(); direct_vm.mock_llm(r"allocating a funded open-source engineering mission", "{not-json")
+    assert direct_vm.run_validator() is False
+
+
 def test_unresolved_grace_eventually_refunds(direct_vm, direct_deploy, direct_alice, mission_terms):
     set_block_time(direct_vm, "2026-10-01T10:00:00Z")
     contract = direct_deploy("contract/contracts/mosaic.py")
