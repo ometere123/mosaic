@@ -142,6 +142,17 @@ def _target_ref_ok(target_ref: str) -> bool:
     return re.fullmatch(r"[A-Za-z0-9._/-]+", target_ref) is not None
 
 
+def _github_account_id(user) -> str:
+    if not isinstance(user, dict):
+        return ""
+    raw = user.get("id")
+    if isinstance(raw, int) and raw > 0:
+        return str(raw)
+    if isinstance(raw, str) and re.fullmatch(r"[1-9][0-9]{0,18}", raw):
+        return raw
+    return ""
+
+
 def _read_json_url(url: str):
     try:
         response = gl.nondet.web.get(url)
@@ -204,7 +215,6 @@ def _fetch_pr_evidence(context_json: str) -> str:
     target_ref = context["target_ref"]
     pr_number = int(context["pr_number"])
     comment_id = int(context["comment_id"])
-    revalidate_immutable_only = bool(context.get("revalidate_immutable_only", False))
 
     pr, reason = _read_json_url(f"https://api.github.com/repos/{repo}/pulls/{pr_number}")
     if pr is None:
@@ -225,15 +235,13 @@ def _fetch_pr_evidence(context_json: str) -> str:
     if not _sha_ok(head_sha):
         return json.dumps({"status": "INVALID", "reason": "missing_head_sha"}, sort_keys=True)
 
-    comment = {}
-    if not revalidate_immutable_only:
-        comment, reason = _read_json_url(
-            f"https://api.github.com/repos/{repo}/issues/comments/{comment_id}"
-        )
-        if comment is None:
-            return json.dumps({"status": "SOURCE_UNAVAILABLE", "reason": f"comment:{reason}"}, sort_keys=True)
-        if not isinstance(comment, dict):
-            return json.dumps({"status": "INVALID", "reason": "malformed_comment_payload"}, sort_keys=True)
+    comment, reason = _read_json_url(
+        f"https://api.github.com/repos/{repo}/issues/comments/{comment_id}"
+    )
+    if comment is None:
+        return json.dumps({"status": "SOURCE_UNAVAILABLE", "reason": f"comment:{reason}"}, sort_keys=True)
+    if not isinstance(comment, dict):
+        return json.dumps({"status": "INVALID", "reason": "malformed_comment_payload"}, sort_keys=True)
 
     merge_sha = str(pr.get("merge_commit_sha") or "").lower()
     if _sha_ok(merge_sha):
@@ -268,6 +276,8 @@ def _fetch_pr_evidence(context_json: str) -> str:
     comment_user = comment.get("user")
     author = str((pr_user.get("login") if isinstance(pr_user, dict) else "") or "").lower()
     commenter = str((comment_user.get("login") if isinstance(comment_user, dict) else "") or "").lower()
+    author_account_id = _github_account_id(pr_user)
+    comment_account_id = _github_account_id(comment_user)
     issue_url = str(comment.get("issue_url") or "")
     body = str(pr.get("body") or "")
     body_was_truncated = len(body) > MAX_PR_BODY_CHARS
@@ -281,12 +291,14 @@ def _fetch_pr_evidence(context_json: str) -> str:
         "body": body,
         "body_truncated": body_was_truncated,
         "author": author,
+        "author_account_id": author_account_id,
         "merged_at": str(pr.get("merged_at") or ""),
         "merge_sha": merge_sha,
         "head_sha": head_sha,
         "base_repo": base_full_name,
         "base_ref": base_ref,
         "comment_author": commenter,
+        "comment_author_account_id": comment_account_id,
         "comment_body": str(comment.get("body") or "").strip(),
         "comment_issue_url": issue_url,
     }
@@ -394,12 +406,12 @@ def _fetch_pr_evidence(context_json: str) -> str:
     immutable_source = {
         "repo": repo,
         "pr_number": pr_number,
-        "author": author,
-        "merged_at": base_evidence["merged_at"],
-        "merge_sha": merge_sha,
-        "head_sha": head_sha,
+        "author_account_id": author_account_id,
         "base_repo": base_full_name,
         "base_ref": base_ref,
+        "head_sha": head_sha,
+        "merge_sha": merge_sha,
+        "merged_at": base_evidence["merged_at"],
         "changed_files": changed_files,
         "additions": additions,
         "deletions": deletions,
@@ -408,6 +420,72 @@ def _fetch_pr_evidence(context_json: str) -> str:
     evidence["immutable_source_digest"] = _canonical_digest(immutable_source)
     evidence["evidence_digest"] = _canonical_digest(evidence)
     return json.dumps(evidence, sort_keys=True)
+
+
+def _fetch_immutable_pr_evidence(context_json: str) -> str:
+    """Return only stable, economically consequential source fields for strict_eq."""
+    context = json.loads(context_json)
+    repo = context["repo"]
+    baseline = context["baseline"]
+    target_ref = context["target_ref"]
+    pr_number = int(context["pr_number"])
+    pr, reason = _read_json_url(f"https://api.github.com/repos/{repo}/pulls/{pr_number}")
+    if pr is None:
+        return _canonical_json({"status": "SOURCE_UNAVAILABLE", "reason": f"pr:{reason}"})
+    if not isinstance(pr, dict):
+        return _canonical_json({"status": "INVALID", "reason": "malformed_pr_payload"})
+    base = pr.get("base")
+    head = pr.get("head")
+    base_repo = base.get("repo") if isinstance(base, dict) else None
+    base_name = str(base_repo.get("full_name") or "") if isinstance(base_repo, dict) else ""
+    base_ref = str(base.get("ref") or "") if isinstance(base, dict) else ""
+    head_sha = str(head.get("sha") or "").lower() if isinstance(head, dict) else ""
+    merge_sha = str(pr.get("merge_commit_sha") or "").lower()
+    author_id = _github_account_id(pr.get("user"))
+    if base_name.lower() != repo.lower() or base_ref != target_ref or not _sha_ok(head_sha) or not _sha_ok(merge_sha) or not author_id:
+        return _canonical_json({"status": "INVALID", "reason": "invalid_immutable_pr_identity"})
+    comparison, reason = _read_json_url(f"https://api.github.com/repos/{repo}/compare/{baseline}...{merge_sha}")
+    if comparison is None:
+        return _canonical_json({"status": "SOURCE_UNAVAILABLE", "reason": f"compare:{reason}"})
+    merge_base = comparison.get("merge_base_commit") if isinstance(comparison, dict) else None
+    if not isinstance(comparison, dict) or str(comparison.get("status") or "").lower() not in {"ahead", "identical"} or str(merge_base.get("sha") or "").lower() != baseline:
+        return _canonical_json({"status": "INVALID", "reason": "merge_not_descended_from_baseline"})
+    changed_files = pr.get("changed_files")
+    if not isinstance(changed_files, int) or changed_files < 0 or changed_files > MAX_CHANGED_FILES:
+        return _canonical_json({"status": "INSUFFICIENT_EVIDENCE", "reason": "invalid_changed_files"})
+    files, reason = _read_json_url(f"https://api.github.com/repos/{repo}/pulls/{pr_number}/files?per_page={MAX_CHANGED_FILES}")
+    if files is None:
+        return _canonical_json({"status": "SOURCE_UNAVAILABLE", "reason": f"files:{reason}"})
+    if not isinstance(files, list) or len(files) != changed_files:
+        return _canonical_json({"status": "INSUFFICIENT_EVIDENCE", "reason": "incomplete_files_page"})
+    normalized = []
+    patch_chars = 0
+    total_changes = 0
+    for item in files:
+        if not isinstance(item, dict) or item.get("patch") is None:
+            return _canonical_json({"status": "INSUFFICIENT_EVIDENCE", "reason": "missing_patch_evidence"})
+        try:
+            additions, deletions, changes = int(item.get("additions") or 0), int(item.get("deletions") or 0), int(item.get("changes") or 0)
+        except Exception:
+            return _canonical_json({"status": "INVALID", "reason": "invalid_file_counts"})
+        if min(additions, deletions, changes) < 0 or changes > MAX_SINGLE_FILE_CHANGES:
+            return _canonical_json({"status": "INSUFFICIENT_EVIDENCE", "reason": "file_change_budget_exceeded"})
+        patch = str(item["patch"])
+        patch_chars += len(patch)
+        total_changes += changes
+        normalized.append({"filename": str(item.get("filename") or ""), "status": str(item.get("status") or ""), "additions": additions, "deletions": deletions, "changes": changes, "patch": patch})
+    if patch_chars > MAX_PATCH_CHARS or total_changes > MAX_TOTAL_CHANGES:
+        return _canonical_json({"status": "INSUFFICIENT_EVIDENCE", "reason": "source_change_budget_exceeded"})
+    try:
+        additions, deletions = int(pr.get("additions") or 0), int(pr.get("deletions") or 0)
+    except Exception:
+        return _canonical_json({"status": "INVALID", "reason": "invalid_pr_counts"})
+    if additions < 0 or deletions < 0:
+        return _canonical_json({"status": "INVALID", "reason": "invalid_pr_counts"})
+    result = {"repo": repo, "pr_number": pr_number, "author_account_id": author_id, "merged_at": str(pr.get("merged_at") or ""), "merge_sha": merge_sha, "head_sha": head_sha, "base_repo": base_name, "base_ref": base_ref, "changed_files": changed_files, "additions": additions, "deletions": deletions, "files": normalized}
+    result["immutable_source_digest"] = _canonical_digest(result)
+    result["status"] = "OK"
+    return _canonical_json(result)
 
 
 def _fetch_terminal_state(context_json: str) -> str:
@@ -715,12 +793,13 @@ class Mosaic(gl.Contract):
             raise gl.vm.UserError(str(evidence.get("reason") or "evidence_invalid"))
 
         author = str(evidence.get("author") or "").lower()
-        commenter = str(evidence.get("comment_author") or "").lower()
+        author_account_id = str(evidence.get("author_account_id") or "")
+        comment_account_id = str(evidence.get("comment_author_account_id") or "")
         expected_marker = f"mosaic:{int(mission_id)}:{caller}"
         issue_url = str(evidence.get("comment_issue_url") or "")
         merged_at = str(evidence.get("merged_at") or "")
         merge_sha = str(evidence.get("merge_sha") or "").lower()
-        if not author or author != commenter:
+        if not author_account_id or author_account_id != comment_account_id:
             raise gl.vm.UserError("proof_author_mismatch")
         if str(evidence.get("comment_body") or "").strip() != expected_marker:
             raise gl.vm.UserError("proof_marker_mismatch")
@@ -761,6 +840,7 @@ class Mosaic(gl.Contract):
                 "head_sha": str(evidence.get("head_sha") or "").lower(),
                 "target_ref": mission["target_ref"],
                 "author": author,
+                "author_account_id": author_account_id,
                 "evidence_digest": str(evidence.get("evidence_digest") or ""),
                 "capsule": None,
                 "sealed_at": _now_unix(),
@@ -829,18 +909,19 @@ class Mosaic(gl.Contract):
                 "repo": mission["repo"],
                 "pr_number": pr_number,
                 "proof_comment_id": proof_comment_id,
-                "github_author": author,
+                "github_account_id": author_account_id,
+                "github_login_at_seal": author,
                 "wallet": caller,
                 "marker": expected_marker,
                 "authenticated_at_seal": True,
             }
         )
 
-        author_key = f"{int(mission_id)}:{author}"
+        author_key = f"{int(mission_id)}:{author_account_id}"
         wallet_key = f"{int(mission_id)}:{caller}"
         if author_key in self.author_wallets and self.author_wallets[author_key] != caller:
             raise gl.vm.UserError("github_author_bound_to_another_wallet")
-        if wallet_key in self.wallet_authors and self.wallet_authors[wallet_key] != author:
+        if wallet_key in self.wallet_authors and self.wallet_authors[wallet_key] != author_account_id:
             raise gl.vm.UserError("wallet_bound_to_another_github_author")
 
         contributors = list(mission["contributor_wallets"])
@@ -856,7 +937,8 @@ class Mosaic(gl.Contract):
             "target_ref": mission["target_ref"],
             "pr_number": pr_number,
             "proof_comment_id": proof_comment_id,
-            "author": author,
+            "github_account_id": author_account_id,
+            "github_login_at_seal": author,
             "wallet": caller,
             "head_sha": str(evidence.get("head_sha") or "").lower(),
             "merge_sha": merge_sha,
@@ -878,6 +960,7 @@ class Mosaic(gl.Contract):
             "head_sha": str(evidence.get("head_sha") or "").lower(),
             "target_ref": mission["target_ref"],
             "author": author,
+            "author_account_id": author_account_id,
             "evidence_digest": str(evidence.get("evidence_digest") or ""),
             "immutable_source_digest": immutable_source_digest,
             "proof_auth_digest": proof_auth_digest,
@@ -891,7 +974,7 @@ class Mosaic(gl.Contract):
         self.used_prs[pr_key] = True
         self.used_merge_shas[merge_key] = True
         self.author_wallets[author_key] = caller
-        self.wallet_authors[wallet_key] = author
+        self.wallet_authors[wallet_key] = author_account_id
         mission["contributor_wallets"] = contributors
         mission["last_evidence_status"] = "SEALED"
         mission["contribution_count"] = index + 1
@@ -950,13 +1033,11 @@ class Mosaic(gl.Contract):
                     "target_ref": mission["target_ref"],
                     "baseline": mission["baseline_sha"],
                     "pr_number": int(item["pr_number"]),
-                    "comment_id": int(item["proof_comment_id"]),
-                    "revalidate_immutable_only": True,
                 },
                 sort_keys=True,
             )
             def revalidate_evidence():
-                return _fetch_pr_evidence(revalidation_context)
+                return _fetch_immutable_pr_evidence(revalidation_context)
 
             refreshed = json.loads(gl.eq_principle.strict_eq(revalidate_evidence))
             refreshed_status = refreshed.get("status")
@@ -982,7 +1063,8 @@ class Mosaic(gl.Contract):
                     "target_ref": mission["target_ref"],
                     "pr_number": int(item["pr_number"]),
                     "proof_comment_id": int(item["proof_comment_id"]),
-                    "author": item["author"],
+                    "github_account_id": item["author_account_id"],
+                    "github_login_at_seal": item["author"],
                     "wallet": item["wallet"],
                     "head_sha": item["head_sha"],
                     "merge_sha": item["merge_sha"],
@@ -1103,14 +1185,13 @@ class Mosaic(gl.Contract):
         ordered_contribution_root = self._record_root(mission_id, mission)
         if not mission.get("ordered_contribution_root"):
             mission["ordered_contribution_root"] = ordered_contribution_root
-        if not mission.get("mission_evidence_root"):
-            mission["mission_evidence_root"] = ordered_contribution_root
         pool = int(mission["pool_wei"])
         sponsor_allocations = self._credit_sponsor_residuals(mission_id, mission, pool)
         settled_at = _now_unix()
         settlement_digest = _canonical_digest({
             "mission_id": int(mission_id),
             "mission_evidence_root": mission.get("mission_evidence_root", ""),
+            "resolution_evidence_root": mission.get("resolution_evidence_root", ""),
             "ordered_contribution_root": ordered_contribution_root,
             "outcome": "EXPIRED",
             "roles": {},
@@ -1133,6 +1214,7 @@ class Mosaic(gl.Contract):
             "contributor_allocations": {},
             "sponsor_allocations": sponsor_allocations,
             "evidence_root": mission.get("mission_evidence_root", ""),
+            "resolution_evidence_root": mission.get("resolution_evidence_root", ""),
             "ordered_contribution_root": ordered_contribution_root,
             "settlement_digest": settlement_digest,
             "settled_at": settled_at,
@@ -1172,7 +1254,8 @@ class Mosaic(gl.Contract):
 
     @gl.public.view
     def get_author_wallet(self, mission_id: u256, author: str) -> str:
-        key = f"{int(mission_id)}:{author.strip().lower()}"
+        # "author" is a stable GitHub numeric account ID; login is presentation metadata.
+        key = f"{int(mission_id)}:{author.strip()}"
         return self.author_wallets[key] if key in self.author_wallets else ""
 
     @gl.public.view

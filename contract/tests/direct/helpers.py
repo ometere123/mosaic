@@ -64,6 +64,9 @@ def mock_pr(
     pr_number=7,
     comment_id=99,
     author="dev",
+    author_id=None,
+    comment_author=None,
+    comment_author_id=None,
     merged_at="2026-10-03T10:00:00Z",
     baseline=None,
     merge_sha=None,
@@ -84,6 +87,9 @@ def mock_pr(
     merge_sha = merge_sha or (("b" * 40) if pr_number == 7 else f"{pr_number:040x}")
     merge_base = baseline if merge_base is None else merge_base
     issue_pr_number = pr_number if issue_pr_number is None else issue_pr_number
+    author_id = 101 if author_id is None and author == "dev" else (1000 + sum(ord(char) for char in author) if author_id is None else author_id)
+    comment_author = author if comment_author is None else comment_author
+    comment_author_id = author_id if comment_author_id is None else comment_author_id
     head_sha = head_sha or ("c" * 40)
     vm.mock_web(
         rf"api\.github\.com/repos/{repo}/pulls/{pr_number}$",
@@ -93,7 +99,7 @@ def mock_pr(
                 {
                     "title": title,
                     "body": body,
-                    "user": {"login": author},
+                    "user": {"login": author, "id": author_id},
                     "merged_at": merged_at,
                     "merge_commit_sha": merge_sha,
                     "base": {"ref": target_ref, "repo": {"full_name": base_repo}},
@@ -111,7 +117,7 @@ def mock_pr(
             "status": 200,
             "body": json.dumps(
                 {
-                    "user": {"login": author},
+                    "user": {"login": comment_author, "id": comment_author_id},
                     "body": comment_body if comment_body is not None else f"mosaic:{mission_id}:{wallet}",
                     "issue_url": f"https://api.github.com/repos/{repo}/issues/{issue_pr_number}",
                 }

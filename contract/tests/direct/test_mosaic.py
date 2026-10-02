@@ -121,7 +121,8 @@ def test_seal_contribution_binds_author_wallet_and_merge(direct_vm, direct_deplo
         "target_ref": mission_terms["target_ref"],
         "pr_number": 7,
         "proof_comment_id": 99,
-        "author": "dev",
+        "github_account_id": "101",
+        "github_login_at_seal": "dev",
         "wallet": wallet(direct_bob),
         "head_sha": "c" * 40,
         "merge_sha": "b" * 40,
@@ -245,12 +246,12 @@ def test_github_author_cannot_bind_to_second_wallet(direct_vm, direct_deploy, di
     mission_id = open_mission(contract, direct_vm, direct_alice, mission_terms)
     direct_vm.value = 0
     direct_vm.sender = direct_bob
-    mock_pr(direct_vm, int(mission_id), wallet(direct_bob), author="DevUser")
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob), author="DevUser", author_id=101)
     contract.seal_contribution(mission_id, 7, 99)
-    assert contract.get_author_wallet(mission_id, "devuser") == wallet(direct_bob)
+    assert contract.get_author_wallet(mission_id, "101") == wallet(direct_bob)
     direct_vm.clear_mocks()
     direct_vm.sender = direct_charlie
-    mock_pr(direct_vm, int(mission_id), wallet(direct_charlie), pr_number=8, comment_id=100, author="devuser", merge_sha="d" * 40)
+    mock_pr(direct_vm, int(mission_id), wallet(direct_charlie), pr_number=8, comment_id=100, author="devuser", author_id=101, merge_sha="d" * 40)
     with direct_vm.expect_revert("github_author_bound_to_another_wallet"):
         contract.seal_contribution(mission_id, 8, 100)
 
@@ -261,13 +262,49 @@ def test_wallet_cannot_bind_to_second_github_author(direct_vm, direct_deploy, di
     mission_id = open_mission(contract, direct_vm, direct_alice, mission_terms)
     direct_vm.value = 0
     direct_vm.sender = direct_bob
-    mock_pr(direct_vm, int(mission_id), wallet(direct_bob), author="alice-gh")
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob), author="alice-gh", author_id=101)
     contract.seal_contribution(mission_id, 7, 99)
-    assert contract.get_wallet_author(mission_id, wallet(direct_bob).upper()) == "alice-gh"
+    assert contract.get_wallet_author(mission_id, wallet(direct_bob).upper()) == "101"
     direct_vm.clear_mocks()
-    mock_pr(direct_vm, int(mission_id), wallet(direct_bob), pr_number=8, comment_id=100, author="bob-gh", merge_sha="d" * 40)
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob), pr_number=8, comment_id=100, author="bob-gh", author_id=202, merge_sha="d" * 40)
     with direct_vm.expect_revert("wallet_bound_to_another_github_author"):
         contract.seal_contribution(mission_id, 8, 100)
+
+
+def test_stable_github_identity_allows_login_rename(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/mosaic.py")
+    mission_id = open_mission(contract, direct_vm, direct_alice, mission_terms)
+    direct_vm.value = 0
+    direct_vm.sender = direct_bob
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob), author="old-login", author_id=303)
+    assert contract.seal_contribution(mission_id, 7, 99) == "sealed_0"
+    direct_vm.clear_mocks()
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob), pr_number=8, comment_id=100, author="renamed-login", author_id=303, merge_sha="d" * 40)
+    assert contract.seal_contribution(mission_id, 8, 100) == "sealed_1"
+    assert contract.get_author_wallet(mission_id, "303") == wallet(direct_bob)
+
+
+def test_proof_login_match_cannot_replace_stable_github_identity(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/mosaic.py")
+    mission_id = open_mission(contract, direct_vm, direct_alice, mission_terms)
+    direct_vm.value = 0
+    direct_vm.sender = direct_bob
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob), author="same-login", author_id=404, comment_author="same-login", comment_author_id=405)
+    with direct_vm.expect_revert("proof_author_mismatch"):
+        contract.seal_contribution(mission_id, 7, 99)
+
+
+def test_missing_stable_github_identity_is_rejected(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/mosaic.py")
+    mission_id = open_mission(contract, direct_vm, direct_alice, mission_terms)
+    direct_vm.value = 0
+    direct_vm.sender = direct_bob
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob), author_id=0)
+    with direct_vm.expect_revert("proof_author_mismatch"):
+        contract.seal_contribution(mission_id, 7, 99)
 
 
 def test_insufficient_record_does_not_grief_identity_binding(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie, mission_terms):
@@ -276,14 +313,14 @@ def test_insufficient_record_does_not_grief_identity_binding(direct_vm, direct_d
     mission_id = open_mission(contract, direct_vm, direct_alice, mission_terms)
     direct_vm.value = 0
     direct_vm.sender = direct_bob
-    mock_pr(direct_vm, int(mission_id), wallet(direct_bob), author="shared", changed_files=31)
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob), author="shared", author_id=101, changed_files=31)
     assert contract.seal_contribution(mission_id, 7, 99) == "insufficient_evidence"
-    assert contract.get_author_wallet(mission_id, "shared") == ""
+    assert contract.get_author_wallet(mission_id, "101") == ""
     direct_vm.clear_mocks()
     direct_vm.sender = direct_charlie
-    mock_pr(direct_vm, int(mission_id), wallet(direct_charlie), pr_number=8, comment_id=100, author="SHARED", merge_sha="d" * 40)
+    mock_pr(direct_vm, int(mission_id), wallet(direct_charlie), pr_number=8, comment_id=100, author="SHARED", author_id=101, merge_sha="d" * 40)
     assert contract.seal_contribution(mission_id, 8, 100) == "sealed_1"
-    assert contract.get_author_wallet(mission_id, "shared") == wallet(direct_charlie)
+    assert contract.get_author_wallet(mission_id, "101") == wallet(direct_charlie)
 
 
 def test_capsule_storage_output_is_bounded(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
@@ -401,7 +438,7 @@ def test_oversized_evidence_is_explicit_and_not_retryable(direct_vm, direct_depl
     direct_vm.mock_web(
         r"api\.github\.com/repos/acme/widget/pulls/7$",
         {"status": 200, "body": json.dumps({
-            "title": "huge", "body": "", "user": {"login": "dev"},
+                "title": "huge", "body": "", "user": {"login": "dev", "id": 101},
             "merged_at": "2026-10-03T10:00:00Z", "merge_commit_sha": "b" * 40,
             "base": {"ref": "main", "repo": {"full_name": "acme/widget"}},
             "head": {"sha": "c" * 40},
@@ -411,7 +448,7 @@ def test_oversized_evidence_is_explicit_and_not_retryable(direct_vm, direct_depl
     mock_compare(direct_vm)
     direct_vm.mock_web(
         r"api\.github\.com/repos/acme/widget/issues/comments/99$",
-        {"status": 200, "body": json.dumps({"user": {"login": "dev"}, "body": f"mosaic:{int(mission_id)}:{wallet(direct_bob)}", "issue_url": "https://api.github.com/repos/acme/widget/issues/7"})},
+            {"status": 200, "body": json.dumps({"user": {"login": "dev", "id": 101}, "body": f"mosaic:{int(mission_id)}:{wallet(direct_bob)}", "issue_url": "https://api.github.com/repos/acme/widget/issues/7"})},
     )
     assert contract.seal_contribution(mission_id, 7, 99) == "insufficient_evidence"
     with direct_vm.expect_revert("pr_already_sealed"):
@@ -810,6 +847,23 @@ def test_unresolved_grace_eventually_refunds(direct_vm, direct_deploy, direct_al
     assert int(contract.get_balance(wallet(direct_alice))) == 11 * WEI
 
 
+def test_expiry_keeps_record_audit_root_without_faking_resolution_evidence(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/mosaic.py")
+    mission_id = open_mission(contract, direct_vm, direct_alice, mission_terms, funding=11 * WEI)
+    direct_vm.value = 0
+    direct_vm.sender = direct_bob
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob))
+    assert contract.seal_contribution(mission_id, 7, 99) == "sealed_0"
+    set_block_time(direct_vm, "2026-11-10T10:00:00Z")
+    assert contract.expire_unresolved(mission_id) == "expired_refunded"
+    mission = json.loads(contract.get_mission(mission_id))
+    assert mission["mission_evidence_root"] == ""
+    assert mission["resolution_evidence_root"] == ""
+    assert len(mission["ordered_contribution_root"]) == 64
+    assert mission["settlement"]["ordered_contribution_root"] == mission["ordered_contribution_root"]
+
+
 def test_double_settlement_rejected(direct_vm, direct_deploy, direct_alice, mission_terms):
     set_block_time(direct_vm, "2026-10-01T10:00:00Z")
     contract = direct_deploy("contract/contracts/mosaic.py")
@@ -859,7 +913,7 @@ def test_missing_patch_evidence_is_not_semantically_judged(direct_vm, direct_dep
     direct_vm.mock_web(
         r"api\.github\.com/repos/acme/widget/pulls/7$",
         {"status": 200, "body": json.dumps({
-            "title": "binary-only", "body": "", "user": {"login": "bob"},
+            "title": "binary-only", "body": "", "user": {"login": "bob", "id": 101},
             "merged_at": "2026-10-03T10:00:00Z", "merge_commit_sha": "b" * 40,
             "base": {"ref": "main", "repo": {"full_name": "acme/widget"}},
             "head": {"sha": "c" * 40},
@@ -870,7 +924,7 @@ def test_missing_patch_evidence_is_not_semantically_judged(direct_vm, direct_dep
     direct_vm.mock_web(
         r"api\.github\.com/repos/acme/widget/issues/comments/99$",
         {"status": 200, "body": json.dumps({
-            "user": {"login": "bob"},
+            "user": {"login": "bob", "id": 101},
             "body": f"mosaic:{int(mission_id)}:{wallet(direct_bob)}",
             "issue_url": "https://api.github.com/repos/acme/widget/issues/7",
         })},
