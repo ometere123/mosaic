@@ -45,6 +45,22 @@ MUTANTS = {
     "double_settlement": ("if mission[\"status\"] != \"OPEN\":\n            raise gl.vm.UserError(\"mission_not_resolvable\")", "if False:\n            raise gl.vm.UserError(\"mission_not_resolvable\")", "contract/tests/direct/test_mosaic.py::test_double_settlement_rejected"),
     "expiry_timing": ("if _now_unix() <= int(mission[\"close_at\"]) + UNRESOLVED_GRACE_SECONDS:", "if False:", "contract/tests/direct/test_state_machine_boundaries.py::test_expiry_rejects_until_grace_has_elapsed"),
     "withdraw_zero_before_transfer": ("self.balances[wallet] = \"0\"", "self.balances[wallet] = str(amount)", "contract/tests/direct/test_mosaic.py::test_withdraw_is_pull_based_and_zeroes_balance"),
+    "pr_base_repository": ("if base_full_name.lower() != repo.lower():", "if False:", "contract/tests/direct/test_mosaic.py::test_pr_must_target_frozen_repository"),
+    "pr_target_branch": ("if base_ref != target_ref:", "if False:", "contract/tests/direct/test_mosaic.py::test_pr_must_target_frozen_branch"),
+    "pr_head_sha": ("if not _sha_ok(head_sha):", "if False:", "contract/tests/direct/test_mosaic.py::test_pr_requires_immutable_head_sha"),
+    "merge_baseline_ancestry": ("if comparison_status not in {\"ahead\", \"identical\"} or merge_base_sha != baseline:", "if False:", "contract/tests/direct/test_mosaic.py::test_merge_must_descend_from_frozen_baseline"),
+    "pr_file_bound": ("if changed_files > MAX_CHANGED_FILES:", "if False:", "contract/tests/direct/test_mosaic.py::test_oversized_evidence_is_explicit_and_not_retryable"),
+    "pr_missing_patch": ("if missing_patch > 0:", "if False:", "contract/tests/direct/test_mosaic.py::test_missing_patch_evidence_is_not_semantically_judged"),
+    "contribution_limit": ("if int(mission[\"contribution_count\"]) >= MAX_CONTRIBUTIONS:", "if False:", "contract/tests/direct/test_collection_limits.py::test_contribution_record_cap_is_enforced_at_twelve"),
+    "sponsor_limit": ("if len(sponsors) >= MAX_SPONSORS:", "if False:", "contract/tests/direct/test_collection_limits.py::test_sponsor_collection_cap_is_enforced_at_sixteen"),
+    "contributor_limit": ("if len(contributors) >= MAX_CONTRIBUTORS:", "if False:", "contract/tests/direct/test_collection_limits.py::test_contributor_collection_cap_is_enforced_at_eight"),
+    "terminal_file_bound": ("if len(files) > MAX_TERMINAL_FILES:", "if False:", "contract/tests/direct/test_terminal_commitments.py::test_terminal_file_count_bound_fails_closed"),
+    "terminal_patch_bound": ("if patch_chars > MAX_TERMINAL_PATCH_CHARS or total_changes > MAX_TERMINAL_TOTAL_CHANGES:", "if False:", "contract/tests/direct/test_terminal_commitments.py::test_terminal_patch_budget_fails_closed"),
+    "terminal_change_bound": ("if patch_chars > MAX_TERMINAL_PATCH_CHARS or total_changes > MAX_TERMINAL_TOTAL_CHANGES:", "if patch_chars > MAX_TERMINAL_PATCH_CHARS or False:", "contract/tests/direct/test_terminal_commitments.py::test_terminal_total_change_budget_fails_closed"),
+    "positive_outcome_role_compatibility": ("if claimant_outcome in {\"ACHIEVED\", \"MATERIAL_PROGRESS\"} and not any(ROLE_WEIGHT[role] > 0 for role in roles.values()):", "if False:", "contract/tests/direct/test_mosaic.py::test_positive_claimant_outcome_requires_positive_role"),
+    "contributor_allocation_rounding": ("share = released * weight // total_weight", "share = released * weight // total_weight + 1", "contract/tests/direct/test_economic_properties.py::test_achieved_role_weights_conserve_full_pool"),
+    "sponsor_allocation_rounding": ("share = residual * contributed // pool", "share = residual * contributed // pool + 1", "contract/tests/direct/test_economic_properties.py::test_sponsor_residual_rounding_is_deterministic_and_conserved"),
+    "core_role_weight": ("ROLE_WEIGHT = {\"CORE\": 5, \"MAJOR\": 3, \"SUPPORTING\": 1, \"NO_CREDIT\": 0}", "ROLE_WEIGHT = {\"CORE\": 4, \"MAJOR\": 3, \"SUPPORTING\": 1, \"NO_CREDIT\": 0}", "contract/tests/direct/test_economic_properties.py::test_achieved_role_weights_conserve_full_pool"),
 }
 
 def main() -> int:
