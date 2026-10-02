@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { WalletControl } from "@/components/wallet-control";
 import { TransactionDrawer } from "@/components/transaction-drawer";
+import { MissionCard } from "@/components/mission-card";
 import { WalletProvider } from "@/hooks/use-wallet";
 import { TransactionProvider } from "@/hooks/use-transactions";
+import type { Mission } from "@/lib/types";
 
 const account = "0x1111111111111111111111111111111111111111";
 const hash = `0x${"a".repeat(64)}`;
@@ -26,6 +28,7 @@ function provider(overrides: Record<string, unknown> = {}) {
 }
 
 afterEach(() => {
+  cleanup();
   delete window.ethereum;
   localStorage.clear();
   vi.restoreAllMocks();
@@ -76,5 +79,37 @@ describe("rendered transaction truth", () => {
     expect(screen.getByText("Finalized · execution unverified")).toBeInTheDocument();
     expect(screen.queryByText("Finalized · execution succeeded")).not.toBeInTheDocument();
     expect(screen.getByText(/does not treat this as durable completion/)).toBeInTheDocument();
+  });
+
+  it("renders finalized execution failure as a recoverable transaction, not success", async () => {
+    localStorage.setItem("mosaic:transactions:v1", JSON.stringify([
+      { hash, action: "Resolve mission", submittedAt: 1, stage: "failed", error: "execution reverted" },
+    ]));
+    render(<TransactionProvider><TransactionDrawer /></TransactionProvider>);
+    fireEvent.click(screen.getByRole("button", { name: /Activity/ }));
+    expect(await screen.findByText("Execution failed")).toBeInTheDocument();
+    expect(screen.queryByText("Finalized · execution succeeded")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+    expect(screen.queryByText("Execution failed")).not.toBeInTheDocument();
+  });
+});
+
+describe("rendered mission presentation", () => {
+  const mission = {
+    id: 7, title: "Ship the parser", objective: "Accept bounded source evidence", repo: "acme/widget",
+    target_ref: "main", baseline_sha: "a".repeat(40), creator: account, criteria: ["tests"],
+    created_at: 1, close_at: Math.floor(Date.now() / 1000) + 3600, status: "OPEN", pool_wei: "1000000000000000000",
+    total_funded_wei: "1000000000000000000", sponsor_wallets: [account], contributor_wallets: [], contribution_count: 0,
+    resolution_attempts: 0, last_resolution: "", terminal_objective_status: "", claimant_outcome: "",
+    evidence_failures: 0, last_evidence_status: "", released_wei: "0", residual_wei: "0",
+    mission_evidence_root: "", settlement_digest: "", settlement: null,
+  } as Mission;
+
+  it("renders an open mission with objective, target and pool", () => {
+    render(<MissionCard mission={mission} />);
+    expect(screen.getByRole("link", { name: /Ship the parser/ })).toHaveAttribute("href", "/mission/7");
+    expect(screen.getByText("Accept bounded source evidence")).toBeInTheDocument();
+    expect(screen.getByText("1.00 GEN")).toBeInTheDocument();
+    expect(screen.getByText("acme/widget · main")).toBeInTheDocument();
   });
 });
