@@ -33,6 +33,14 @@ describe("wallet network guard", () => {
     const request = vi.fn(async ({ method }: { method: string }) => method === "eth_chainId" ? "0x1" : Promise.reject(Object.assign(new Error("rejected"), { code: 4001 })));
     await expect(ensureStudionet({ request })).rejects.toThrow("rejected");
   });
+  it("does not add a chain when switching is rejected for a non-unknown error", async () => {
+    const request = vi.fn(async ({ method }: { method: string }) => {
+      if (method === "eth_chainId") return "0x1";
+      throw Object.assign(new Error("user rejected"), { code: 4001 });
+    });
+    await expect(ensureStudionet({ request })).rejects.toThrow("user rejected");
+    expect(request).not.toHaveBeenCalledWith(expect.objectContaining({ method: "wallet_addEthereumChain" }));
+  });
   it("rejects when switching does not reach Studionet", async () => {
     const request = vi.fn(async ({ method }: { method: string }) => method === "eth_chainId" ? "0x1" : null);
     await expect(ensureStudionet({ request })).rejects.toThrow("did not switch");

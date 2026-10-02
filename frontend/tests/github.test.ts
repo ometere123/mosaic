@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { findProofComments } from "@/lib/github";
+import { findProofComments, previewPullRequest } from "@/lib/github";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -37,5 +37,17 @@ describe("proof-comment discovery", () => {
     vi.stubGlobal("fetch", fetcher);
     await findProofComments("acme/widget", 4, "m");
     expect(fetcher).toHaveBeenCalledWith("https://api.github.com/repos/acme/widget/issues/4/comments?per_page=100", { cache: "no-store" });
+  });
+  it("normalizes a public pull request preview without making it authoritative", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ number: 4, title: "Fix", user: { login: "dev" }, merged_at: "2026-01-01T00:00:00Z", merge_commit_sha: "abc", changed_files: 2, html_url: "https://github.com/acme/widget/pull/4" }), { status: 200 })));
+    await expect(previewPullRequest("acme/widget", 4)).resolves.toEqual({ number: 4, title: "Fix", author: "dev", mergedAt: "2026-01-01T00:00:00Z", mergeSha: "abc", changedFiles: 2, htmlUrl: "https://github.com/acme/widget/pull/4" });
+  });
+  it("returns null preview fields for an unmerged pull request", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ number: 4 }), { status: 200 })));
+    await expect(previewPullRequest("acme/widget", 4)).resolves.toMatchObject({ mergedAt: null, mergeSha: null, author: "" });
+  });
+  it("surfaces preview HTTP failures as non-authoritative errors", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("", { status: 429 })));
+    await expect(previewPullRequest("acme/widget", 4)).rejects.toThrow("HTTP 429");
   });
 });

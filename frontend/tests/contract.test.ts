@@ -19,7 +19,7 @@ vi.mock("@/lib/deployment", () => ({
   requireContractAddress: () => "0x1111111111111111111111111111111111111111",
 }));
 
-import { addFunding, openMission } from "@/lib/contract";
+import { addFunding, expireMission, openMission, resolveMission, sealContribution, withdraw } from "@/lib/contract";
 
 describe("injected-wallet writes", () => {
   beforeEach(() => {
@@ -65,5 +65,17 @@ describe("injected-wallet writes", () => {
       value: 10n ** 18n,
     });
     expect(connect).not.toHaveBeenCalled();
+  });
+  it("writes contribution proof identifiers with zero GEN", async () => {
+    await sealContribution({ request: vi.fn() }, "0x2222222222222222222222222222222222222222", 7, 8, 9);
+    expect(writeContract).toHaveBeenCalledWith({ address: expect.any(String), functionName: "seal_contribution", args: [7n, 8, 9], value: 0n });
+  });
+  it.each([[resolveMission, "resolve_mission"], [expireMission, "expire_unresolved"]] as const)("writes %s as a zero-value permissionless action", async (writer, functionName) => {
+    await writer({ request: vi.fn() }, "0x2222222222222222222222222222222222222222", 7);
+    expect(writeContract).toHaveBeenCalledWith({ address: expect.any(String), functionName, args: [7n], value: 0n });
+  });
+  it("writes withdrawal with no arguments or value", async () => {
+    await withdraw({ request: vi.fn() }, "0x2222222222222222222222222222222222222222");
+    expect(writeContract).toHaveBeenCalledWith({ address: expect.any(String), functionName: "withdraw", args: [], value: 0n });
   });
 });
