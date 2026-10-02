@@ -1262,7 +1262,9 @@ class Mosaic(gl.Contract):
             "mission_evidence_root": mission.get("mission_evidence_root", ""),
             "resolution_evidence_root": mission.get("resolution_evidence_root", ""),
             "ordered_contribution_root": ordered_contribution_root,
-            "outcome": "EXPIRED",
+            "settlement_type": "EXPIRED",
+            "terminal_objective_status": "",
+            "claimant_outcome": "",
             "roles": {},
             "released_wei": "0",
             "residual_wei": str(pool),
@@ -1277,7 +1279,9 @@ class Mosaic(gl.Contract):
         mission["last_resolution"] = "EXPIRED"
         mission["settlement_digest"] = settlement_digest
         mission["settlement"] = {
-            "outcome": "EXPIRED",
+            "settlement_type": "EXPIRED",
+            "terminal_objective_status": "",
+            "claimant_outcome": "",
             "roles": {},
             "rationale": "Resolution grace elapsed without a conclusive settlement.",
             "contributor_allocations": {},
@@ -1430,6 +1434,7 @@ class Mosaic(gl.Contract):
             "mission_id": int(mission_id),
             "mission_evidence_root": mission.get("mission_evidence_root", ""),
             "resolution_evidence_root": mission.get("resolution_evidence_root", ""),
+            "settlement_type": "RESOLVED",
             "terminal_objective_status": terminal_objective_status,
             "claimant_outcome": claimant_outcome,
             "roles": roles,
@@ -1448,6 +1453,7 @@ class Mosaic(gl.Contract):
         mission["last_resolution"] = claimant_outcome
         mission["settlement_digest"] = settlement_digest
         mission["settlement"] = {
+            "settlement_type": "RESOLVED",
             "terminal_objective_status": terminal_objective_status,
             "claimant_outcome": claimant_outcome,
             "roles": roles,

@@ -157,8 +157,36 @@ def test_settlement_digest_commits_both_economic_statuses(direct_vm, direct_depl
         "mission_id": int(mission_id),
         "mission_evidence_root": mission["mission_evidence_root"],
         "resolution_evidence_root": mission["resolution_evidence_root"],
+        "settlement_type": "RESOLVED",
         "terminal_objective_status": "ACHIEVED",
         "claimant_outcome": "NOT_ACHIEVED",
+        "roles": {},
+        "released_wei": "0",
+        "residual_wei": str(10 * WEI),
+        "contributor_allocations": {},
+        "sponsor_allocations": {wallet(direct_alice): str(10 * WEI)},
+        "settled_at": settlement["settled_at"],
+    })
+    assert settlement["settlement_digest"] == expected
+
+
+def test_expiry_digest_commits_audit_root_without_semantic_status(direct_vm, direct_deploy, direct_alice, mission_terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/mosaic.py")
+    mission_id = open_mission(contract, direct_vm, direct_alice, mission_terms)
+    direct_vm.value = 0
+    set_block_time(direct_vm, "2026-11-10T10:00:00Z")
+    assert contract.expire_unresolved(mission_id) == "expired_refunded"
+    mission = json.loads(contract.get_mission(mission_id))
+    settlement = mission["settlement"]
+    expected = canonical_digest({
+        "mission_id": int(mission_id),
+        "mission_evidence_root": "",
+        "resolution_evidence_root": "",
+        "ordered_contribution_root": mission["ordered_contribution_root"],
+        "settlement_type": "EXPIRED",
+        "terminal_objective_status": "",
+        "claimant_outcome": "",
         "roles": {},
         "released_wei": "0",
         "residual_wei": str(10 * WEI),

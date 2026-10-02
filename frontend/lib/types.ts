@@ -10,6 +10,7 @@ export type MissionOutcome =
 export type ImpactRole = "CORE" | "MAJOR" | "SUPPORTING" | "NO_CREDIT";
 
 export type Settlement = {
+  settlement_type: "RESOLVED" | "EXPIRED";
   terminal_objective_status: MissionOutcome;
   claimant_outcome: MissionOutcome;
   roles: Record<string, ImpactRole>;

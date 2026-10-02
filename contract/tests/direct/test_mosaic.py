@@ -532,10 +532,11 @@ def test_evidence_root_and_settlement_digest_are_reproducible(direct_vm, direct_
     assert mission["mission_evidence_root"] == expected_root
     settlement = mission["settlement"]
     expected_settlement = canonical_digest({
-        "mission_id": int(mission_id),
-            "mission_evidence_root": expected_root,
-            "resolution_evidence_root": mission["resolution_evidence_root"],
-        "terminal_objective_status": "ACHIEVED",
+            "mission_id": int(mission_id),
+                "mission_evidence_root": expected_root,
+                "resolution_evidence_root": mission["resolution_evidence_root"],
+            "settlement_type": "RESOLVED",
+            "terminal_objective_status": "ACHIEVED",
         "claimant_outcome": "ACHIEVED",
         "roles": {wallet(direct_bob): "CORE"},
         "released_wei": str(10 * WEI),
@@ -988,6 +989,9 @@ def test_expiry_keeps_record_audit_root_without_faking_resolution_evidence(direc
     assert mission["resolution_evidence_root"] == ""
     assert len(mission["ordered_contribution_root"]) == 64
     assert mission["settlement"]["ordered_contribution_root"] == mission["ordered_contribution_root"]
+    assert mission["settlement"]["settlement_type"] == "EXPIRED"
+    assert mission["settlement"]["terminal_objective_status"] == ""
+    assert mission["settlement"]["claimant_outcome"] == ""
 
 
 def test_double_settlement_rejected(direct_vm, direct_deploy, direct_alice, mission_terms):
