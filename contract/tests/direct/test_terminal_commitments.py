@@ -1,7 +1,7 @@
 import hashlib
 import json
 
-from helpers import mock_baseline, mock_compare, mock_pr, set_block_time
+from helpers import mock_baseline, mock_compare, mock_lineage, mock_pr, set_block_time
 
 WEI = 10**18
 
@@ -104,7 +104,7 @@ def test_lineage_requires_sealed_merge_as_merge_base(direct_vm, direct_deploy, d
     mock_pr(direct_vm, int(mission_id), wallet(direct_bob))
     direct_vm.mock_web(r"api\.github\.com/repos/acme/widget/branches/main$", {"status": 200, "body": json.dumps({"name": "main", "commit": {"sha": "d" * 40}})})
     mock_compare(direct_vm, "acme/widget", "a" * 40, "d" * 40)
-    direct_vm.mock_web(r"api\.github\.com/repos/acme/widget/compare/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\.\.\.dddddddddddddddddddddddddddddddddddddddd$", {"status": 200, "body": json.dumps({"status": "ahead", "merge_base_commit": {"sha": "c" * 40}})})
+    mock_lineage(direct_vm, "acme/widget", "b" * 40, "d" * 40, merge_base="c" * 40)
     assert contract.resolve_mission(mission_id) == "insufficient_evidence"
 
 
