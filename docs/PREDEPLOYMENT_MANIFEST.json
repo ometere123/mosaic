@@ -1,0 +1,60 @@
+{
+  "status": "PREDEPLOYMENT_CANDIDATE",
+  "commit": "814852839b4efcfdac996a4b43b1f97abeed5f47",
+  "tree": "561c6bd0a64a24ca08bbf4826adfbc7368462de6",
+  "contract": {
+    "path": "contract/contracts/mosaic.py",
+    "canonical_sha256": "96ceea3e7d71fd2c0e36461c4b4ca0d425f10fa9c013ff09ad895b8610acf8f5",
+    "git_blob_sha256": "96ceea3e7d71fd2c0e36461c4b4ca0d425f10fa9c013ff09ad895b8610acf8f5",
+    "public_methods": [
+      "open_mission", "add_funding", "seal_contribution", "resolve_mission", "expire_unresolved",
+      "withdraw", "get_mission", "get_contribution", "get_sponsor_total", "get_balance",
+      "get_author_wallet", "get_wallet_author", "get_next_mission_id"
+    ]
+  },
+  "network": {
+    "name": "Studionet",
+    "chain_id": 61999,
+    "chain_id_hex": "0xF22F",
+    "rpc": "https://studio.genlayer.com/api",
+    "explorer": "https://explorer-studio.genlayer.com",
+    "currency": "GEN"
+  },
+  "toolchain": {
+    "genlayer_cli": "0.39.1",
+    "genvm_direct_mode": "0.2.12",
+    "genlayer_py": "0.16.3",
+    "genlayer_test": "0.29.2",
+    "genvm_linter": "0.11.0",
+    "genlayer_js": "1.1.8",
+    "next": "16.3.8",
+    "react": "19.2.4"
+  },
+  "evidence": {
+    "direct_mode": {"passed": 128, "total": 128},
+    "validator_adversarial_cases": 9,
+    "contract_mutation": {"unique_meaningful": 81, "killed": 81, "surviving": 0, "invalid_syntax": 0, "equivalent": 0},
+    "frontend_tests": {"passed": 115, "total": 115},
+    "frontend_mutation": {"unique_meaningful": 30, "killed": 30, "surviving": 0, "invalid_syntax": 0},
+    "ci": {
+      "latest_green_run": 36996123539,
+      "ubuntu_job": 110803118665,
+      "windows_job": 110803118519,
+      "frontend_mutation_job": 110803118789,
+      "platform_source_sha_equal": true
+    }
+  },
+  "known_limitations": [
+    "Public GitHub availability and anonymous rate limits are consensus dependencies; source failure fails closed and remains retryable until expiry.",
+    "Terminal and contribution evidence are intentionally bounded; oversized or incomplete evidence cannot settle.",
+    "Local Windows Direct Mode can encounter GenVM temporary-file locking; Ubuntu CI is the authoritative Direct Mode execution gate.",
+    "The upstream gltest.config.yaml warning remains documented because suppressing it would risk changing the pinned runtime semantics.",
+    "No hardened current-source deployment has been performed; the obsolete historical deployment is not configured."
+  ],
+  "deployment": {
+    "performed": false,
+    "contract_address": null,
+    "transaction": null,
+    "vercel_production": null
+  }
+}
