@@ -37,10 +37,11 @@
     "frontend_tests": {"passed": 117, "total": 117},
     "frontend_mutation": {"unique_meaningful": 30, "killed": 30, "surviving": 0, "invalid_syntax": 0},
     "ci": {
-      "latest_green_run": 36999163497,
-      "ubuntu_job": 110812630851,
-      "windows_job": 110812631031,
-      "frontend_mutation_job": 110812631142,
+      "latest_green_run": 37000880955,
+      "ubuntu_job": 110818051981,
+      "contract_mutation_job": 110818052287,
+      "windows_job": 110818052296,
+      "frontend_mutation_job": 110818052225,
       "platform_source_sha_equal": true
     }
   },
