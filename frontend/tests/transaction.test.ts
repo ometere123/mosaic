@@ -84,6 +84,31 @@ describe("transaction truthfulness", () => {
   it("accepts camelCase leader receipt from the pinned response shape", () => {
     expect(classifyTransaction({ statusName: "Finalized", consensusData: { leaderReceipt: [{ executionResult: 1 }] } }, base).stage).toBe("finalized");
   });
+  it("accepts the pinned multi-entry receipt when the leader is explicitly labeled", () => {
+    expect(classifyTransaction({
+      status: 7,
+      result: 6,
+      consensus_data: {
+        leader_receipt: [
+          { mode: "leader", execution_result: "SUCCESS" },
+          { mode: "validator", execution_result: "ERROR" },
+        ],
+      },
+    }, base).stage).toBe("finalized");
+  });
+  it("accepts the installed consensus-history leader representation", () => {
+    expect(classifyTransaction({
+      status_name: "FINALIZED",
+      consensus_history: {
+        consensus_results: [{
+          leader_result: [
+            { mode: "leader", execution_result: "SUCCESS" },
+            { mode: "validator", execution_result: "ERROR" },
+          ],
+        }],
+      },
+    }, base).stage).toBe("finalized");
+  });
   it("rejects multiple leader receipts as non-authoritative", () => {
     expect(classifyTransaction({ status_name: "FINALIZED", consensus_data: { leader_receipt: [{ execution_result: 1 }, { execution_result: 1 }] } }, base).stage).toBe("finalized_unverified");
   });

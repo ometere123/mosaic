@@ -20,7 +20,7 @@ const files = {
 const mutants = [
   ["accepted_durable_success", "transaction", 'executionFailed ? "failed" : "accepted"', 'executionFailed ? "failed" : "finalized"', "tests/transaction.test.ts"],
   ["finalized_unknown_success", "transaction", 'executionSucceeded ? "finalized" : "finalized_unverified"', 'executionSucceeded ? "finalized" : "finalized"', "tests/transaction.test.ts"],
-  ["multiple_leader_receipts_trusted", "transaction", "leaderReceipts.length !== 1", "leaderReceipts.length < 1", "tests/transaction.test.ts"],
+  ["labeled_leader_required", "transaction", "labeledLeaders.length === 1", "labeledLeaders.length !== 1", "tests/transaction.test.ts"],
   ["leader_receipt_ignored", "transaction", "|| authoritativeLeaderExecution(tx)", "|| \"\"", "tests/transaction.test.ts"],
   ["execution_error_ignored", "transaction", 'exec.includes("ERROR") || ', '""', "tests/transaction.test.ts"],
   ["timeout_treated_as_success", "transaction", '|| exec.includes("TIMEOUT")', '|| false', "tests/transaction.test.ts"],

@@ -22,11 +22,44 @@ function directString(object: Record<string, unknown>, keys: string[]): string {
 }
 
 function authoritativeLeaderExecution(tx: Record<string, unknown>): string {
+  const history = tx.consensus_history ?? tx.consensusHistory;
+  if (history && typeof history === "object") {
+    const rounds = (history as Record<string, unknown>).consensus_results
+      ?? (history as Record<string, unknown>).consensusResults;
+    if (Array.isArray(rounds) && rounds.length > 0) {
+      const round = rounds[rounds.length - 1];
+      if (round && typeof round === "object") {
+        const entries = (round as Record<string, unknown>).leader_result
+          ?? (round as Record<string, unknown>).leaderResult;
+        if (Array.isArray(entries)) {
+          const leader = entries.find((entry) => entry && typeof entry === "object"
+            && upper((entry as Record<string, unknown>).mode) === "LEADER");
+          if (leader && typeof leader === "object") {
+            const named = directString(leader as Record<string, unknown>, [
+              "execution_result_name", "executionResultName", "execution_result", "executionResult",
+            ]);
+            if (named) return named;
+            const numeric = Number((leader as Record<string, unknown>).execution_result
+              ?? (leader as Record<string, unknown>).executionResult ?? NaN);
+            if (Number.isFinite(numeric)) return EXECUTION_BY_CODE[numeric] ?? "";
+          }
+        }
+      }
+    }
+  }
   const consensus = tx.consensus_data ?? tx.consensusData;
   if (!consensus || typeof consensus !== "object") return "";
   const leaderReceipts = (consensus as Record<string, unknown>).leader_receipt ?? (consensus as Record<string, unknown>).leaderReceipt;
-  if (!Array.isArray(leaderReceipts) || leaderReceipts.length !== 1 || !leaderReceipts[0] || typeof leaderReceipts[0] !== "object") return "";
-  const receipt = leaderReceipts[0] as Record<string, unknown>;
+  if (!Array.isArray(leaderReceipts)) return "";
+  const labeledLeaders = leaderReceipts.filter((entry) => entry && typeof entry === "object"
+    && upper((entry as Record<string, unknown>).mode) === "LEADER");
+  const candidates = labeledLeaders.length === 1
+    ? labeledLeaders
+    : labeledLeaders.length === 0 && leaderReceipts.length === 1
+      ? leaderReceipts
+      : [];
+  if (candidates.length !== 1 || !candidates[0] || typeof candidates[0] !== "object") return "";
+  const receipt = candidates[0] as Record<string, unknown>;
   const named = directString(receipt, ["execution_result_name", "executionResultName", "execution_result", "executionResult"]);
   if (named) return named;
   const numeric = Number(receipt.execution_result ?? receipt.executionResult ?? NaN);
