@@ -126,6 +126,12 @@ def test_empty_terminal_snapshot_is_committed_and_settles_truthfully(direct_vm, 
     mission = json.loads(contract.get_mission(mission_id))
     expected_terminal = {"repo": "acme/widget", "target_ref": "main", "baseline_sha": "a" * 40, "terminal_tip_sha": "a" * 40, "files": []}
     assert mission["terminal_source_digest"] == canonical_digest(expected_terminal)
+    assert mission["resolution_evidence_root"] == canonical_digest({
+        "mission_terms_digest": mission["mission_terms_digest"],
+        "ordered_contribution_root": mission["ordered_contribution_root"],
+        "terminal_source_digest": mission["terminal_source_digest"],
+        "terminal_lineage_root": mission["terminal_lineage_root"],
+    })
 
 
 def test_terminal_patch_change_changes_terminal_and_resolution_commitments(direct_vm, direct_deploy, direct_alice, mission_terms):
