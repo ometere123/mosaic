@@ -31,6 +31,16 @@ if (sourceHash !== manifest.contract?.canonical_sha256 || sourceHash !== manifes
 const currentBytes = readFileSync(join(root, "contract", "contracts", "mosaic.py"));
 if (createHash("sha256").update(currentBytes).digest("hex") !== sourceHash) fail("working-tree contract differs from frozen source");
 const head = git("rev-parse", "HEAD");
-if (head !== git("ls-remote", "origin", "refs/heads/main").split(/\s+/)[0]) fail("local HEAD differs from origin/main");
+const remoteMain = git("ls-remote", "origin", "refs/heads/main").split(/\s+/)[0];
+const headRef = process.env.GITHUB_HEAD_REF || git("branch", "--show-current");
+if (headRef === "main") {
+  if (head !== remoteMain) fail("local HEAD differs from origin/main");
+} else {
+  try {
+    execFileSync("git", ["merge-base", "--is-ancestor", remoteMain, head], { cwd: root, stdio: "ignore" });
+  } catch {
+    fail("PR head is not descended from origin/main");
+  }
+}
 
 console.log(`Manifest verification passed: frozen ${frozen}, tree ${frozenTree}, contract SHA-256 ${sourceHash}, status ${manifest.status}.`);
