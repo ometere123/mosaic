@@ -398,6 +398,17 @@ def test_naive_merge_timestamp_rejected(direct_vm, direct_deploy, direct_alice, 
         contract.seal_contribution(mission_id, 7, 99)
 
 
+def test_merge_timestamp_outside_mission_window_rejected(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/mosaic.py")
+    mission_id = open_mission(contract, direct_vm, direct_alice, mission_terms)
+    direct_vm.value = 0
+    direct_vm.sender = direct_bob
+    mock_pr(direct_vm, int(mission_id), wallet(direct_bob), merged_at="2026-09-30T10:00:00Z")
+    with direct_vm.expect_revert("merge_outside_mission_window"):
+        contract.seal_contribution(mission_id, 7, 99)
+
+
 def test_malformed_compare_payload_rejected(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
     set_block_time(direct_vm, "2026-10-01T10:00:00Z")
     contract = direct_deploy("contract/contracts/mosaic.py")
