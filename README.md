@@ -59,6 +59,9 @@ Technical security and evidence documentation:
 - [Testing and mutation](docs/TESTING.md), [mutation strategy](docs/MUTATION.md)
 - [Proof matrix](docs/PROOF_MATRIX.md)
 - [Pinned toolchain](docs/TOOLCHAIN.md)
+- [Frontend truth model](docs/FRONTEND.md)
+- [Manual QA runbook](docs/MANUAL_QA_RUNBOOK.md)
+- [Final pre-deployment audit](docs/FINAL_AUDIT.md)
 
 ## Network and toolchain
 
