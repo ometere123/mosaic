@@ -21,6 +21,18 @@ function directString(object: Record<string, unknown>, keys: string[]): string {
   return "";
 }
 
+function authoritativeLeaderExecution(tx: Record<string, unknown>): string {
+  const consensus = tx.consensus_data ?? tx.consensusData;
+  if (!consensus || typeof consensus !== "object") return "";
+  const leaderReceipts = (consensus as Record<string, unknown>).leader_receipt ?? (consensus as Record<string, unknown>).leaderReceipt;
+  if (!Array.isArray(leaderReceipts) || leaderReceipts.length !== 1 || !leaderReceipts[0] || typeof leaderReceipts[0] !== "object") return "";
+  const receipt = leaderReceipts[0] as Record<string, unknown>;
+  const named = directString(receipt, ["execution_result_name", "executionResultName", "execution_result", "executionResult"]);
+  if (named) return named;
+  const numeric = Number(receipt.execution_result ?? receipt.executionResult ?? NaN);
+  return Number.isFinite(numeric) ? EXECUTION_BY_CODE[numeric] ?? "" : "";
+}
+
 export function classifyTransaction(raw: unknown, previous: TxRecord): TxRecord {
   const tx = (raw ?? {}) as Record<string, unknown>;
   const numericStatus = Number(tx.status_code ?? tx.statusCode ?? (typeof tx.status === "number" ? tx.status : NaN));
@@ -30,7 +42,7 @@ export function classifyTransaction(raw: unknown, previous: TxRecord): TxRecord 
     "tx_execution_result_name", "txExecutionResultName", "execution_result_name", "executionResultName",
   ]);
   const numericExecution = Number(tx.tx_execution_result ?? tx.txExecutionResult ?? NaN);
-  const executionName = explicitExecution || (Number.isFinite(numericExecution) ? EXECUTION_BY_CODE[numericExecution] ?? "" : "");
+  const executionName = explicitExecution || (Number.isFinite(numericExecution) ? EXECUTION_BY_CODE[numericExecution] ?? "" : "") || authoritativeLeaderExecution(tx);
   const status = upper(statusName);
   const exec = upper(executionName);
   const executionFailed = exec.includes("ERROR") || exec.includes("REVERT") || exec.includes("FAILED") || exec.includes("TIMEOUT") || exec.includes("NONDET") || exec.includes("VIOLATION");

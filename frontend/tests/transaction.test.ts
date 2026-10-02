@@ -27,6 +27,18 @@ describe("transaction truthfulness", () => {
     };
     expect(classifyTransaction(raw, base).stage).toBe("finalized_unverified");
   });
+  it("uses the pinned SDK leader receipt fallback when top-level execution is absent", () => {
+    const raw = { status_name: "FINALIZED", consensus_data: { leader_receipt: [{ execution_result: "FINISHED_WITH_RETURN" }] } };
+    expect(classifyTransaction(raw, base).stage).toBe("finalized");
+  });
+  it("surfaces an authoritative leader execution error", () => {
+    const raw = { status_name: "FINALIZED", consensus_data: { leader_receipt: [{ execution_result: "FINISHED_WITH_ERROR" }] } };
+    expect(classifyTransaction(raw, base).stage).toBe("failed");
+  });
+  it("does not let a leader receipt override a conflicting top-level result", () => {
+    const raw = { status_name: "FINALIZED", tx_execution_result_name: "FINISHED_WITH_ERROR", consensus_data: { leader_receipt: [{ execution_result: "FINISHED_WITH_RETURN" }] } };
+    expect(classifyTransaction(raw, base).stage).toBe("failed");
+  });
   it("surfaces undetermined consensus", () => {
     expect(classifyTransaction({ status_name: "UNDETERMINED" }, base).stage).toBe("undetermined");
   });
