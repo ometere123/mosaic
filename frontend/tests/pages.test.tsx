@@ -26,6 +26,9 @@ describe("release information architecture", () => {
     expect(screen.getByRole("link", { name: "Lifecycle" })).toHaveAttribute("href", "#lifecycle");
     expect(screen.getByRole("heading", { name: "Settlement truth" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Consensus design" })).toBeInTheDocument();
+    expect(screen.getByText(/settlement-state semantics, not close-time snapshot semantics/i)).toBeInTheDocument();
+    expect(screen.getByText(/one public contribution can receive value from multiple independently funded missions/i)).toBeInTheDocument();
+    expect(screen.getByText(/protocol policy, not claims of mathematical optimality/i)).toBeInTheDocument();
   });
 
   it("keeps primary navigation on product routes", () => {

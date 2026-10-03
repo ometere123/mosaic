@@ -31,6 +31,8 @@ jobs:
         run: npm run check:architecture
       - name: Repository integrity
         run: npm run check:integrity
+      - name: Comparator-reference guard
+        run: npm run check:comparators
       - name: Predeployment manifest
         run: npm run check:manifest
       - name: Python syntax
@@ -80,7 +82,7 @@ jobs:
       - name: Install frontend dependencies
         run: npm --prefix frontend ci
       - name: Portable repository guards
-        run: npm run check:network && npm run check:architecture && npm run check:cli && npm run check:integrity && npm run check:manifest
+        run: npm run check:network && npm run check:architecture && npm run check:cli && npm run check:integrity && npm run check:comparators && npm run check:manifest
       - name: Frontend lint
         run: npm --prefix frontend run lint
       - name: Frontend typecheck
