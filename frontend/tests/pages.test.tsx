@@ -35,6 +35,8 @@ describe("release information architecture", () => {
 
   it("keeps primary navigation on product routes", () => {
     render(<Providers><AppShell><div>content</div></AppShell></Providers>);
+    expect(document.querySelector('img.brand-mark[src="/mosaic-mark.svg"]')).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Mosaic home" })).toHaveAttribute("href", "/");
     expect(screen.getByRole("link", { name: "Missions" })).toHaveAttribute("href", "/missions");
     expect(screen.getByRole("link", { name: "Docs" })).toHaveAttribute("href", "/docs");
     expect(screen.getByRole("link", { name: "Launch" })).toHaveAttribute("href", "/launch");

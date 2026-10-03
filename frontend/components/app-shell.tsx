@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { WalletControl } from "./wallet-control";
 import { TransactionDrawer } from "./transaction-drawer";
@@ -12,7 +13,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <Link className="brand" href="/" aria-label="Mosaic home"><span className="brand-mark">M</span><span>MOSAIC</span></Link>
+        <Link className="brand" href="/" aria-label="Mosaic home"><Image className="brand-mark" src="/mosaic-mark.svg" width={30} height={30} alt="" aria-hidden="true" priority /><span>MOSAIC</span></Link>
         <nav className="nav" aria-label="Primary navigation">
           {nav.map((item) => <Link key={item.href} href={item.href} className={pathname === item.href ? "nav-link active" : "nav-link"}>{item.label}</Link>)}
         </nav>
