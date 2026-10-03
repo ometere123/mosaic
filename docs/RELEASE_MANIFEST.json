@@ -1,0 +1,39 @@
+{
+  "status": "FINAL_CANONICAL_RELEASE",
+  "contract_source": {
+    "commit": "cab3e477a86a76b8616532ba84553ea5b5302043",
+    "tree": "ec723272b6c3d3581a6da8b4879f8b2076a948f7",
+    "path": "contract/contracts/mosaic.py",
+    "sha256": "1563468f5616bf91f910282bf939d254ae1ff6e72052108dee3ee99a7be7cbde"
+  },
+  "network": {"name": "Studionet", "chain_id": 61999, "rpc": "https://studio.genlayer.com/api", "currency": "GEN"},
+  "deployment": {
+    "contract": "0xE8CB904b47e97C0a09bF679525C5BF8b722fF1bD",
+    "transaction": "0xffb52a0012ce2d56108ca2ba8ac64279aff432acfd9eeed2663f016b0f02863a",
+    "status": "FINALIZED",
+    "consensus": "MAJORITY_AGREE",
+    "leader_execution": "SUCCESS",
+    "retrieved_source_sha256": "1563468f5616bf91f910282bf939d254ae1ff6e72052108dee3ee99a7be7cbde"
+  },
+  "frontend": {"project": "mosaic", "project_id": "prj_YuwUxgdIrmVoKwkl9LaGQv4i2ftX", "deployment": "dpl_6g2QcTCQCAVV9dP3CzcGVABHccC7", "url": "https://themosaic.vercel.app"},
+  "canonical_lifecycle": {
+    "repository": "ometere123/backfill",
+    "mission_id": 0,
+    "baseline": "987fca62be4eaba1741195910e4d2079402e419d",
+    "pull_request": 4,
+    "merge_sha": "73ad12c5534d713c8fa01efc8c3bdce2f06f2e1c",
+    "proof_comment_id": 5970233201,
+    "seal_transaction": "0x0d6f55284dc92e0f470d6982a42ec4c3f8a5ce192d14fd6eaae6ff5d3daf36b6",
+    "resolution_transaction": "0x53f492e446ff54ba3a2dda8e6ff7e56dbc3d7bf83116f1498d4c229ce8a13854",
+    "terminal_objective_status": "ACHIEVED",
+    "claimant_outcome": "ACHIEVED",
+    "roles": {"0xfcef676044658b5402f590dabe9e04a0f640522f": "CORE"},
+    "funded_wei": "1000000000000000000",
+    "released_wei": "1000000000000000000",
+    "residual_wei": "0",
+    "withdrawal_parent": "0x3284f7a249d416d1e1589d565a009be28c258275b715a2bb0bb398d4c9b42347",
+    "withdrawal_eoa_transfer": "0xe07e016cde8d23ce7c51f3ff780ae1d7fd31e5133f78554af123e74ecdc46073",
+    "withdrawal_eoa_transfer_value_credited": true
+  },
+  "adverse_evidence": {"duplicate_pr": "0x32c7d8fa3e3650887dcf86b8d0e01098065d87628d95ccfc286b1556ae19372c", "duplicate_result": "pr_already_sealed"}
+}

@@ -30,7 +30,7 @@ describe("release information architecture", () => {
     expect(screen.getByText(/one public contribution can receive value from multiple independently funded missions/i)).toBeInTheDocument();
     expect(screen.getByText(/protocol policy, not claims of mathematical optimality/i)).toBeInTheDocument();
     expect(screen.getByText(/0xE8CB904b47e97C0a09bF679525C5BF8b722fF1bD/i)).toBeInTheDocument();
-    expect(screen.getByText(/remains a release candidate/i)).toBeInTheDocument();
+    expect(screen.getByText(/finalized settlement and a credited 1 GEN EOA withdrawal/i)).toBeInTheDocument();
   });
 
   it("keeps primary navigation on product routes", () => {

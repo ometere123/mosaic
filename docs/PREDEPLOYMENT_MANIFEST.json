@@ -1,5 +1,5 @@
 {
-  "status": "PREDEPLOYMENT_CANDIDATE",
+  "status": "PREDEPLOYMENT_HISTORY_SUPERSEDED_BY_RELEASE_MANIFEST",
   "frozen_source_commit": "cab3e477a86a76b8616532ba84553ea5b5302043",
   "frozen_source_tree": "ec723272b6c3d3581a6da8b4879f8b2076a948f7",
   "contract": {
@@ -63,12 +63,12 @@
     "Browser automation depends on the user-owned Chrome control bridge; live chain evidence is independently reproducible through read-only Studionet calls."
   ],
   "live_validation": {
-    "status": "SUPERSEDED_DEPLOYMENT_EXPOSED_WITHDRAWAL_DELIVERY_DEFECT",
-    "note": "Mission 0 and mission 1 settled with conserved allocations, but their spawned EOA value transfers finalized ERROR/contract_not_found after parent withdrawals zeroed pull balances. The corrected source is not yet deployed and requires a fresh payout lifecycle."
+    "status": "HISTORICAL_SUPERSEDED_DEPLOYMENT_EXPOSED_WITHDRAWAL_DELIVERY_DEFECT",
+    "note": "This manifest preserves the predeployment and superseded-deployment record. The corrected source was subsequently deployed and live-verified; see docs/RELEASE_MANIFEST.json."
   },
   "deployment": {
-    "performed": false,
-    "note": "The corrected EVM-recipient withdrawal source has not yet been deployed.",
+    "performed": true,
+    "note": "The corrected EVM-recipient withdrawal source was deployed and live-verified after this predeployment manifest. See docs/RELEASE_MANIFEST.json for canonical release evidence.",
     "superseded_contract_address": "0x05fd77aB1f916e36C718E6b55CBdf5F726216d4a",
     "superseded_deployment_transaction": "0x7def22417f48e35caff481815a7665d0dce26841bd025f5035a707da1791e167",
     "superseded_contributor_child_transfer": "0xd544e8229bbfe2bd44e1c27c3b884368c57cacedcb11a14be86946ff8bba30d2",

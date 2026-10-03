@@ -1,6 +1,6 @@
 # Live Validation
 
-## Current release-candidate surfaces
+## Final canonical release surfaces
 
 - Contract: `0xE8CB904b47e97C0a09bF679525C5BF8b722fF1bD`
 - Deployment transaction: `0xffb52a0012ce2d56108ca2ba8ac64279aff432acfd9eeed2663f016b0f02863a` (`FINALIZED`, `MAJORITY_AGREE`, leader execution `SUCCESS`)
@@ -9,7 +9,7 @@
 
 The earlier MOSAIC-self-validation mission and the old deployment evidence are historical/superseded only. They are not the canonical live proof.
 
-## Current external-repository lifecycle — pending close
+## Canonical external-repository lifecycle
 
 - External repository: `ometere123/backfill`, created `2026-09-06T17:05:17Z`; target ref `main`.
 - Mission `0`, baseline `987fca62be4eaba1741195910e4d2079402e419d`, funded with `1 GEN`; launch tx `0xf4624fd2427590d0735fa61417d0828545e853e0c0e46bd09de117a7c2ec5ab7` finalized with successful execution.
@@ -17,7 +17,12 @@ The earlier MOSAIC-self-validation mission and the old deployment evidence are h
 - Proof comment `5970233201` contains the exact mission marker and was posted by stable GitHub account ID `45469370`, the same account that authored the PR.
 - Seal tx `0x0d6f55284dc92e0f470d6982a42ec4c3f8a5ce192d14fd6eaae6ff5d3daf36b6` finalized with `MAJORITY_AGREE` and successful leader execution. Contract reread shows exactly one sealed contribution.
 - Duplicate-seal safety tx `0x32c7d8fa3e3650887dcf86b8d0e01098065d87628d95ccfc286b1556ae19372c` finalized with `MAJORITY_AGREE` and execution error `pr_already_sealed`; no second contribution or GEN movement occurred.
-- Mission close is `2026-10-03 16:45 WAT`. No terminal objective, claimant outcome, allocation, residual or withdrawal result is claimed before legitimate resolution.
+- Resolution tx `0x53f492e446ff54ba3a2dda8e6ff7e56dbc3d7bf83116f1498d4c229ce8a13854` finalized with `MAJORITY_AGREE` and leader execution `SUCCESS`.
+- Terminal tip `73ad12c5534d713c8fa01efc8c3bdce2f06f2e1c`; terminal objective status `ACHIEVED`; claimant outcome `ACHIEVED`; complete role map `{0xfcef676044658b5402f590dabe9e04a0f640522f: CORE}`.
+- Accounting: funded `1000000000000000000` wei; released `1000000000000000000` wei; sponsor residual `0` wei. Conservation is exact.
+- Terminal source digest `c0a161e45120ed79a1e86aaaeb6b32538244efe5d8d4e7467e7a67c26ac2d0e5`; ordered contribution root `808038022304a131993e826c8dae4c68fff4ce2b1ad747c62b3aa2f735cc147f`; lineage root `19f6028a2c1a4f72cbe9a7b29fd5b2d28c4103871237193a4339152f719f7c2b`; resolution evidence root `695947241bd0c99d73a5073983f4dce8703e4e7e506610da3064cf3f3c0bc3cb`; settlement digest `242e56e94cfa2803733de4c6d4959a3c079d4ddc7d6c07c58edd20d485d2af81`.
+- Production withdrawal parent tx `0x3284f7a249d416d1e1589d565a009be28c258275b715a2bb0bb398d4c9b42347` finalized with `MAJORITY_AGREE` and leader execution `SUCCESS`; contract `get_balance` reread `0`.
+- Its triggered EOA transfer `0xe07e016cde8d23ce7c51f3ff780ae1d7fd31e5133f78554af123e74ecdc46073` finalized from the contract to `0xfcef676044658b5402f590dabe9e04a0f640522f` with value `1000000000000000000` wei and RPC field `value_credited: true`. This is the delivery proof; this plain EOA transfer has no GenVM leader receipt.
 
 ## Canonical positive lifecycle
 

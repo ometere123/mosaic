@@ -13,6 +13,7 @@ const MISSION_ID_TEXT = process.env.MOSAIC_SMOKE_MISSION_ID;
 const MISSION_ID = MISSION_ID_TEXT === undefined ? null : Number(MISSION_ID_TEXT);
 const SPONSOR = process.env.MOSAIC_SMOKE_SPONSOR?.toLowerCase();
 const EXPECTED_BALANCE_WEI = process.env.MOSAIC_SMOKE_EXPECTED_BALANCE_WEI;
+const CHILD_TRANSFER_HASHES = (process.env.MOSAIC_SMOKE_CHILD_TRANSFER_HASHES ?? "").split(",").map((item) => item.trim()).filter(Boolean);
 
 const fail = (message) => { throw new Error(`Release smoke failed: ${message}`); };
 const canonical = (value) => value.replace(/\r\n/g, "\n");
@@ -78,6 +79,15 @@ for (const hash of (process.env.MOSAIC_SMOKE_TX_HASHES ?? "").split(",").map((it
   if (leader?.mode !== "leader" || leader?.execution_result !== "SUCCESS") fail(`${hash} lacks authoritative leader SUCCESS`);
 }
 
+for (const hash of CHILD_TRANSFER_HASHES) {
+  const tx = await rpc("eth_getTransactionByHash", [hash]);
+  if (tx?.status !== "FINALIZED") fail(`${hash} is ${tx?.status ?? "missing"}, not FINALIZED`);
+  if (tx?.value_credited !== true) fail(`${hash} did not credit its external value transfer`);
+  if (typeof tx?.from_address !== "string" || typeof tx?.to_address !== "string" || BigInt(tx?.value ?? 0) <= 0n) {
+    fail(`${hash} lacks a positive, attributable external transfer`);
+  }
+}
+
 if (mission?.settlement) {
   const released = BigInt(mission.released_wei);
   const residual = BigInt(mission.residual_wei);
@@ -98,5 +108,6 @@ console.log(JSON.stringify({
   sponsor_total_wei: sponsorTotal,
   wallet_balance_wei: walletBalance,
   settlement_verified: Boolean(mission?.settlement),
+  child_transfers_verified: CHILD_TRANSFER_HASHES.length,
   routes_verified: routes.length,
 }, null, 2));
