@@ -12,6 +12,8 @@ const files = {
   format: path.join(root, "lib/format.ts"),
   status: path.join(root, "components/status.tsx"),
   genlayer: path.join(root, "lib/genlayer.ts"),
+  readResilience: path.join(root, "lib/read-resilience.ts"),
+  readCache: path.join(root, "lib/read-cache.ts"),
 };
 
 // These replacements mutate production frontend source, then run the real Vitest
@@ -20,9 +22,9 @@ const files = {
 const mutants = [
   ["accepted_durable_success", "transaction", 'executionFailed ? "failed" : "accepted"', 'executionFailed ? "failed" : "finalized"', "tests/transaction.test.ts"],
   ["finalized_unknown_success", "transaction", 'executionSucceeded ? "finalized" : "finalized_unverified"', 'executionSucceeded ? "finalized" : "finalized"', "tests/transaction.test.ts"],
-  ["labeled_leader_required", "transaction", "labeledLeaders.length === 1", "labeledLeaders.length !== 1", "tests/transaction.test.ts"],
+  ["single_leader_receipt_required", "transaction", "labeledLeaders.length === 1\n    ? labeledLeaders", "labeledLeaders.length >= 1\n    ? [labeledLeaders[0]]", "tests/transaction.test.ts"],
   ["leader_receipt_ignored", "transaction", "|| authoritativeLeaderExecution(tx)", "|| \"\"", "tests/transaction.test.ts"],
-  ["execution_error_ignored", "transaction", 'exec.includes("ERROR") || ', '""', "tests/transaction.test.ts"],
+  ["execution_error_ignored", "transaction", 'exec.includes("ERROR")', 'false', "tests/transaction.test.ts"],
   ["timeout_treated_as_success", "transaction", '|| exec.includes("TIMEOUT")', '|| false', "tests/transaction.test.ts"],
   ["correct_chain_guard_removed", "network", "=== NETWORK.chainId", "!== NETWORK.chainId", "tests/network.test.ts"],
   ["post_switch_verification_removed", "network", "if (after !== NETWORK.chainId)", "if (false)", "tests/network.test.ts"],
@@ -30,11 +32,11 @@ const mutants = [
   ["wrong_switch_chain", "network", "params: [{ chainId: NETWORK.chainIdHex }]", 'params: [{ chainId: "0x1" }]', "tests/network.test.ts"],
   ["chain_id_radix_wrong", "network", "Number.parseInt(String(hex), 16)", "Number.parseInt(String(hex), 10)", "tests/network.test.ts"],
   ["proof_partial_match", "github", "body !== marker", "false", "tests/github.test.ts"],
-  ["malformed_comments_accepted", "github", "if (!Array.isArray(data))", "if (false)", "tests/github.test.ts"],
+  ["malformed_comments_accepted", "github", 'if (!Array.isArray(data)) throw new Error("GitHub returned malformed comment data. You can enter the comment ID manually.");', 'if (!Array.isArray(data)) return [];', "tests/github.test.ts"],
   ["unsafe_comment_id_accepted", "github", "!Number.isSafeInteger(id) || id <= 0", "false", "tests/github.test.ts"],
   ["unbounded_comments_endpoint", "github", "comments?per_page=100", "comments?per_page=1", "tests/github.test.ts"],
   ["deployment_address_validation_removed", "deployment", "ADDRESS_RE.test(raw)\n  ?", "true\n  ?", "tests/deployment.test.ts"],
-  ["missing_deployment_allowed", "deployment", "if (!CONTRACT_ADDRESS)", "if (false)", "tests/deployment.test.ts"],
+  ["missing_deployment_allowed", "deployment", 'if (!CONTRACT_ADDRESS) throw new Error("MOSAIC contract address is not configured for this deployment.");\n  return CONTRACT_ADDRESS;', 'return CONTRACT_ADDRESS!;', "tests/deployment.test.ts"],
   ["wrong_funding_method", "contract", 'functionName: "add_funding"', 'functionName: "withdraw"', "tests/contract.test.ts"],
   ["target_ref_not_written", "contract", "args: [input.repo, input.targetRef, input.baseline", "args: [input.repo, input.baseline, input.baseline", "tests/contract.test.ts"],
   ["seal_sends_value", "contract", 'functionName: "seal_contribution", args: [BigInt(missionId), pr, commentId], value: 0n', 'functionName: "seal_contribution", args: [BigInt(missionId), pr, commentId], value: 1n', "tests/contract.test.ts"],
@@ -43,11 +45,16 @@ const mutants = [
   ["trailing_decimal_allowed", "format", "\\d{1,18}", "\\d{0,18}", "tests/format.test.ts"],
   ["hash_tail_wrong", "format", "slice(-tail)", "slice(-head)", "tests/format.test.ts"],
   ["closed_boundary_wrong", "format", "delta <= 0", "delta < 0", "tests/format.test.ts"],
-  ["settled_phase_mislabelled", "status", 'return "SETTLED"', 'return "OPEN"', "tests/state.test.ts"],
+  ["settled_phase_mislabelled", "status", 'if (mission.status === "SETTLED") return "SETTLED";', 'if (mission.status === "SETTLED" && false) return "SETTLED";', "tests/state.test.ts"],
   ["expired_phase_mislabelled", "status", 'return "EXPIRED"', 'return "OPEN"', "tests/state.test.ts"],
   ["achieved_tone_mislabelled", "status", 'outcome === "ACHIEVED") return "good"', 'outcome === "ACHIEVED") return "warn"', "tests/state.test.ts"],
   ["partial_tone_mislabelled", "status", 'outcome === "MATERIAL_PROGRESS") return "blue"', 'outcome === "MATERIAL_PROGRESS") return "warn"', "tests/state.test.ts"],
   ["funding_value_dropped", "contract", 'functionName: "add_funding", args: [BigInt(missionId)], value });', 'functionName: "add_funding", args: [BigInt(missionId)], value: 0n });', "tests/contract.test.ts"],
+  ["read_retry_count_removed", "readResilience", "options.attempts ?? 4", "options.attempts ?? 1", "tests/read-resilience.test.ts"],
+  ["failed_fetch_not_transient", "readResilience", '"failed to fetch", "fetch failed"', '"transport fetch failure", "fetch failed"', "tests/read-resilience.test.ts"],
+  ["public_read_concurrency_unbounded", "readResilience", "MAX_PUBLIC_READ_CONCURRENCY = 4", "MAX_PUBLIC_READ_CONCURRENCY = 8", "tests/read-resilience.test.ts"],
+  ["latest_final_downgraded", "contract", "TransactionHashVariant.LATEST_FINAL", "TransactionHashVariant.LATEST_NONFINAL", "tests/contract.test.ts"],
+  ["read_cache_contract_scope_removed", "readCache", "`${NETWORK.chainId}:${contract.toLowerCase()}:${VERSION}`", "`${NETWORK.chainId}:${VERSION}`", "tests/read-cache.test.ts"],
 ];
 
 const reportPath = path.join(root, "tests/mutation/latest-report.json");
@@ -66,6 +73,13 @@ const runTests = (testFile) => spawnSync(
     : [...testArgs, ...(testFile ? [testFile] : [])],
   { cwd: root, stdio: "ignore", env: process.env },
 );
+const runTypecheck = () => spawnSync(
+  runner,
+  process.platform === "win32"
+    ? ["/d", "/s", "/c", "npx tsc --noEmit && exit /b 0 || exit /b 1"]
+    : ["tsc", "--noEmit"],
+  { cwd: root, encoding: "utf8", env: process.env },
+);
 const control = runTests();
 if (control.error || control.status !== 0) {
   throw new Error("frontend mutation control run failed; refusing to classify mutants");
@@ -78,8 +92,12 @@ try {
       throw new Error(`non-unique frontend mutant target: ${name}`);
     }
     fs.writeFileSync(file, original.replace(oldText, newText), "utf8");
-    const result = runTests(testFile);
-    if (result.error?.code === "ENOENT" || result.status === null) invalid.push(name);
+    const compile = runTypecheck();
+    const result = compile.status === 0 ? runTests(testFile) : compile;
+    if (compile.status !== 0 || result.error?.code === "ENOENT" || result.status === null) {
+      invalid.push(name);
+      if (compile.status !== 0) console.error(`${name} failed typecheck:\n${compile.stdout ?? ""}${compile.stderr ?? ""}`);
+    }
     else if (result.status !== 0) killed.push(name);
     else surviving.push(name);
     fs.writeFileSync(file, original, "utf8");

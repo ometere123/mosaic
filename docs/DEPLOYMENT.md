@@ -10,7 +10,7 @@
 - Frozen source tree: `93003cb2fd069302cdce0af5d10100376d20d235`
 - Contract source: `contract/contracts/mosaic.py`
 - Canonical source SHA-256: `96ceea3e7d71fd2c0e36461c4b4ca0d425f10fa9c013ff09ad895b8610acf8f5`
-- Contract address: `0x05fd77aB1f916e36C718E6b55CBdf5F726216d4a`
+- Superseded contract address: `0x05fd77aB1f916e36C718E6b55CBdf5F726216d4a`
 - Deployment transaction: [`0x7def22417f48e35caff481815a7665d0dce26841bd025f5035a707da1791e167`](https://explorer-studio.genlayer.com/tx/0x7def22417f48e35caff481815a7665d0dce26841bd025f5035a707da1791e167)
 - Receipt: `FINALIZED`, consensus `MAJORITY_AGREE`, leader execution `SUCCESS`
 - Created: `2026-10-03T01:25:58.09712+01:00`
@@ -32,4 +32,4 @@
 - `0x8966Da098d86D0E6D2769e59912C6EC5D951c74B`: **SUPERSEDED** first hardened deployment; not configured by the final frontend.
 - `0xCd019C05232F6b67BB9d75FEB8D96f48AAe57921`: **SUPERSEDED** prior release-candidate deployment; a stale already-open browser bundle submitted one launch there before the final browser was hard-reloaded.
 
-Canonical external-repository mission `0` is live against `ometere123/backfill`; its causal PR is sealed and awaits its legitimate close and settlement. No settlement result is inferred before final consensus.
+Canonical external-repository mission `0` settled `ACHIEVED`/`ACHIEVED` after final consensus. Economic-negative mission `1` settled `NOT_ACHIEVED`/`NOT_ACHIEVED`. The deployment is now **SUPERSEDED**: both parent `withdraw` calls finalized and zeroed their pull balances, but the spawned value transfers treated the EOA recipient as a GenLayer contract and finalized with `contract_not_found`. The narrow EVM-recipient transfer fix must be frozen, redeployed, and live-verified before this release can be canonical.

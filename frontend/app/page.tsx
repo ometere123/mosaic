@@ -6,21 +6,30 @@ import { CONTRACT_ADDRESS } from "@/lib/deployment";
 import { getMission, getNextMissionId } from "@/lib/contract";
 import type { Mission } from "@/lib/types";
 import { MissionCard } from "@/components/mission-card";
+import { loadConfirmed, saveConfirmed } from "@/lib/read-cache";
+import { mapWithConcurrency } from "@/lib/read-resilience";
+import { useReadRevalidation } from "@/hooks/use-read-revalidation";
 
 export default function HomePage() {
   const [recent, setRecent] = useState<Mission[]>([]);
   const [loading, setLoading] = useState(true);
+  const [confirmedCount, setConfirmedCount] = useState<number | null>(null);
+  const [delayed, setDelayed] = useState(false);
   const loadRecent = useCallback(async () => {
     if (!CONTRACT_ADDRESS) { setLoading(false); return; }
+    const cached = loadConfirmed<{ recent: Mission[]; next: number }>("home:recent");
+    if (cached) { setRecent((current) => current.length ? current : cached.value.recent); setConfirmedCount((current) => current ?? cached.value.next); setLoading(false); }
     try {
       const next = await getNextMissionId();
       const ids = Array.from({ length: Math.min(next, 2) }, (_, i) => next - 1 - i);
-      setRecent((await Promise.all(ids.map(getMission))).filter((m): m is Mission => !!m));
-    } catch { setRecent([]); }
+      const rows = (await mapWithConcurrency(ids, getMission)).filter((m): m is Mission => !!m);
+      setRecent(rows); setConfirmedCount(next); setDelayed(false); saveConfirmed("home:recent", { recent: rows, next });
+    } catch { setDelayed(true); }
     finally { setLoading(false); }
   }, []);
   useEffect(() => { void loadRecent(); }, [loadRecent]);
   useEffect(() => { const handler = () => void loadRecent(); window.addEventListener("mosaic:transaction-update", handler); return () => window.removeEventListener("mosaic:transaction-update", handler); }, [loadRecent]);
+  useReadRevalidation(() => void loadRecent(), delayed);
   return (
     <main className="page">
       <section className="entry-grid">
@@ -50,7 +59,8 @@ export default function HomePage() {
       </section>
       <section className="recent-section" aria-labelledby="recent-heading">
         <div className="section-heading"><div><span className="eyebrow">Recent missions</span><h2 id="recent-heading">The latest funded outcomes.</h2></div><Link className="text-link" href="/missions">View all missions →</Link></div>
-        {loading ? <div className="loading-ledger"><span /><span /><span /></div> : recent.length === 0 ? <div className="empty-state"><h3>No missions yet.</h3><p>Be the first sponsor to define a public software outcome.</p><Link className="button" href="/launch">Launch a mission</Link></div> : <div className="mission-list">{recent.slice(0, 2).map((mission) => <MissionCard mission={mission} key={mission.id} />)}</div>}
+        {delayed && <div className="notice warn"><strong>Live refresh delayed.</strong><span>{confirmedCount === null ? "Studionet is temporarily unreachable. MOSAIC will retry automatically." : "Showing the last confirmed state while MOSAIC retries."}</span></div>}
+        {loading && confirmedCount === null ? <div className="loading-ledger"><span /><span /><span /></div> : confirmedCount === 0 ? <div className="empty-state"><h3>No missions yet.</h3><p>Be the first sponsor to define a public software outcome.</p><Link className="button" href="/launch">Launch a mission</Link></div> : recent.length ? <div className="mission-list">{recent.slice(0, 2).map((mission) => <MissionCard mission={mission} key={mission.id} />)}</div> : <div className="loading-ledger"><span /><span /><span /></div>}
       </section>
     </main>
   );

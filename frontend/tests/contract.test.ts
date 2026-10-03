@@ -1,17 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { writeContract, connect, walletClient } = vi.hoisted(() => {
+const { writeContract, readContract, connect, walletClient } = vi.hoisted(() => {
   const write = vi.fn();
+  const read = vi.fn();
   const snapConnect = vi.fn();
   return {
     writeContract: write,
+    readContract: read,
     connect: snapConnect,
     walletClient: vi.fn(() => ({ writeContract: write, connect: snapConnect })),
   };
 });
 
 vi.mock("@/lib/genlayer", () => ({
-  readClient: vi.fn(),
+  readClient: vi.fn(() => ({ readContract })),
+  resetReadClient: vi.fn(),
   walletClient,
 }));
 
@@ -19,12 +22,13 @@ vi.mock("@/lib/deployment", () => ({
   requireContractAddress: () => "0x1111111111111111111111111111111111111111",
 }));
 
-import { addFunding, expireMission, openMission, resolveMission, sealContribution, withdraw } from "@/lib/contract";
+import { addFunding, expireMission, getBalance, getMission, getNextMissionId, openMission, resolveMission, sealContribution, withdraw } from "@/lib/contract";
 
 describe("injected-wallet writes", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     writeContract.mockResolvedValue("0xabc");
+    readContract.mockResolvedValue("0");
   });
 
   it("writes through the supplied EIP-1193 provider without invoking a Snap connection", async () => {
@@ -77,5 +81,14 @@ describe("injected-wallet writes", () => {
   it("writes withdrawal with no arguments or value", async () => {
     await withdraw({ request: vi.fn() }, "0x2222222222222222222222222222222222222222");
     expect(writeContract).toHaveBeenCalledWith({ address: expect.any(String), functionName: "withdraw", args: [], value: 0n });
+  });
+
+  it("requests latest-final state for every authoritative read", async () => {
+    readContract.mockResolvedValueOnce("2").mockResolvedValueOnce("null").mockResolvedValueOnce("7");
+    await getNextMissionId();
+    await getMission(1);
+    await getBalance("0x2222222222222222222222222222222222222222");
+    expect(readContract).toHaveBeenCalledTimes(3);
+    for (const [request] of readContract.mock.calls) expect(request.transactionHashVariant).toBe("latest-final");
   });
 });

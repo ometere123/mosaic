@@ -46,6 +46,7 @@ MUTANTS = {
     "double_settlement": ("if mission[\"status\"] != \"OPEN\":\n            raise gl.vm.UserError(\"mission_not_resolvable\")", "if False:\n            raise gl.vm.UserError(\"mission_not_resolvable\")", "contract/tests/direct/test_mosaic.py::test_double_settlement_rejected"),
     "expiry_timing": ("if _now_unix() <= int(mission[\"close_at\"]) + UNRESOLVED_GRACE_SECONDS:", "if False:", "contract/tests/direct/test_state_machine_boundaries.py::test_expiry_rejects_until_grace_has_elapsed"),
     "withdraw_zero_before_transfer": ("self.balances[wallet] = \"0\"", "self.balances[wallet] = str(amount)", "contract/tests/direct/test_mosaic.py::test_withdraw_is_pull_based_and_zeroes_balance"),
+    "withdraw_eoa_transfer_interface": ("_Recipient(Address(wallet)).emit_transfer(value=u256(amount))", "gl.get_contract_at(Address(wallet)).emit_transfer(value=u256(amount))", "contract/tests/direct/test_mosaic.py::test_withdraw_uses_evm_recipient_transfer_interface"),
     "pr_base_repository": ("if base_full_name.lower() != repo.lower():", "if False:", "contract/tests/direct/test_mosaic.py::test_pr_must_target_frozen_repository"),
     "pr_target_branch": ("if base_ref != target_ref:", "if False:", "contract/tests/direct/test_mosaic.py::test_pr_must_target_frozen_branch"),
     "pr_head_sha": ("if not _sha_ok(head_sha):", "if False:", "contract/tests/direct/test_mosaic.py::test_pr_requires_immutable_head_sha"),

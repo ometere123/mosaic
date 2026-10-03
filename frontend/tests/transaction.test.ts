@@ -112,6 +112,12 @@ describe("transaction truthfulness", () => {
   it("rejects multiple leader receipts as non-authoritative", () => {
     expect(classifyTransaction({ status_name: "FINALIZED", consensus_data: { leader_receipt: [{ execution_result: 1 }, { execution_result: 1 }] } }, base).stage).toBe("finalized_unverified");
   });
+  it("rejects multiple explicitly labeled leaders as contradictory", () => {
+    expect(classifyTransaction({ status_name: "FINALIZED", consensus_data: { leader_receipt: [
+      { mode: "leader", execution_result: "SUCCESS" },
+      { mode: "leader", execution_result: "SUCCESS" },
+    ] } }, base).stage).toBe("finalized_unverified");
+  });
   it("preserves the prior transaction identity while classifying", () => {
     const record = { ...base, hash: "0xabc", action: "withdraw" };
     expect(classifyTransaction({ status_name: "FINALIZED", tx_execution_result_name: "FINISHED_WITH_RETURN" }, record)).toMatchObject({ hash: "0xabc", action: "withdraw", submittedAt: 1 });

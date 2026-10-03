@@ -16,6 +16,10 @@ export function readClient() {
   return publicClient;
 }
 
+export function resetReadClient() {
+  publicClient = null;
+}
+
 export function walletClient(provider: Eip1193Provider, account: `0x${string}`) {
   return createClient({ chain: studionet, account, provider: provider as never });
 }

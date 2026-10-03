@@ -14,7 +14,7 @@ export default function ContributionPage() {
   const params = useParams<{ id: string }>();
   const id = Number(params.id);
   const router = useRouter();
-  const { mission, loading } = useMission(Number.isInteger(id) ? id : null);
+  const { mission, loading, delayed, notFoundConfirmed } = useMission(Number.isInteger(id) ? id : null);
   const wallet = useWallet();
   const { track } = useTransactions();
   const [pr, setPr] = useState("");
@@ -65,11 +65,14 @@ export default function ContributionPage() {
     finally { setSubmitting(false); }
   };
 
-  if (loading) return <main className="page"><div className="loading-ledger"><span /><span /><span /></div></main>;
-  if (!mission) return <main className="page"><div className="empty-state"><h1>Mission not found.</h1></div></main>;
+  if (loading && !mission) return <main className="page"><div className="loading-ledger"><span /><span /><span /></div></main>;
+  if (!mission && delayed) return <main className="page"><div className="notice warn"><strong>Live refresh delayed.</strong><span>Studionet is temporarily unreachable. MOSAIC will retry automatically.</span></div></main>;
+  if (!mission && notFoundConfirmed) return <main className="page"><div className="empty-state"><h1>Mission not found.</h1></div></main>;
+  if (!mission) return <main className="page"><div className="loading-ledger"><span /><span /><span /></div></main>;
 
   return (
     <main className="page narrow-page">
+      {delayed && <div className="notice warn"><strong>Live refresh delayed.</strong><span>Showing the last confirmed mission state while MOSAIC retries.</span></div>}
       <div className="page-heading"><span className="eyebrow">Mission #{mission.id} · contribution proof</span><h1>Bind one merged PR to your wallet.</h1><p>This browser preview is only for you. The transaction does not trust it; validators independently retrieve the public PR, proof comment and changed-file evidence.</p></div>
       <form className="proof-flow" onSubmit={submit}>
         <section className="proof-step"><div className="step-number">01</div><div><h2>Identify the merged work</h2><p>Only PRs merged after the mission opened and before it closed are eligible.</p><div className="inline-action"><input value={pr} onChange={(e) => setPr(e.target.value)} inputMode="numeric" placeholder="Pull request number" /><button type="button" className="outline-button" onClick={() => void check()} disabled={checking}>{checking ? "Checking…" : "Preview"}</button></div>{preview && <div className="preview-panel"><div><span className="eyebrow">Non-authoritative preview</span><strong>PR #{preview.number} · {preview.title}</strong><p>@{preview.author} · {preview.mergedAt ? "merged" : "not merged"} · {preview.changedFiles} changed files</p></div>{preview.mergeSha && <span className="mono">{shortHex(preview.mergeSha, 8, 7)}</span>}</div>}</div></section>

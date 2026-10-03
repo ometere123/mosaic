@@ -54,6 +54,15 @@ IMPACT_ROLES = {"CORE", "MAJOR", "SUPPORTING", "NO_CREDIT"}
 ROLE_WEIGHT = {"CORE": 5, "MAJOR": 3, "SUPPORTING": 1, "NO_CREDIT": 0}
 
 
+@gl.evm.contract_interface
+class _Recipient:
+    class View:
+        pass
+
+    class Write:
+        pass
+
+
 def _canonical_json(value) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
 
@@ -1312,13 +1321,12 @@ class Mosaic(gl.Contract):
 
     @gl.public.write
     def withdraw(self) -> str:
-        wallet_address = gl.message.sender_address
-        wallet = _wallet(wallet_address)
+        wallet = _wallet(gl.message.sender_address)
         amount = int(self.balances[wallet]) if wallet in self.balances else 0
         if amount <= 0:
             return "nothing_to_withdraw"
         self.balances[wallet] = "0"
-        gl.get_contract_at(wallet_address).emit_transfer(value=u256(amount))
+        _Recipient(Address(wallet)).emit_transfer(value=u256(amount))
         return f"withdrawn_{amount}"
 
     @gl.public.view

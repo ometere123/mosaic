@@ -1,7 +1,9 @@
 "use client";
 
+import { TransactionHashVariant, type CalldataEncodable } from "genlayer-js/types";
 import { readClient, walletClient } from "./genlayer";
 import { requireContractAddress } from "./deployment";
+import { readWithRetry } from "./read-resilience";
 import type { Contribution, Mission } from "./types";
 import type { Eip1193Provider } from "./eip1193";
 
@@ -10,29 +12,48 @@ function parse<T>(raw: unknown): T | null {
   try { return JSON.parse(raw) as T; } catch { return null; }
 }
 
+async function authoritativeRead(functionName: string, args: CalldataEncodable[]) {
+  const address = requireContractAddress();
+  const identity = `${address.toLowerCase()}:${functionName}:${JSON.stringify(args, (_, value) => typeof value === "bigint" ? value.toString() : value)}`;
+  return readWithRetry(identity, () => readClient().readContract({
+    address,
+    functionName,
+    args,
+    transactionHashVariant: TransactionHashVariant.LATEST_FINAL,
+  }));
+}
+
 export async function getNextMissionId(): Promise<number> {
-  const raw = await readClient().readContract({ address: requireContractAddress(), functionName: "get_next_mission_id", args: [] });
+  const raw = await authoritativeRead("get_next_mission_id", []);
   return Number(raw ?? 0);
 }
 
 export async function getMission(id: number): Promise<Mission | null> {
-  const raw = await readClient().readContract({ address: requireContractAddress(), functionName: "get_mission", args: [BigInt(id)] });
+  const raw = await authoritativeRead("get_mission", [BigInt(id)]);
   return parse<Mission>(raw);
 }
 
 export async function getContribution(missionId: number, index: number): Promise<Contribution | null> {
-  const raw = await readClient().readContract({ address: requireContractAddress(), functionName: "get_contribution", args: [BigInt(missionId), index] });
+  const raw = await authoritativeRead("get_contribution", [BigInt(missionId), index]);
   return parse<Contribution>(raw);
 }
 
 export async function getBalance(wallet: string): Promise<bigint> {
-  const raw = await readClient().readContract({ address: requireContractAddress(), functionName: "get_balance", args: [wallet.toLowerCase()] });
+  const raw = await authoritativeRead("get_balance", [wallet.toLowerCase()]);
   return BigInt(String(raw || "0"));
 }
 
 export async function getSponsorTotal(missionId: number, wallet: string): Promise<bigint> {
-  const raw = await readClient().readContract({ address: requireContractAddress(), functionName: "get_sponsor_total", args: [BigInt(missionId), wallet.toLowerCase()] });
+  const raw = await authoritativeRead("get_sponsor_total", [BigInt(missionId), wallet.toLowerCase()]);
   return BigInt(String(raw || "0"));
+}
+
+export async function getAuthorWallet(missionId: number, accountId: string): Promise<string> {
+  return String(await authoritativeRead("get_author_wallet", [BigInt(missionId), accountId]) || "");
+}
+
+export async function getWalletAuthor(missionId: number, wallet: string): Promise<string> {
+  return String(await authoritativeRead("get_wallet_author", [BigInt(missionId), wallet.toLowerCase()]) || "");
 }
 
 function writer(provider: Eip1193Provider, account: `0x${string}`) {

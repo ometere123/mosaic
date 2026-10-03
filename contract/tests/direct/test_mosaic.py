@@ -1186,6 +1186,17 @@ def test_withdraw_is_pull_based_and_zeroes_balance(direct_vm, direct_deploy, dir
     assert contract.withdraw() == "nothing_to_withdraw"
 
 
+def test_withdraw_uses_evm_recipient_transfer_interface():
+    import os
+    from pathlib import Path
+
+    path = Path(os.environ.get("MOSAIC_MUTANT_CONTRACT", "contract/contracts/mosaic.py"))
+    source = path.read_text(encoding="utf-8")
+    assert "@gl.evm.contract_interface\nclass _Recipient:" in source
+    assert "_Recipient(Address(wallet)).emit_transfer(value=u256(amount))" in source
+    assert "gl.get_contract_at(wallet_address).emit_transfer" not in source
+
+
 def test_same_wallet_multiple_prs_remains_one_portfolio(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
     set_block_time(direct_vm, "2026-10-01T10:00:00Z")
     contract = direct_deploy("contract/contracts/mosaic.py")

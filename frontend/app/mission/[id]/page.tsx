@@ -17,7 +17,7 @@ import { MIN_FUND_GEN, UNRESOLVED_GRACE_SECONDS } from "@/lib/constants";
 export default function MissionPage() {
   const params = useParams<{ id: string }>();
   const id = Number(params.id);
-  const { mission, contributions, loading, error, refresh } = useMission(Number.isInteger(id) ? id : null);
+  const { mission, contributions, loading, delayed, notFoundConfirmed, refresh } = useMission(Number.isInteger(id) ? id : null);
   const wallet = useWallet();
   const { track } = useTransactions();
   const [funding, setFunding] = useState("5");
@@ -49,9 +49,10 @@ export default function MissionPage() {
     finally { setBusy(null); }
   };
 
-  if (loading) return <main className="page"><div className="loading-ledger"><span /><span /><span /></div></main>;
-  if (error) return <main className="page"><div className="notice bad"><strong>Mission read failed.</strong><span>{error}</span></div></main>;
-  if (!mission) return <main className="page"><div className="empty-state"><h1>Mission not found.</h1><Link className="text-link" href="/">Return to mission ledger</Link></div></main>;
+  if (loading && !mission) return <main className="page"><div className="loading-ledger"><span /><span /><span /></div></main>;
+  if (!mission && delayed) return <main className="page"><div className="notice warn"><strong>Live refresh delayed.</strong><span>Studionet is temporarily unreachable. MOSAIC will retry automatically.</span></div></main>;
+  if (!mission && notFoundConfirmed) return <main className="page"><div className="empty-state"><h1>Mission not found.</h1><Link className="text-link" href="/missions">Return to mission ledger</Link></div></main>;
+  if (!mission) return <main className="page"><div className="loading-ledger"><span /><span /><span /></div></main>;
 
   const phase = missionPhase(mission, now);
   const closed = now > mission.close_at;
@@ -60,6 +61,7 @@ export default function MissionPage() {
 
   return (
     <main className="page mission-page">
+      {delayed && <div className="notice warn"><strong>Live refresh delayed.</strong><span>Showing the last confirmed mission state while MOSAIC retries.</span></div>}
       <div className="mission-header"><div><div className="mission-kicker"><span>Mission #{mission.id}</span><StatusStamp label={phase} tone={phase === "OPEN" ? "blue" : phase === "SETTLED" ? "good" : "warn"} />{mission.last_resolution && mission.status === "OPEN" && <StatusStamp label={mission.last_resolution} tone={outcomeTone(mission.last_resolution)} />}</div><h1>{mission.title}</h1><p>{mission.objective}</p></div><div className="pool-figure"><span>Mission pool</span><strong>{weiToGen(mission.status === "OPEN" ? mission.pool_wei : mission.total_funded_wei, 2)} GEN</strong>{mission.status === "SETTLED" && <small>{weiToGen(mission.released_wei, 2)} released · {weiToGen(mission.residual_wei, 2)} residual</small>}</div></div>
 
       <div className="mission-layout">
