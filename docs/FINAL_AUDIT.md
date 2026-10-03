@@ -25,4 +25,8 @@ Three distinct live fail-closed behaviours have been observed: duplicate PR exec
 - The duplicate same-mission PR attempt finalized with `pr_already_sealed`; it did not add a record or move GEN. The deployed frontend distinguishes accepted, finalized-unverified, success and failure states, and durable UI state is reread from contract state.
 - The architecture retains no application backend, database authority, server signer, central payout selector or privileged GitHub proxy. Public GitHub and public RPC failures remain bounded, retryable dependencies; uncertainty moves no GEN.
 
-The remaining repository completion condition is the final documentation commit and its CI run. `RELEASE_MANIFEST.json` contains the exact live transaction references used by this audit.
+## Audit close-out
+
+The final documentation and release-evidence reconciliation was committed and CI run `37135654460` completed green. Canonical contract/source correspondence remains verified; the canonical live lifecycle, including the credited EOA payout, is complete; and the Vercel/Git status is green.
+
+At this release checkpoint, no remaining material blocker was identified by the final hostile audit. `RELEASE_MANIFEST.json` contains the exact live transaction references used by this audit.

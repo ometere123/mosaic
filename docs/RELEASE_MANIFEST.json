@@ -1,5 +1,8 @@
 {
   "status": "FINAL_CANONICAL_RELEASE",
+  "repository": {
+    "final_head": "16efd1aecfdb36bcfdf61e62aa2d291841469a4a"
+  },
   "contract_source": {
     "commit": "cab3e477a86a76b8616532ba84553ea5b5302043",
     "tree": "ec723272b6c3d3581a6da8b4879f8b2076a948f7",
@@ -15,7 +18,21 @@
     "leader_execution": "SUCCESS",
     "retrieved_source_sha256": "1563468f5616bf91f910282bf939d254ae1ff6e72052108dee3ee99a7be7cbde"
   },
-  "frontend": {"project": "mosaic", "project_id": "prj_YuwUxgdIrmVoKwkl9LaGQv4i2ftX", "deployment": "dpl_6g2QcTCQCAVV9dP3CzcGVABHccC7", "url": "https://themosaic.vercel.app"},
+  "frontend": {
+    "project": "mosaic",
+    "project_id": "prj_YuwUxgdIrmVoKwkl9LaGQv4i2ftX",
+    "production_deployment": "dpl_6g2QcTCQCAVV9dP3CzcGVABHccC7",
+    "production_url": "https://themosaic.vercel.app"
+  },
+  "ci": {
+    "final_green_run": 37135654460,
+    "direct_mode": {"passed": 129, "total": 129},
+    "contract_mutation": {"unique_meaningful": 82, "killed": 82, "surviving": 0},
+    "frontend_tests": {"passed": 137, "total": 137},
+    "frontend_mutation": {"unique_meaningful": 35, "killed": 35, "surviving": 0},
+    "windows_portable": "PASS",
+    "ubuntu_verify": "PASS"
+  },
   "canonical_lifecycle": {
     "repository": "ometere123/backfill",
     "mission_id": 0,

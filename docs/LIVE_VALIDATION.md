@@ -24,7 +24,7 @@ The earlier MOSAIC-self-validation mission and the old deployment evidence are h
 - Production withdrawal parent tx `0x3284f7a249d416d1e1589d565a009be28c258275b715a2bb0bb398d4c9b42347` finalized with `MAJORITY_AGREE` and leader execution `SUCCESS`; contract `get_balance` reread `0`.
 - Its triggered EOA transfer `0xe07e016cde8d23ce7c51f3ff780ae1d7fd31e5133f78554af123e74ecdc46073` finalized from the contract to `0xfcef676044658b5402f590dabe9e04a0f640522f` with value `1000000000000000000` wei and RPC field `value_credited: true`. This is the delivery proof; this plain EOA transfer has no GenVM leader receipt.
 
-## Canonical positive lifecycle
+## Superseded deployment — historical positive lifecycle
 
 - External repository: `ometere123/backfill`, created `2026-09-06T17:05:17Z`.
 - Mission `0`, baseline `735ce2399e5749be72c542caea11098570827aed`, launch tx `0x45d8afb9fc6429cd77e49ec7d8337fc42ee093fda1c8d00eaa5ed48fcc803caa`.
@@ -37,7 +37,7 @@ The earlier MOSAIC-self-validation mission and the old deployment evidence are h
 - Terminal source digest `5dbb30999541ce1b23b1008484e3da9921fe29b89eea7649b227a6198d67a662`; lineage root `1a84eda902b42c8df79ebdc8c64a056beecf9a2bec76f7a98bb801c8b20e1101`; ordered contribution root `f12edf9f6600af3f1bbc9de2c074901935398c13453a7bf260bddffaf79c042b`; resolution root `43e71046df2206fc12630ac1efe8eec46cc596f50d8bd5aabd694bd7d0c83c3b`; settlement digest `bb53360e4af5f7c4c28f33a2b3ff6228984e81ecd5b1b093902f33a072861c1d`.
 - Contributor withdrawal parent tx `0x269e636799111b2dfac175efe6afcd9a3692057c673025f56af3d4a9bebdbcb3` finalized with leader `SUCCESS` and zeroed the pull balance, but its 1 GEN child transfer `0xd544e8229bbfe2bd44e1c27c3b884368c57cacedcb11a14be86946ff8bba30d2` finalized `ERROR` (`contract_not_found`). No successful payout delivery is claimed.
 
-## Canonical economic-negative lifecycle
+## Superseded deployment — historical economic-negative lifecycle
 
 - Mission `1` used the same external repository at baseline `987fca62be4eaba1741195910e4d2079402e419d`, with no registered contributions and 3 GEN funded.
 - Resolution tx `0xf9cfee6fbfa6421bc78f635d13159540e1eb6fa937a811c89fb79289497d01ad` finalized with successful leader execution.
@@ -48,15 +48,8 @@ The earlier MOSAIC-self-validation mission and the old deployment evidence are h
 
 Observed adverse evidence on the final contract includes finalized duplicate-PR rejection tx `0x874125139472ffb57784f5f173c11c4772565ef91fb155774dcb331708606ad9` (`pr_already_sealed`), a frontend minimum-funding rejection before wallet submission, and a real wallet rejection displayed as failure with no state transition.
 
-## Required recorded evidence
+## Completion status
 
-1. selected external repository, age evidence, target ref and baseline;
-2. mission launch finality and mission ID;
-3. real PR, merge SHA, stable author identity and proof-comment ID;
-4. contribution seal finality and stored evidence commitments;
-5. terminal tip/source/lineage and terminal objective status;
-6. claimant outcome, complete role map, allocations and sponsor residual;
-7. withdrawal parent finality, child-transfer execution, and post-withdraw balances (the superseded deployment failed child delivery and motivated the replacement source);
-8. at least three real adverse classes and browser/wallet QA.
+The canonical external-repository lifecycle is complete: launch, GitHub proof, contribution sealing, resolution, accounting and withdrawal were exercised against the final contract. The corrected payout path was proven by both a successful parent withdrawal and a successful EOA value credit. Live duplicate same-mission PR rejection and real wallet rejection/failure behavior were also observed.
 
-The remaining release work is browser/wallet QA breadth, final evidence reconciliation, hostile audit and final green CI; the positive and negative economic lifecycles above are complete and chain-verified.
+The historical failed child-transfer records above remain intentionally preserved: they explain why the superseded deployment was replaced and are not claimed as final payout delivery. Final evidence reconciliation and the hostile audit are complete; CI run `37135654460` and Vercel/Git status are green.

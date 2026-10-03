@@ -1,6 +1,6 @@
 # Manual QA runbook
 
-This runbook is for a release candidate only. It does not authorize deployment.
+This runbook records the repeatable browser and wallet checks used for a release. It does not itself authorize wallet transactions or protocol changes.
 
 1. Confirm the configured chain is Studionet 61999 and that no obsolete address is present.
 2. With no injected wallet, verify the disconnected state and disabled writes.

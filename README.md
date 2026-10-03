@@ -110,11 +110,14 @@ GitHub API failures are not interpreted as poor work. Source failure returns an 
 
 Routes:
 
-- `/` — mission ledger and entry experience
-- `/launch` — immutable mission composer and initial GEN funding
-- `/mission/[id]` — impact workspace, funding, evidence, settlement and history
-- `/mission/[id]/contribute` — merged PR preview, wallet-proof marker and seal transaction
-- `/earnings` — authoritative contract balance and pull withdrawal
+- `/` — product homepage
+- `/missions` — mission ledger and explorer
+- `/launch` — mission composer and initial GEN funding
+- `/mission/[id]` — mission workspace and detail
+- `/mission/[id]/contribute` — contribution proof and seal flow
+- `/profile` — authoritative participation, claimable balances and withdrawal
+- `/docs` — public product and protocol documentation
+- `/earnings` — redirects to `/profile`
 
 The frontend uses only an injected EIP-1193 wallet such as MetaMask or Rabby. It listens for account and chain changes, hard-gates writes to Studionet 61999, stores submitted transaction hashes locally for recovery, and polls the real GenLayer transaction lifecycle. `Accepted` is shown as provisional; execution errors remain failures; durable success requires finality plus successful execution evidence.
 
@@ -158,10 +161,10 @@ genvm-lint download --version v0.2.12
 
 ## Local frontend
 
-Before a live deployment, create `frontend/.env.local`:
+For local development against the canonical release, create `frontend/.env.local`:
 
 ```text
-NEXT_PUBLIC_MOSAIC_CONTRACT_ADDRESS=0x...
+NEXT_PUBLIC_MOSAIC_CONTRACT_ADDRESS=0xE8CB904b47e97C0a09bF679525C5BF8b722fF1bD
 ```
 
 Then:
@@ -209,9 +212,13 @@ npm run check
 
 ## Deployment
 
-Deployment has intentionally not been fabricated in this source package. Before declaring a live release, deploy the exact contract source to Studionet 61999 using the repository-local CLI 0.39.1, record the address and deployment transaction, configure the frontend with that address, run the full verification suite, deploy the frontend, and perform the manual funded-wallet lifecycle described in `docs/LIVE_VALIDATION.md`.
+MOSAIC is deployed on **GenLayer Studionet 61999**.
 
-`docs/DEPLOYMENT.md` is the deployment evidence record and must be updated with real values only.
+- Canonical contract: `0xE8CB904b47e97C0a09bF679525C5BF8b722fF1bD`
+- Production: https://themosaic.vercel.app
+- Canonical source SHA-256: `1563468f5616bf91f910282bf939d254ae1ff6e72052108dee3ee99a7be7cbde`
+
+See [deployment evidence](docs/DEPLOYMENT.md), [live validation](docs/LIVE_VALIDATION.md), and the machine-readable [release manifest](docs/RELEASE_MANIFEST.json) for exact release records.
 
 ## Security and trust boundaries
 
@@ -233,4 +240,4 @@ Deployment has intentionally not been fabricated in this source package. Before 
 - Pull requests beyond the evidence budget are marked insufficient rather than partially judged.
 - Initial attribution binds a wallet to the PR author's GitHub account; multi-author allocation is not attempted.
 - Semantic consensus is judgment, not mathematical proof. Poorly written mission objectives can still produce ambiguous outcomes.
-- This source package does not contain a fabricated contract address, transaction hash or live URL. Those must be produced and verified during deployment.
+- Public RPC and GitHub availability remain external dependencies; MOSAIC preserves confirmed state, retries transient reads conservatively, and fails closed where fresh source evidence is required.
