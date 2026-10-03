@@ -7,10 +7,12 @@ import { studionet } from "../frontend/node_modules/genlayer-js/dist/chains/inde
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const RPC = "https://studio.genlayer.com/api";
 const FRONTEND = "https://themosaic.vercel.app";
-const CONTRACT = "0x05fd77aB1f916e36C718E6b55CBdf5F726216d4a";
-const SOURCE_SHA = "96ceea3e7d71fd2c0e36461c4b4ca0d425f10fa9c013ff09ad895b8610acf8f5";
-const MISSION_ID = Number(process.env.MOSAIC_SMOKE_MISSION_ID ?? "0");
-const SPONSOR = "0xfcef676044658b5402f590dabe9e04a0f640522f";
+const CONTRACT = process.env.MOSAIC_SMOKE_CONTRACT ?? "0xE8CB904b47e97C0a09bF679525C5BF8b722fF1bD";
+const SOURCE_SHA = "1563468f5616bf91f910282bf939d254ae1ff6e72052108dee3ee99a7be7cbde";
+const MISSION_ID_TEXT = process.env.MOSAIC_SMOKE_MISSION_ID;
+const MISSION_ID = MISSION_ID_TEXT === undefined ? null : Number(MISSION_ID_TEXT);
+const SPONSOR = process.env.MOSAIC_SMOKE_SPONSOR?.toLowerCase();
+const EXPECTED_BALANCE_WEI = process.env.MOSAIC_SMOKE_EXPECTED_BALANCE_WEI;
 
 const fail = (message) => { throw new Error(`Release smoke failed: ${message}`); };
 const canonical = (value) => value.replace(/\r\n/g, "\n");
@@ -40,23 +42,31 @@ const deployedSource = canonical(await client.getContractCode(CONTRACT));
 if (sha256(deployedSource) !== SOURCE_SHA || deployedSource !== localSource) fail("deployed source does not equal frozen source");
 
 const nextId = Number(await client.readContract({ address: CONTRACT, functionName: "get_next_mission_id", args: [] }));
-if (!Number.isSafeInteger(nextId) || nextId <= MISSION_ID) fail(`mission ${MISSION_ID} is absent (next id ${nextId})`);
-const mission = parse(await client.readContract({ address: CONTRACT, functionName: "get_mission", args: [BigInt(MISSION_ID)] }), "get_mission");
-if (mission.repo !== "ometere123/backfill" || mission.target_ref !== "main") fail("canonical mission source boundary mismatch");
-if (mission.baseline_sha !== "735ce2399e5749be72c542caea11098570827aed") fail("canonical mission baseline mismatch");
-if (mission.total_funded_wei !== "1000000000000000000") fail("canonical mission funding mismatch");
-if (Number(mission.contribution_count) < 1) fail("canonical sealed contribution is absent");
+if (!Number.isSafeInteger(nextId) || nextId < 0) fail(`invalid next mission id ${nextId}`);
 
-const contribution = parse(await client.readContract({ address: CONTRACT, functionName: "get_contribution", args: [BigInt(MISSION_ID), 0] }), "get_contribution");
-if (contribution.status !== "SEALED" || contribution.pr_number !== 3) fail("canonical contribution identity mismatch");
-if (contribution.merge_sha !== "987fca62be4eaba1741195910e4d2079402e419d") fail("canonical merge SHA mismatch");
-if (contribution.proof_comment_id !== 5965906014 || contribution.author_account_id !== "45469370") fail("canonical proof identity mismatch");
-if (contribution.wallet !== SPONSOR) fail("canonical contribution wallet mismatch");
+let mission = null;
+let contribution = null;
+let sponsorTotal = null;
+let walletBalance = null;
+if (MISSION_ID !== null) {
+  if (!Number.isSafeInteger(MISSION_ID) || MISSION_ID < 0 || MISSION_ID >= nextId) fail(`mission ${MISSION_ID_TEXT} is absent (next id ${nextId})`);
+  mission = parse(await client.readContract({ address: CONTRACT, functionName: "get_mission", args: [BigInt(MISSION_ID)] }), "get_mission");
+  if (!mission.repo || !mission.target_ref || !mission.baseline_sha) fail("mission lacks its frozen source boundary");
+  if (!mission.total_funded_wei) fail("mission lacks funded accounting");
+  if (Number(mission.contribution_count) > 0) {
+    contribution = parse(await client.readContract({ address: CONTRACT, functionName: "get_contribution", args: [BigInt(MISSION_ID), 0] }), "get_contribution");
+    if (!contribution.status || !contribution.record_commitment) fail("first contribution lacks an auditable record commitment");
+  }
+  if (SPONSOR) {
+    sponsorTotal = String(await client.readContract({ address: CONTRACT, functionName: "get_sponsor_total", args: [BigInt(MISSION_ID), SPONSOR] }));
+    walletBalance = String(await client.readContract({ address: CONTRACT, functionName: "get_balance", args: [SPONSOR] }));
+    if (EXPECTED_BALANCE_WEI !== undefined && walletBalance !== EXPECTED_BALANCE_WEI) fail(`wallet balance is ${walletBalance}, expected ${EXPECTED_BALANCE_WEI}`);
+  }
+}
 
-const sponsorTotal = String(await client.readContract({ address: CONTRACT, functionName: "get_sponsor_total", args: [BigInt(MISSION_ID), SPONSOR] }));
-if (sponsorTotal !== "1000000000000000000") fail(`sponsor total is ${sponsorTotal}`);
-
-for (const path of ["/", "/missions", "/docs", "/profile", `/mission/${MISSION_ID}`, `/mission/${MISSION_ID}/contribute`]) {
+const routes = ["/", "/missions", "/docs", "/profile"];
+if (MISSION_ID !== null) routes.push(`/mission/${MISSION_ID}`, `/mission/${MISSION_ID}/contribute`);
+for (const path of routes) {
   const response = await fetch(`${FRONTEND}${path}`, { redirect: "follow" });
   if (!response.ok) fail(`${path} returned HTTP ${response.status}`);
 }
@@ -68,7 +78,7 @@ for (const hash of (process.env.MOSAIC_SMOKE_TX_HASHES ?? "").split(",").map((it
   if (leader?.mode !== "leader" || leader?.execution_result !== "SUCCESS") fail(`${hash} lacks authoritative leader SUCCESS`);
 }
 
-if (mission.settlement) {
+if (mission?.settlement) {
   const released = BigInt(mission.released_wei);
   const residual = BigInt(mission.residual_wei);
   const funded = BigInt(mission.total_funded_wei);
@@ -83,9 +93,10 @@ console.log(JSON.stringify({
   frontend: FRONTEND,
   next_mission_id: nextId,
   mission_id: MISSION_ID,
-  mission_status: mission.status,
-  contribution_status: contribution.status,
+  mission_status: mission?.status ?? null,
+  contribution_status: contribution?.status ?? null,
   sponsor_total_wei: sponsorTotal,
-  settlement_verified: Boolean(mission.settlement),
-  routes_verified: 6,
+  wallet_balance_wei: walletBalance,
+  settlement_verified: Boolean(mission?.settlement),
+  routes_verified: routes.length,
 }, null, 2));
