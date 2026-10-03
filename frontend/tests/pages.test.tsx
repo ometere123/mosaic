@@ -29,8 +29,8 @@ describe("release information architecture", () => {
     expect(screen.getByText(/settlement-state semantics, not close-time snapshot semantics/i)).toBeInTheDocument();
     expect(screen.getByText(/one public contribution can receive value from multiple independently funded missions/i)).toBeInTheDocument();
     expect(screen.getByText(/protocol policy, not claims of mathematical optimality/i)).toBeInTheDocument();
-    expect(screen.getByText(/0x05fd77aB1f916e36C718E6b55CBdf5F726216d4a/i)).toHaveTextContent(/superseded/i);
-    expect(screen.getByText(/replacement exact-source deployment/i)).toBeInTheDocument();
+    expect(screen.getByText(/0xE8CB904b47e97C0a09bF679525C5BF8b722fF1bD/i)).toBeInTheDocument();
+    expect(screen.getByText(/remains a release candidate/i)).toBeInTheDocument();
   });
 
   it("keeps primary navigation on product routes", () => {

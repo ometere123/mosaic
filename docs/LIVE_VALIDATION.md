@@ -1,13 +1,23 @@
 # Live Validation
 
-## Canonical release surfaces
+## Current release-candidate surfaces
 
-- Superseded contract: `0x05fd77aB1f916e36C718E6b55CBdf5F726216d4a`
-- Deployment transaction: `0x7def22417f48e35caff481815a7665d0dce26841bd025f5035a707da1791e167`
+- Contract: `0xE8CB904b47e97C0a09bF679525C5BF8b722fF1bD`
+- Deployment transaction: `0xffb52a0012ce2d56108ca2ba8ac64279aff432acfd9eeed2663f016b0f02863a` (`FINALIZED`, `MAJORITY_AGREE`, leader execution `SUCCESS`)
 - Frontend: https://themosaic.vercel.app
 - Network: Studionet `61999` / `0xF22F`
 
-The earlier MOSAIC-self-validation mission is historical/superseded evidence only. It is not the canonical live proof.
+The earlier MOSAIC-self-validation mission and the old deployment evidence are historical/superseded only. They are not the canonical live proof.
+
+## Current external-repository lifecycle — pending close
+
+- External repository: `ometere123/backfill`, created `2026-09-06T17:05:17Z`; target ref `main`.
+- Mission `0`, baseline `987fca62be4eaba1741195910e4d2079402e419d`, funded with `1 GEN`; launch tx `0xf4624fd2427590d0735fa61417d0828545e853e0c0e46bd09de117a7c2ec5ab7` finalized with successful execution.
+- Causal PR [#4](https://github.com/ometere123/backfill/pull/4) adds announced EIP-6963 provider selection before the existing EIP-1193 fallback. It merged as `73ad12c5534d713c8fa01efc8c3bdce2f06f2e1c` on 2026-10-03.
+- Proof comment `5970233201` contains the exact mission marker and was posted by stable GitHub account ID `45469370`, the same account that authored the PR.
+- Seal tx `0x0d6f55284dc92e0f470d6982a42ec4c3f8a5ce192d14fd6eaae6ff5d3daf36b6` finalized with `MAJORITY_AGREE` and successful leader execution. Contract reread shows exactly one sealed contribution.
+- Duplicate-seal safety tx `0x32c7d8fa3e3650887dcf86b8d0e01098065d87628d95ccfc286b1556ae19372c` finalized with `MAJORITY_AGREE` and execution error `pr_already_sealed`; no second contribution or GEN movement occurred.
+- Mission close is `2026-10-03 16:45 WAT`. No terminal objective, claimant outcome, allocation, residual or withdrawal result is claimed before legitimate resolution.
 
 ## Canonical positive lifecycle
 
