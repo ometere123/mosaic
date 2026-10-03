@@ -8,7 +8,8 @@ import { openMission } from "@/lib/contract";
 import { CONTRACT_ADDRESS } from "@/lib/deployment";
 import { ensureStudionet } from "@/lib/eip1193";
 import { genToWei } from "@/lib/format";
-import { MAX_MISSION_SECONDS, MIN_FUND_GEN, MIN_MISSION_SECONDS } from "@/lib/constants";
+import { MIN_FUND_GEN } from "@/lib/constants";
+import { validateLaunchDuration } from "@/lib/launch-validation";
 
 const initialCriteria = ["", ""];
 
@@ -42,8 +43,8 @@ export default function LaunchPage() {
     const closeMs = Date.parse(closeAt);
     if (!Number.isFinite(closeMs)) { setError("Choose a closing date and time."); return; }
     const closeAtUnix = Math.floor(closeMs / 1000);
-    const duration = closeAtUnix - Math.floor(Date.now() / 1000);
-    if (duration < MIN_MISSION_SECONDS || duration > MAX_MISSION_SECONDS) { setError("Closing time must be between 1 hour and 90 days from now."); return; }
+    const durationError = validateLaunchDuration(closeAtUnix);
+    if (durationError) { setError(durationError); return; }
     let value: bigint;
     try { value = genToWei(funding); }
     catch (e) { setError(e instanceof Error ? e.message : "Enter a valid GEN amount."); return; }
