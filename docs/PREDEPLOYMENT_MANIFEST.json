@@ -1,5 +1,5 @@
 {
-  "status": "PREDEPLOYMENT_HISTORY_SUPERSEDED_BY_RELEASE_MANIFEST",
+  "status": "DEPLOYED_RELEASE_CANDIDATE",
   "frozen_source_commit": "cab3e477a86a76b8616532ba84553ea5b5302043",
   "frozen_source_tree": "ec723272b6c3d3581a6da8b4879f8b2076a948f7",
   "contract": {
@@ -68,6 +68,12 @@
   },
   "deployment": {
     "performed": true,
+    "contract_address": "0xE8CB904b47e97C0a09bF679525C5BF8b722fF1bD",
+    "transaction": {
+      "hash": "0xffb52a0012ce2d56108ca2ba8ac64279aff432acfd9eeed2663f016b0f02863a",
+      "status": "FINALIZED",
+      "execution": "SUCCESS"
+    },
     "note": "The corrected EVM-recipient withdrawal source was deployed and live-verified after this predeployment manifest. See docs/RELEASE_MANIFEST.json for canonical release evidence.",
     "superseded_contract_address": "0x05fd77aB1f916e36C718E6b55CBdf5F726216d4a",
     "superseded_deployment_transaction": "0x7def22417f48e35caff481815a7665d0dce26841bd025f5035a707da1791e167",
