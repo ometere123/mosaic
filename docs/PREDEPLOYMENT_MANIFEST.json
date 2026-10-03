@@ -1,11 +1,11 @@
 {
-  "status": "DEPLOYED_RELEASE_CANDIDATE",
-  "frozen_source_commit": "4c969d9d0ac1bd147298f298e7fe6ed70121e7c9",
-  "frozen_source_tree": "93003cb2fd069302cdce0af5d10100376d20d235",
+  "status": "PREDEPLOYMENT_CANDIDATE",
+  "frozen_source_commit": "cab3e477a86a76b8616532ba84553ea5b5302043",
+  "frozen_source_tree": "ec723272b6c3d3581a6da8b4879f8b2076a948f7",
   "contract": {
     "path": "contract/contracts/mosaic.py",
-    "canonical_sha256": "96ceea3e7d71fd2c0e36461c4b4ca0d425f10fa9c013ff09ad895b8610acf8f5",
-    "git_blob_sha256": "96ceea3e7d71fd2c0e36461c4b4ca0d425f10fa9c013ff09ad895b8610acf8f5",
+    "canonical_sha256": "1563468f5616bf91f910282bf939d254ae1ff6e72052108dee3ee99a7be7cbde",
+    "git_blob_sha256": "1563468f5616bf91f910282bf939d254ae1ff6e72052108dee3ee99a7be7cbde",
     "public_methods": [
       "open_mission", "add_funding", "seal_contribution", "resolve_mission", "expire_unresolved",
       "withdraw", "get_mission", "get_contribution", "get_sponsor_total", "get_balance",
@@ -31,11 +31,11 @@
     "react": "19.2.4"
   },
   "evidence": {
-    "direct_mode": {"passed": 128, "total": 128},
+    "direct_mode": {"passed": 129, "total": 129},
     "validator_adversarial_cases": 9,
-    "contract_mutation": {"unique_meaningful": 81, "killed": 81, "surviving": 0, "invalid_syntax": 0, "equivalent": 0},
-    "frontend_tests": {"passed": 123, "total": 123},
-    "frontend_mutation": {"unique_meaningful": 30, "killed": 30, "surviving": 0, "invalid_syntax": 0},
+    "contract_mutation": {"unique_meaningful": 82, "killed": 82, "surviving": 0, "invalid_syntax": 0, "equivalent": 0},
+    "frontend_tests": {"passed": 135, "total": 135},
+    "frontend_mutation": {"unique_meaningful": 35, "killed": 35, "surviving": 0, "invalid_syntax": 0},
     "browser_smoke": {
       "performed": true,
       "server": "local Next.js 16.3.8 development server",
@@ -47,11 +47,11 @@
       "non_fatal_warning": "Next.js smooth-scroll route-transition warning"
     },
     "ci": {
-      "latest_green_run": 37100949762,
-      "ubuntu_job": 111140203770,
-      "contract_mutation_job": 111140203861,
-      "windows_job": 111140203859,
-      "frontend_mutation_job": 111140203819,
+      "latest_green_run": 37102925050,
+      "ubuntu_job": 111145852981,
+      "contract_mutation_job": 111145853026,
+      "windows_job": 111145853096,
+      "frontend_mutation_job": 111145853002,
       "platform_source_sha_equal": true
     }
   },
@@ -60,32 +60,18 @@
     "Terminal and contribution evidence are intentionally bounded; oversized or incomplete evidence cannot settle.",
     "Local Windows Direct Mode can encounter GenVM temporary-file locking; Ubuntu CI is the authoritative Direct Mode execution gate.",
     "The upstream gltest.config.yaml warning remains documented because suppressing it would risk changing the pinned runtime semantics.",
-    "Canonical settlement and withdrawal remain pending the real close time; no outcome or allocation is inferred before consensus."
+    "Browser automation depends on the user-owned Chrome control bridge; live chain evidence is independently reproducible through read-only Studionet calls."
   ],
   "live_validation": {
-    "status": "CANONICAL_EXTERNAL_MISSION_SEALED_PENDING_CLOSE",
-    "note": "External mission 0 against ometere123/backfill has a real merged PR, proof comment and finalized sealed contribution. Settlement remains pending its legitimate close."
+    "status": "SUPERSEDED_DEPLOYMENT_EXPOSED_WITHDRAWAL_DELIVERY_DEFECT",
+    "note": "Mission 0 and mission 1 settled with conserved allocations, but their spawned EOA value transfers finalized ERROR/contract_not_found after parent withdrawals zeroed pull balances. The corrected source is not yet deployed and requires a fresh payout lifecycle."
   },
   "deployment": {
-    "performed": true,
-    "contract_address": "0x05fd77aB1f916e36C718E6b55CBdf5F726216d4a",
-    "transaction": {
-      "hash": "0x7def22417f48e35caff481815a7665d0dce26841bd025f5035a707da1791e167",
-      "status": "FINALIZED",
-      "consensus": "MAJORITY_AGREE",
-      "execution": "SUCCESS",
-      "created_at": "2026-10-03T01:25:58.09712+01:00",
-      "source_sha256": "96ceea3e7d71fd2c0e36461c4b4ca0d425f10fa9c013ff09ad895b8610acf8f5"
-    },
-    "vercel_production": {
-      "project": "mosaic",
-      "project_id": "prj_YuwUxgdIrmVoKwkl9LaGQv4i2ftX",
-      "deployment_id": "dpl_DBCDnShzbLd8BD1YVqZSjoh3Pja9",
-      "url": "https://themosaic.vercel.app",
-      "contract_address": "0x05fd77aB1f916e36C718E6b55CBdf5F726216d4a",
-      "ready": true,
-      "root_directory": "frontend",
-      "source_commit": "9cf19e3fc81d19dccc919c699b9ad16f7d830979"
-    }
+    "performed": false,
+    "note": "The corrected EVM-recipient withdrawal source has not yet been deployed.",
+    "superseded_contract_address": "0x05fd77aB1f916e36C718E6b55CBdf5F726216d4a",
+    "superseded_deployment_transaction": "0x7def22417f48e35caff481815a7665d0dce26841bd025f5035a707da1791e167",
+    "superseded_contributor_child_transfer": "0xd544e8229bbfe2bd44e1c27c3b884368c57cacedcb11a14be86946ff8bba30d2",
+    "superseded_sponsor_child_transfer": "0x46a710098c11b9c17ec0e0b80cb7e2ed0b69be760cbf98ef86963c9458d8a5d9"
   }
 }
