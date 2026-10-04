@@ -26,7 +26,7 @@ describe("release information architecture", () => {
     expect(screen.getByRole("link", { name: "Lifecycle" })).toHaveAttribute("href", "#lifecycle");
     expect(screen.getByRole("heading", { name: "Settlement truth" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Consensus design" })).toBeInTheDocument();
-    expect(screen.getByText(/settlement-state semantics, not close-time snapshot semantics/i)).toBeInTheDocument();
+    expect(screen.getByText(/settlement-state semantics with an atomic terminal freeze/i)).toBeInTheDocument();
     expect(screen.getByText(/one public contribution can receive value from multiple independently funded missions/i)).toBeInTheDocument();
     expect(screen.getByText(/protocol policy, not claims of mathematical optimality/i)).toBeInTheDocument();
     expect(screen.getByText(/0xE8CB904b47e97C0a09bF679525C5BF8b722fF1bD/i)).toBeInTheDocument();
