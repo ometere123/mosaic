@@ -1,3 +1,4 @@
+from helpers import freeze_then_resolve
 import hashlib
 import json
 
@@ -75,20 +76,20 @@ def closed_empty_mission(direct_vm, direct_deploy, direct_alice, mission_terms):
 def test_terminal_branch_wrong_name_is_insufficient(direct_vm, direct_deploy, direct_alice, mission_terms):
     contract, mission_id = closed_empty_mission(direct_vm, direct_deploy, direct_alice, mission_terms)
     direct_vm.mock_web(r"api\.github\.com/repos/acme/widget/branches/main$", {"status": 200, "body": json.dumps({"name": "release", "commit": {"sha": "d" * 40}})})
-    assert contract.resolve_mission(mission_id) == "insufficient_evidence"
+    assert freeze_then_resolve(contract, mission_id) == "insufficient_evidence"
 
 
 def test_terminal_malformed_tip_is_insufficient(direct_vm, direct_deploy, direct_alice, mission_terms):
     contract, mission_id = closed_empty_mission(direct_vm, direct_deploy, direct_alice, mission_terms)
     direct_vm.mock_web(r"api\.github\.com/repos/acme/widget/branches/main$", {"status": 200, "body": json.dumps({"name": "main", "commit": {"sha": "not-a-sha"}})})
-    assert contract.resolve_mission(mission_id) == "insufficient_evidence"
+    assert freeze_then_resolve(contract, mission_id) == "insufficient_evidence"
 
 
 def test_terminal_compare_outage_is_retryable_source_unavailable(direct_vm, direct_deploy, direct_alice, mission_terms):
     contract, mission_id = closed_empty_mission(direct_vm, direct_deploy, direct_alice, mission_terms)
     direct_vm.mock_web(r"api\.github\.com/repos/acme/widget/branches/main$", {"status": 200, "body": json.dumps({"name": "main", "commit": {"sha": "d" * 40}})})
     direct_vm.mock_web(r"api\.github\.com/repos/acme/widget/compare/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\.\.\.dddddddddddddddddddddddddddddddddddddddd$", {"status": 503, "body": "{}"})
-    assert contract.resolve_mission(mission_id) == "source_unavailable"
+    assert freeze_then_resolve(contract, mission_id) == "source_unavailable"
 
 
 def test_lineage_requires_sealed_merge_as_merge_base(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
@@ -104,57 +105,57 @@ def test_lineage_requires_sealed_merge_as_merge_base(direct_vm, direct_deploy, d
     mock_pr(direct_vm, int(mission_id), wallet(direct_bob), lineage_merge_base="c" * 40)
     direct_vm.mock_web(r"api\.github\.com/repos/acme/widget/branches/main$", {"status": 200, "body": json.dumps({"name": "main", "commit": {"sha": "d" * 40}})})
     mock_compare(direct_vm, "acme/widget", "a" * 40, "d" * 40)
-    assert contract.resolve_mission(mission_id) == "insufficient_evidence"
+    assert freeze_then_resolve(contract, mission_id) == "insufficient_evidence"
 
 
 def test_terminal_missing_files_is_insufficient(direct_vm, direct_deploy, direct_alice, mission_terms):
     contract, mission_id = closed_empty_mission(direct_vm, direct_deploy, direct_alice, mission_terms)
     mock_terminal(direct_vm, files=None)
-    assert contract.resolve_mission(mission_id) == "insufficient_evidence"
+    assert freeze_then_resolve(contract, mission_id) == "insufficient_evidence"
 
 
 def test_terminal_file_count_bound_fails_closed(direct_vm, direct_deploy, direct_alice, mission_terms):
     contract, mission_id = closed_empty_mission(direct_vm, direct_deploy, direct_alice, mission_terms)
     mock_terminal(direct_vm, files=[terminal_file() for _ in range(31)])
-    assert contract.resolve_mission(mission_id) == "insufficient_evidence"
+    assert freeze_then_resolve(contract, mission_id) == "insufficient_evidence"
 
 
 def test_terminal_missing_patch_fails_closed(direct_vm, direct_deploy, direct_alice, mission_terms):
     contract, mission_id = closed_empty_mission(direct_vm, direct_deploy, direct_alice, mission_terms)
     incomplete = terminal_file(); incomplete.pop("patch")
     mock_terminal(direct_vm, files=[incomplete])
-    assert contract.resolve_mission(mission_id) == "insufficient_evidence"
+    assert freeze_then_resolve(contract, mission_id) == "insufficient_evidence"
 
 
 def test_terminal_negative_file_counts_fail_closed(direct_vm, direct_deploy, direct_alice, mission_terms):
     contract, mission_id = closed_empty_mission(direct_vm, direct_deploy, direct_alice, mission_terms)
     mock_terminal(direct_vm, files=[terminal_file(changes=-1)])
-    assert contract.resolve_mission(mission_id) == "insufficient_evidence"
+    assert freeze_then_resolve(contract, mission_id) == "insufficient_evidence"
 
 
 def test_terminal_total_change_budget_fails_closed(direct_vm, direct_deploy, direct_alice, mission_terms):
     contract, mission_id = closed_empty_mission(direct_vm, direct_deploy, direct_alice, mission_terms)
     mock_terminal(direct_vm, files=[terminal_file(changes=2501)])
-    assert contract.resolve_mission(mission_id) == "insufficient_evidence"
+    assert freeze_then_resolve(contract, mission_id) == "insufficient_evidence"
 
 
 def test_terminal_patch_budget_fails_closed(direct_vm, direct_deploy, direct_alice, mission_terms):
     contract, mission_id = closed_empty_mission(direct_vm, direct_deploy, direct_alice, mission_terms)
     mock_terminal(direct_vm, files=[terminal_file(patch="x" * 24001)])
-    assert contract.resolve_mission(mission_id) == "insufficient_evidence"
+    assert freeze_then_resolve(contract, mission_id) == "insufficient_evidence"
 
 
 def test_terminal_divergence_from_baseline_fails_closed(direct_vm, direct_deploy, direct_alice, mission_terms):
     contract, mission_id = closed_empty_mission(direct_vm, direct_deploy, direct_alice, mission_terms)
     mock_terminal(direct_vm, files=[], status="diverged", merge_base="e" * 40)
-    assert contract.resolve_mission(mission_id) == "insufficient_evidence"
+    assert freeze_then_resolve(contract, mission_id) == "insufficient_evidence"
 
 
 def test_empty_terminal_snapshot_is_committed_and_settles_truthfully(direct_vm, direct_deploy, direct_alice, mission_terms):
     contract, mission_id = closed_empty_mission(direct_vm, direct_deploy, direct_alice, mission_terms)
     mock_terminal(direct_vm, tip="a" * 40, files=[], status="identical")
     judge(direct_vm, terminal="NOT_ACHIEVED")
-    assert contract.resolve_mission(mission_id) == "settled_not_achieved"
+    assert freeze_then_resolve(contract, mission_id) == "settled_not_achieved"
     mission = json.loads(contract.get_mission(mission_id))
     expected_terminal = {"repo": "acme/widget", "target_ref": "main", "baseline_sha": "a" * 40, "terminal_tip_sha": "a" * 40, "files": []}
     assert mission["terminal_source_digest"] == canonical_digest(expected_terminal)
@@ -169,7 +170,7 @@ def test_empty_terminal_snapshot_is_committed_and_settles_truthfully(direct_vm, 
 def test_terminal_patch_change_changes_terminal_and_resolution_commitments(direct_vm, direct_deploy, direct_alice, mission_terms):
     first, first_id = closed_empty_mission(direct_vm, direct_deploy, direct_alice, mission_terms)
     mock_terminal(direct_vm, files=[terminal_file(patch="@@ one @@\n+one")]); judge(direct_vm, terminal="MATERIAL_PROGRESS")
-    assert first.resolve_mission(first_id) == "settled_not_achieved"
+    assert freeze_then_resolve(first, first_id) == "settled_not_achieved"
     first_mission = json.loads(first.get_mission(first_id))
 
     set_block_time(direct_vm, "2026-10-01T10:00:00Z")
@@ -179,7 +180,7 @@ def test_terminal_patch_change_changes_terminal_and_resolution_commitments(direc
     set_block_time(direct_vm, "2026-10-06T10:00:00Z")
     direct_vm.clear_mocks()
     mock_terminal(direct_vm, files=[terminal_file(patch="@@ two @@\n+two")]); judge(direct_vm, terminal="MATERIAL_PROGRESS")
-    assert first.resolve_mission(second_id) == "settled_not_achieved"
+    assert freeze_then_resolve(first, second_id) == "settled_not_achieved"
     second_mission = json.loads(first.get_mission(second_id))
     assert first_mission["terminal_source_digest"] != second_mission["terminal_source_digest"]
     assert first_mission["resolution_evidence_root"] != second_mission["resolution_evidence_root"]
@@ -188,7 +189,7 @@ def test_terminal_patch_change_changes_terminal_and_resolution_commitments(direc
 def test_settlement_digest_commits_both_economic_statuses(direct_vm, direct_deploy, direct_alice, mission_terms):
     contract, mission_id = closed_empty_mission(direct_vm, direct_deploy, direct_alice, mission_terms)
     mock_terminal(direct_vm, files=[terminal_file()]); judge(direct_vm, terminal="ACHIEVED", claimant="NOT_ACHIEVED")
-    assert contract.resolve_mission(mission_id) == "settled_not_achieved"
+    assert freeze_then_resolve(contract, mission_id) == "settled_not_achieved"
     mission = json.loads(contract.get_mission(mission_id))
     settlement = mission["settlement"]
     expected = canonical_digest({

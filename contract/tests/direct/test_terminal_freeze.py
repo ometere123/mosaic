@@ -1,0 +1,108 @@
+import json
+
+from helpers import mock_baseline, mock_pr, mock_terminal, set_block_time
+
+WEI = 10**18
+EARLIEST = 1791201600
+
+
+def address(account):
+    return "0x" + account.hex() if isinstance(account, bytes) else account.as_hex.lower()
+
+
+def create(vm, deploy, sponsor, terms):
+    set_block_time(vm, "2026-10-01T10:00:00Z")
+    contract = deploy("contract/contracts/mosaic.py")
+    vm.sender = sponsor
+    vm.value = WEI
+    mock_baseline(vm)
+    mission_id = contract.open_mission(terms["repo"], terms["target_ref"], terms["baseline"], terms["title"], terms["objective"], json.dumps(terms["criteria"]), EARLIEST)
+    vm.value = 0
+    return contract, mission_id
+
+
+def test_freeze_is_permissionless_atomic_and_ends_eligibility(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
+    contract, mission_id = create(direct_vm, direct_deploy, direct_alice, mission_terms)
+    with direct_vm.expect_revert("freeze_not_yet_allowed"):
+        contract.freeze_terminal(mission_id)
+    set_block_time(direct_vm, "2026-10-06T00:00:00Z")
+    direct_vm.sender = direct_bob
+    direct_vm.clear_mocks()
+    mock_terminal(direct_vm)
+    direct_vm.value = WEI
+    assert contract.add_funding(mission_id) == f"funded_{WEI}"
+    direct_vm.value = 0
+    assert contract.freeze_terminal(mission_id) == "terminal_frozen"
+    mission = json.loads(contract.get_mission(mission_id))
+    assert mission["status"] == "TERMINAL_FROZEN"
+    assert mission["freeze_not_before"] == EARLIEST
+    assert mission["closed_at"] > EARLIEST
+    assert "close_at" not in mission
+    assert mission["frozen_evidence"] is not None
+    assert len(mission["frozen_evidence_digest"]) == 64
+    with direct_vm.expect_revert("mission_not_freezable"):
+        contract.freeze_terminal(mission_id)
+    direct_vm.value = WEI
+    with direct_vm.expect_revert("mission_not_open"):
+        contract.add_funding(mission_id)
+    direct_vm.value = 0
+    with direct_vm.expect_revert("mission_not_open"):
+        contract.seal_contribution(mission_id, 7, 99)
+
+
+def test_freeze_outage_keeps_eligibility_open_without_partial_snapshot(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
+    contract, mission_id = create(direct_vm, direct_deploy, direct_alice, mission_terms)
+    set_block_time(direct_vm, "2026-10-06T10:00:00Z")
+    direct_vm.clear_mocks()
+    direct_vm.mock_web(r"api\.github\.com/.*", {"status": 503, "body": "{}"})
+    assert contract.freeze_terminal(mission_id) == "source_unavailable"
+    mission = json.loads(contract.get_mission(mission_id))
+    assert mission["status"] == "OPEN"
+    assert mission["closed_at"] == 0
+    assert mission["frozen_evidence"] is None
+    assert mission["terminal_tip_sha"] == ""
+    assert contract.get_balance(address(direct_alice)) == "0"
+    direct_vm.sender = direct_bob
+    direct_vm.value = WEI
+    assert contract.add_funding(mission_id) == f"funded_{WEI}"
+    direct_vm.value = 0
+    direct_vm.clear_mocks()
+    mock_pr(direct_vm, int(mission_id), address(direct_bob), merged_at="2026-10-06T09:00:00Z")
+    assert contract.seal_contribution(mission_id, 7, 99) == "sealed_0"
+    # The immutable revalidation has the same real merge timestamp on retry.
+    assert contract.freeze_terminal(mission_id) == "terminal_frozen"
+    assert json.loads(contract.get_mission(mission_id))["closed_at"] > EARLIEST
+
+
+def test_delayed_resolution_uses_frozen_prompt_despite_branch_change(direct_vm, direct_deploy, direct_alice, mission_terms):
+    contract, mission_id = create(direct_vm, direct_deploy, direct_alice, mission_terms)
+    set_block_time(direct_vm, "2026-10-06T10:00:00Z")
+    direct_vm.clear_mocks()
+    mock_terminal(direct_vm, terminal_sha="d" * 40)
+    assert contract.freeze_terminal(mission_id) == "terminal_frozen"
+    before = json.loads(contract.get_mission(mission_id))
+    set_block_time(direct_vm, "2026-10-25T10:00:00Z")
+    direct_vm.clear_mocks()
+    mock_terminal(direct_vm, terminal_sha="e" * 40)
+    # No generic model mock: settlement succeeds only if the frozen SHA reaches judgment.
+    direct_vm.mock_llm(r"(?s)allocating a funded open-source engineering mission.*" + "d" * 40,
+        json.dumps({"terminal_objective_status": "ACHIEVED", "claimant_outcome": "NOT_ACHIEVED", "roles": {}, "rationale": "Outside work satisfies the frozen target; no eligible claimant."}))
+    assert contract.resolve_mission(mission_id) == "settled_not_achieved"
+    after = json.loads(contract.get_mission(mission_id))
+    for key in ("closed_at", "terminal_tip_sha", "terminal_source_digest", "terminal_lineage_root", "ordered_contribution_root", "resolution_evidence_root", "frozen_evidence", "frozen_evidence_digest"):
+        assert after[key] == before[key]
+    assert after["terminal_tip_sha"] == "d" * 40
+    assert after["residual_wei"] == str(WEI)
+
+
+def test_resolution_has_no_public_source_acquisition():
+    import ast
+    import os
+    from pathlib import Path
+
+    path = Path(os.environ.get("MOSAIC_MUTANT_CONTRACT", "contract/contracts/mosaic.py"))
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    method = next(node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef) and node.name == "resolve_mission")
+    names = {node.id for node in ast.walk(method) if isinstance(node, ast.Name)}
+    assert not names.intersection({"_fetch_terminal_state", "_fetch_terminal_lineage", "_fetch_immutable_pr_evidence", "_read_json_url"})
+    assert "web" not in {node.attr for node in ast.walk(method) if isinstance(node, ast.Attribute)}

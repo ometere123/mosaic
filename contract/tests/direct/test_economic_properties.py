@@ -1,3 +1,4 @@
+from helpers import freeze_then_resolve
 import json
 
 import pytest
@@ -40,7 +41,7 @@ def resolve_two(contract, vm, mission_id, bob, charlie, terminal, claimant, bob_
         "roles": {wallet(bob): bob_role, wallet(charlie): charlie_role},
         "rationale": "Deterministic role-weight property case.",
     }))
-    return contract.resolve_mission(mission_id)
+    return freeze_then_resolve(contract, mission_id)
 
 
 @pytest.mark.parametrize(
@@ -91,7 +92,7 @@ def test_sponsor_residual_rounding_is_deterministic_and_conserved(direct_vm, dir
     mock_pr(direct_vm, int(mission_id), wallet(direct_bob), author="bob")
     vm_roles = {wallet(direct_bob): "CORE"}
     direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({"terminal_objective_status": "MATERIAL_PROGRESS", "claimant_outcome": "MATERIAL_PROGRESS", "roles": vm_roles, "rationale": "Fixed policy release."}))
-    assert contract.resolve_mission(mission_id) == "settled_material_progress"
+    assert freeze_then_resolve(contract, mission_id) == "settled_material_progress"
     mission = json.loads(contract.get_mission(mission_id))
     residuals = mission["settlement"]["sponsor_allocations"]
     observed = tuple(int(residuals.get(wallet(sponsor), "0")) for sponsor in (direct_alice, direct_charlie, direct_bob))

@@ -715,7 +715,7 @@ class Mosaic(gl.Contract):
         title: str,
         objective: str,
         criteria_json: str,
-        close_at_unix: int,
+        freeze_not_before: int,
     ) -> u256:
         repo_slug = repo_slug.strip()
         target_ref = target_ref.strip()
@@ -748,8 +748,8 @@ class Mosaic(gl.Contract):
             cleaned_criteria.append(value)
 
         now = _now_unix()
-        close_at_unix = int(close_at_unix)
-        duration = close_at_unix - now
+        freeze_not_before = int(freeze_not_before)
+        duration = freeze_not_before - now
         if duration < MIN_MISSION_SECONDS or duration > MAX_MISSION_SECONDS:
             raise gl.vm.UserError("invalid_mission_duration")
         amount = int(gl.message.value)
@@ -782,7 +782,12 @@ class Mosaic(gl.Contract):
             "objective": objective,
             "criteria": cleaned_criteria,
             "created_at": now,
-            "close_at": close_at_unix,
+            "freeze_not_before": freeze_not_before,
+            "closed_at": 0,
+            "freeze_attempts": 0,
+            "last_freeze": "",
+            "frozen_evidence": None,
+            "frozen_evidence_digest": "",
             "status": "OPEN",
             "pool_wei": str(amount),
             "total_funded_wei": str(amount),
@@ -799,7 +804,7 @@ class Mosaic(gl.Contract):
             "residual_wei": "0",
             "mission_evidence_root": "",
             "settlement_digest": "",
-            "mission_terms_digest": _canonical_digest({"repo": repo_slug, "target_ref": target_ref, "baseline_sha": baseline_sha, "title": title, "objective": objective, "criteria": cleaned_criteria, "close_at": close_at_unix}),
+            "mission_terms_digest": _canonical_digest({"repo": repo_slug, "target_ref": target_ref, "baseline_sha": baseline_sha, "title": title, "objective": objective, "criteria": cleaned_criteria, "freeze_not_before": freeze_not_before}),
             "terminal_source_digest": "",
             "terminal_tip_sha": "",
             "terminal_lineage_root": "",
@@ -897,7 +902,7 @@ class Mosaic(gl.Contract):
         if merged_dt.tzinfo is None or merged_dt.utcoffset() is None:
             raise gl.vm.UserError("invalid_merge_timestamp")
         merged_unix = int(merged_dt.timestamp())
-        if merged_unix < int(mission["created_at"]) or merged_unix > int(mission["close_at"]):
+        if merged_unix < int(mission["created_at"]) or merged_unix > _now_unix():
             raise gl.vm.UserError("merge_outside_mission_window")
 
         merge_key = f"{int(mission_id)}:{merge_sha}"
@@ -1062,25 +1067,27 @@ class Mosaic(gl.Contract):
         return f"sealed_{index}"
 
     @gl.public.write
-    def resolve_mission(self, mission_id: u256) -> str:
+    def freeze_terminal(self, mission_id: u256) -> str:
         mission = self._mission(mission_id)
         if mission["status"] != "OPEN":
-            raise gl.vm.UserError("mission_not_resolvable")
-        if _now_unix() <= int(mission["close_at"]):
-            raise gl.vm.UserError("mission_still_open")
+            raise gl.vm.UserError("mission_not_freezable")
+        if _now_unix() < int(mission["freeze_not_before"]):
+            raise gl.vm.UserError("freeze_not_yet_allowed")
+        if _now_unix() > int(mission["freeze_not_before"]) + UNRESOLVED_GRACE_SECONDS:
+            raise gl.vm.UserError("mission_expiry_due")
 
         terminal_context = _canonical_json({"repo": mission["repo"], "target_ref": mission["target_ref"], "baseline": mission["baseline_sha"]})
         def fetch_terminal_state():
             return _fetch_terminal_state(terminal_context)
         terminal = json.loads(gl.eq_principle.strict_eq(fetch_terminal_state))
         if terminal.get("status") == "SOURCE_UNAVAILABLE":
-            mission["resolution_attempts"] = int(mission["resolution_attempts"]) + 1
-            mission["last_resolution"] = "SOURCE_UNAVAILABLE"
+            mission["freeze_attempts"] = int(mission["freeze_attempts"]) + 1
+            mission["last_freeze"] = "SOURCE_UNAVAILABLE"
             self._save_mission(mission_id, mission)
             return "source_unavailable"
         if terminal.get("status") != "OK":
-            mission["resolution_attempts"] = int(mission["resolution_attempts"]) + 1
-            mission["last_resolution"] = "INSUFFICIENT_EVIDENCE"
+            mission["freeze_attempts"] = int(mission["freeze_attempts"]) + 1
+            mission["last_freeze"] = "INSUFFICIENT_EVIDENCE"
             self._save_mission(mission_id, mission)
             return "insufficient_evidence"
 
@@ -1118,13 +1125,13 @@ class Mosaic(gl.Contract):
             refreshed = json.loads(gl.eq_principle.strict_eq(revalidate_evidence))
             refreshed_status = refreshed.get("status")
             if refreshed_status == "SOURCE_UNAVAILABLE":
-                mission["resolution_attempts"] = int(mission["resolution_attempts"]) + 1
-                mission["last_resolution"] = "SOURCE_UNAVAILABLE"
+                mission["freeze_attempts"] = int(mission["freeze_attempts"]) + 1
+                mission["last_freeze"] = "SOURCE_UNAVAILABLE"
                 self._save_mission(mission_id, mission)
                 return "source_unavailable"
             if refreshed_status != "OK" or refreshed.get("immutable_source_digest") != item.get("immutable_source_digest"):
-                mission["resolution_attempts"] = int(mission["resolution_attempts"]) + 1
-                mission["last_resolution"] = "EVIDENCE_CHANGED"
+                mission["freeze_attempts"] = int(mission["freeze_attempts"]) + 1
+                mission["last_freeze"] = "EVIDENCE_CHANGED"
                 self._save_mission(mission_id, mission)
                 return "evidence_changed"
 
@@ -1133,13 +1140,13 @@ class Mosaic(gl.Contract):
                 return _fetch_terminal_lineage(lineage_context)
             lineage = json.loads(gl.eq_principle.strict_eq(fetch_lineage))
             if lineage.get("status") == "SOURCE_UNAVAILABLE":
-                mission["resolution_attempts"] = int(mission["resolution_attempts"]) + 1
-                mission["last_resolution"] = "SOURCE_UNAVAILABLE"
+                mission["freeze_attempts"] = int(mission["freeze_attempts"]) + 1
+                mission["last_freeze"] = "SOURCE_UNAVAILABLE"
                 self._save_mission(mission_id, mission)
                 return "source_unavailable"
             if lineage.get("status") != "OK" or not _digest_ok(str(lineage.get("terminal_lineage_digest") or "")):
-                mission["resolution_attempts"] = int(mission["resolution_attempts"]) + 1
-                mission["last_resolution"] = "INSUFFICIENT_EVIDENCE"
+                mission["freeze_attempts"] = int(mission["freeze_attempts"]) + 1
+                mission["last_freeze"] = "INSUFFICIENT_EVIDENCE"
                 self._save_mission(mission_id, mission)
                 return "insufficient_evidence"
 
@@ -1221,6 +1228,34 @@ class Mosaic(gl.Contract):
             },
             sort_keys=True,
         )
+        frozen_evidence = json.loads(judge_context)
+        frozen_evidence["closed_at"] = _now_unix()
+        mission["frozen_evidence"] = frozen_evidence
+        mission["frozen_evidence_digest"] = _canonical_digest(frozen_evidence)
+        mission["closed_at"] = frozen_evidence["closed_at"]
+        mission["mission_evidence_root"] = mission_evidence_root
+        mission["terminal_source_digest"] = terminal["terminal_source_digest"]
+        mission["terminal_tip_sha"] = terminal["terminal_tip_sha"]
+        mission["terminal_lineage_root"] = terminal_lineage_root
+        mission["terminal_lineage_records"] = lineage_records
+        mission["resolution_evidence_root"] = resolution_evidence_root
+        mission["ordered_contribution_root"] = ordered_contribution_root
+        mission["freeze_attempts"] = int(mission["freeze_attempts"]) + 1
+        mission["last_freeze"] = "FROZEN"
+        mission["status"] = "TERMINAL_FROZEN"
+        self._save_mission(mission_id, mission)
+        return "terminal_frozen"
+
+    @gl.public.write
+    def resolve_mission(self, mission_id: u256) -> str:
+        mission = self._mission(mission_id)
+        if mission["status"] != "TERMINAL_FROZEN":
+            raise gl.vm.UserError("mission_not_resolvable")
+        frozen_evidence = mission.get("frozen_evidence")
+        if not isinstance(frozen_evidence, dict) or _canonical_digest(frozen_evidence) != mission.get("frozen_evidence_digest"):
+            raise gl.vm.UserError("invalid_frozen_evidence")
+        judge_context = _canonical_json(frozen_evidence)
+        portfolios = json.loads(frozen_evidence["portfolios_json"])["portfolios"]
         expected_wallets = set(portfolios.keys())
         def judge_mission():
             verdict = _normalise_judgment(_judge_mission(judge_context), expected_wallets)
@@ -1258,22 +1293,15 @@ class Mosaic(gl.Contract):
             self._save_mission(mission_id, mission)
             return "insufficient_evidence"
 
-        mission["mission_evidence_root"] = mission_evidence_root
-        mission["terminal_source_digest"] = terminal["terminal_source_digest"]
-        mission["terminal_tip_sha"] = terminal["terminal_tip_sha"]
-        mission["terminal_lineage_root"] = terminal_lineage_root
-        mission["terminal_lineage_records"] = lineage_records
-        mission["resolution_evidence_root"] = resolution_evidence_root
-        mission["ordered_contribution_root"] = ordered_contribution_root
         self._settle(mission_id, mission, terminal_objective_status, claimant_outcome, roles, rationale)
         return f"settled_{claimant_outcome.lower()}"
 
     @gl.public.write
     def expire_unresolved(self, mission_id: u256) -> str:
         mission = self._mission(mission_id)
-        if mission["status"] != "OPEN":
+        if mission["status"] not in {"OPEN", "TERMINAL_FROZEN"}:
             raise gl.vm.UserError("mission_not_expirable")
-        if _now_unix() <= int(mission["close_at"]) + UNRESOLVED_GRACE_SECONDS:
+        if _now_unix() <= int(mission["freeze_not_before"]) + UNRESOLVED_GRACE_SECONDS:
             raise gl.vm.UserError("resolution_grace_active")
         ordered_contribution_root = self._record_root(mission_id, mission)
         if not mission.get("ordered_contribution_root"):
@@ -1384,8 +1412,6 @@ class Mosaic(gl.Contract):
     def _require_open(self, mission) -> None:
         if mission["status"] != "OPEN":
             raise gl.vm.UserError("mission_not_open")
-        if _now_unix() > int(mission["close_at"]):
-            raise gl.vm.UserError("mission_closed")
 
     def _credit(self, wallet: str, amount: int) -> None:
         if amount <= 0:

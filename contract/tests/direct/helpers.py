@@ -1,6 +1,20 @@
 import json
 
 
+def freeze_then_resolve(contract, mission_id):
+    """Two explicit writes for migrated settlement tests; never a contract API.
+
+    Acquisition failures belong to freeze. Semantic failures belong to resolve.
+    Dedicated freeze tests call each method directly to prove their separation.
+    """
+    mission = json.loads(contract.get_mission(mission_id))
+    if mission["status"] == "OPEN":
+        result = contract.freeze_terminal(mission_id)
+        if result != "terminal_frozen":
+            return result
+    return contract.resolve_mission(mission_id)
+
+
 def set_block_time(vm, iso: str):
     vm.warp(iso)
     try:
@@ -77,7 +91,7 @@ def mock_pr(
     author_id=None,
     comment_author=None,
     comment_author_id=None,
-    merged_at="2026-10-03T10:00:00Z",
+    merged_at="2026-10-01T10:00:00Z",
     baseline=None,
     merge_sha=None,
     compare_status="ahead",

@@ -14,7 +14,9 @@ This document records the starting implementation, not completion of the upgrade
 
 Direct Mode: 129 passed under WSL using the pinned environment and the authoritative Windows checkout. Native Windows execution failed before contract evaluation in the test SDK's temporary-file unlink operation (`WinError 32`); no contract workaround was introduced.
 
-Frontend: 137 passed. An initial SDK-import test exceeded its five-second timeout; the unchanged complete suite passed on rerun. Lint, explicit TypeScript checking and production build passed. CLI, network, architecture, repository integrity, comparator and predeployment-manifest guards passed. Mutation reproduction is recorded separately when its complete runners finish.
+Frontend: 137 passed. An initial SDK-import test exceeded its five-second timeout; the unchanged complete suite passed on rerun. Lint, explicit TypeScript checking and production build passed. CLI, network, architecture, repository integrity, comparator and predeployment-manifest guards passed.
+
+Both complete mutation controls and runners passed: contract 82 unique / 82 killed / 0 surviving / 0 invalid syntax; frontend 35 unique / 35 killed / 0 surviving / 0 invalid. Baseline checkpoint `5691aacceadf858ef4d7793a010e96d54330994b` passed all four CI jobs in run `37224221395`, including GenVM lint, Ubuntu verification, Windows portable verification and both mutation jobs. Local SDK validation initially lacked the pinned runner archive; downloading v0.2.12 restored that prerequisite without changing the contract dependency header.
 
 ## Existing evidence flow
 

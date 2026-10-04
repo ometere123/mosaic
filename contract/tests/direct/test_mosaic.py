@@ -1,3 +1,4 @@
+from helpers import freeze_then_resolve
 import hashlib
 import json
 import pytest
@@ -462,7 +463,7 @@ def test_oversized_evidence_is_explicit_and_not_retryable(direct_vm, direct_depl
         r"api\.github\.com/repos/acme/widget/pulls/7$",
         {"status": 200, "body": json.dumps({
                 "title": "huge", "body": "", "user": {"login": "dev", "id": 101},
-            "merged_at": "2026-10-03T10:00:00Z", "merge_commit_sha": "b" * 40,
+            "merged_at": "2026-10-01T10:00:00Z", "merge_commit_sha": "b" * 40,
             "base": {"ref": "main", "repo": {"full_name": "acme/widget"}},
             "head": {"sha": "c" * 40},
             "changed_files": 31, "additions": 5000, "deletions": 1,
@@ -508,7 +509,7 @@ def test_achieved_settlement_splits_by_roles(direct_vm, direct_deploy, direct_al
             "rationale": "Both materially achieved the objective; Bob was primary.",
         }),
     )
-    assert contract.resolve_mission(mission_id) == "settled_achieved"
+    assert freeze_then_resolve(contract, mission_id) == "settled_achieved"
     assert int(contract.get_balance(wallet(direct_bob))) == 50 * WEI
     assert int(contract.get_balance(wallet(direct_charlie))) == 30 * WEI
     assert int(contract.get_balance(wallet(direct_alice))) == 0
@@ -536,7 +537,7 @@ def test_evidence_root_and_settlement_digest_are_reproducible(direct_vm, direct_
             "rationale": "The sealed work achieved the objective.",
         }),
     )
-    contract.resolve_mission(mission_id)
+    freeze_then_resolve(contract, mission_id)
     mission = json.loads(contract.get_mission(mission_id))
     expected_root = canonical_digest({
         "mission_id": int(mission_id),
@@ -592,7 +593,7 @@ def test_resolution_rejects_unexpected_output_fields(direct_vm, direct_deploy, d
         }),
     )
     with direct_vm.expect_revert("invalid_resolution_judgment"):
-        contract.resolve_mission(mission_id)
+        freeze_then_resolve(contract, mission_id)
 
 
 def test_resolution_rejects_invalid_role_enum(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
@@ -608,7 +609,7 @@ def test_resolution_rejects_invalid_role_enum(direct_vm, direct_deploy, direct_a
         "roles": {wallet(direct_bob): "INVALID_ROLE"}, "rationale": "invalid enum",
     }))
     with direct_vm.expect_revert("invalid_resolution_judgment"):
-        contract.resolve_mission(mission_id)
+        freeze_then_resolve(contract, mission_id)
 
 
 @pytest.mark.parametrize("rationale", ["", "   ", "x" * 4001])
@@ -621,7 +622,7 @@ def test_resolution_rejects_empty_whitespace_or_oversized_rationale(direct_vm, d
         "terminal_objective_status": "ACHIEVED", "claimant_outcome": "NOT_ACHIEVED", "roles": {}, "rationale": rationale,
     }))
     with direct_vm.expect_revert("invalid_resolution_judgment"):
-        contract.resolve_mission(mission_id)
+        freeze_then_resolve(contract, mission_id)
 
 
 def test_resolution_rejects_consensus_agreement_on_incompatible_statuses(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
@@ -636,7 +637,7 @@ def test_resolution_rejects_consensus_agreement_on_incompatible_statuses(direct_
         "roles": {wallet(direct_bob): "CORE"}, "rationale": "incompatible",
     }))
     with direct_vm.expect_revert("invalid_resolution_judgment"):
-        contract.resolve_mission(mission_id)
+        freeze_then_resolve(contract, mission_id)
 
 
 def test_untrusted_patch_instructions_cannot_define_payouts(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
@@ -653,7 +654,7 @@ def test_untrusted_patch_instructions_cannot_define_payouts(direct_vm, direct_de
     mock_pr(direct_vm, int(mission_id), wallet(direct_bob), patch=injection)
     direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({"terminal_objective_status": "ACHIEVED", "claimant_outcome": "ACHIEVED", "roles": {wallet(direct_bob): "CORE"}, "rationale": "fake system", "payout_percentage": 100}))
     with direct_vm.expect_revert("invalid_resolution_judgment"):
-        contract.resolve_mission(mission_id)
+        freeze_then_resolve(contract, mission_id)
 
 
 def test_insufficient_outcome_cannot_assign_positive_role(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
@@ -677,7 +678,7 @@ def test_insufficient_outcome_cannot_assign_positive_role(direct_vm, direct_depl
         }),
     )
     with direct_vm.expect_revert("invalid_resolution_judgment"):
-        contract.resolve_mission(mission_id)
+        freeze_then_resolve(contract, mission_id)
 
 
 def test_material_progress_releases_40_percent_and_refunds_residual(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
@@ -696,7 +697,7 @@ def test_material_progress_releases_40_percent_and_refunds_residual(direct_vm, d
         r"allocating a funded open-source engineering mission",
         json.dumps({"terminal_objective_status": "MATERIAL_PROGRESS", "claimant_outcome": "MATERIAL_PROGRESS", "roles": {wallet(direct_bob): "CORE"}, "rationale": "Meaningful but incomplete."}),
     )
-    assert contract.resolve_mission(mission_id) == "settled_material_progress"
+    assert freeze_then_resolve(contract, mission_id) == "settled_material_progress"
     assert int(contract.get_balance(wallet(direct_bob))) == 40 * WEI
     assert int(contract.get_balance(wallet(direct_alice))) == 60 * WEI
 
@@ -720,7 +721,7 @@ def test_not_achieved_returns_all_sponsor_funds_pro_rata(direct_vm, direct_deplo
         r"allocating a funded open-source engineering mission",
         json.dumps({"terminal_objective_status": "NOT_ACHIEVED", "claimant_outcome": "NOT_ACHIEVED", "roles": {wallet(direct_bob): "NO_CREDIT"}, "rationale": "Work was unrelated."}),
     )
-    contract.resolve_mission(mission_id)
+    freeze_then_resolve(contract, mission_id)
     assert int(contract.get_balance(wallet(direct_alice))) == 75 * WEI
     assert int(contract.get_balance(wallet(direct_charlie))) == 25 * WEI
     assert int(contract.get_balance(wallet(direct_bob))) == 0
@@ -742,13 +743,13 @@ def test_insufficient_resolution_does_not_move_money(direct_vm, direct_deploy, d
         r"allocating a funded open-source engineering mission",
         json.dumps({"terminal_objective_status": "INSUFFICIENT_EVIDENCE", "claimant_outcome": "INSUFFICIENT_EVIDENCE", "roles": {wallet(direct_bob): "NO_CREDIT"}, "rationale": "Evidence cannot support settlement."}),
     )
-    assert contract.resolve_mission(mission_id) == "insufficient_evidence"
+    assert freeze_then_resolve(contract, mission_id) == "insufficient_evidence"
     mission = json.loads(contract.get_mission(mission_id))
-    assert mission["status"] == "OPEN"
+    assert mission["status"] == "TERMINAL_FROZEN"
     assert mission["pool_wei"] == str(100 * WEI)
 
 
-def test_contribution_source_unavailable_during_resolution_moves_no_money(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
+def test_contribution_source_unavailable_during_freeze_moves_no_money(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
     set_block_time(direct_vm, "2026-10-01T10:00:00Z")
     contract = direct_deploy("contract/contracts/mosaic.py")
     mission_id = open_mission(contract, direct_vm, direct_alice, mission_terms)
@@ -759,10 +760,11 @@ def test_contribution_source_unavailable_during_resolution_moves_no_money(direct
     set_block_time(direct_vm, "2026-10-06T10:00:00Z")
     direct_vm.clear_mocks()
     direct_vm.mock_web(r"api\.github\.com/repos/acme/widget/pulls/7$", {"status": 503, "body": "{}"})
-    assert contract.resolve_mission(mission_id) == "source_unavailable"
+    mock_terminal(direct_vm)
+    assert freeze_then_resolve(contract, mission_id) == "source_unavailable"
     assert contract.get_balance(wallet(direct_alice)) == "0"
     mission = json.loads(contract.get_mission(mission_id))
-    assert mission["last_resolution"] == "SOURCE_UNAVAILABLE"
+    assert mission["last_freeze"] == "SOURCE_UNAVAILABLE"
     assert mission["pool_wei"] == str(100 * WEI)
 
 
@@ -782,7 +784,7 @@ def test_edited_pr_title_does_not_veto_authenticated_contribution(direct_vm, dir
         r"allocating a funded open-source engineering mission",
         json.dumps({"terminal_objective_status": "ACHIEVED", "claimant_outcome": "ACHIEVED", "roles": {wallet(direct_bob): "CORE"}, "rationale": "Immutable code evidence still supports the outcome."}),
     )
-    assert contract.resolve_mission(mission_id) == "settled_achieved"
+    assert freeze_then_resolve(contract, mission_id) == "settled_achieved"
     mission = json.loads(contract.get_mission(mission_id))
     assert mission["status"] == "SETTLED"
     assert int(contract.get_balance(wallet(direct_bob))) == 100 * WEI
@@ -800,7 +802,7 @@ def test_edited_pr_body_does_not_veto_authenticated_contribution(direct_vm, dire
     direct_vm.clear_mocks()
     mock_pr(direct_vm, int(mission_id), wallet(direct_bob), body="edited descriptive prose")
     direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({"terminal_objective_status": "ACHIEVED", "claimant_outcome": "ACHIEVED", "roles": {wallet(direct_bob): "CORE"}, "rationale": "Immutable code evidence still supports the outcome."}))
-    assert contract.resolve_mission(mission_id) == "settled_achieved"
+    assert freeze_then_resolve(contract, mission_id) == "settled_achieved"
 
 
 def test_proof_comment_deletion_after_seal_does_not_erase_authentication(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
@@ -816,7 +818,7 @@ def test_proof_comment_deletion_after_seal_does_not_erase_authentication(direct_
     direct_vm.mock_web(r"api\.github\.com/repos/acme/widget/issues/comments/99$", {"status": 404, "body": "{}"})
     mock_pr(direct_vm, int(mission_id), wallet(direct_bob))
     direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({"terminal_objective_status": "ACHIEVED", "claimant_outcome": "ACHIEVED", "roles": {wallet(direct_bob): "CORE"}, "rationale": "The seal already authenticated the proof."}))
-    assert contract.resolve_mission(mission_id) == "settled_achieved"
+    assert freeze_then_resolve(contract, mission_id) == "settled_achieved"
 
 
 def test_proof_comment_edit_after_seal_does_not_erase_authentication(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
@@ -831,7 +833,7 @@ def test_proof_comment_edit_after_seal_does_not_erase_authentication(direct_vm, 
     direct_vm.clear_mocks()
     mock_pr(direct_vm, int(mission_id), wallet(direct_bob), comment_body="edited after authentication")
     direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({"terminal_objective_status": "ACHIEVED", "claimant_outcome": "ACHIEVED", "roles": {wallet(direct_bob): "CORE"}, "rationale": "The seal already authenticated the proof."}))
-    assert contract.resolve_mission(mission_id) == "settled_achieved"
+    assert freeze_then_resolve(contract, mission_id) == "settled_achieved"
 
 
 def test_immutable_head_substitution_blocks_resolution(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
@@ -845,7 +847,7 @@ def test_immutable_head_substitution_blocks_resolution(direct_vm, direct_deploy,
     set_block_time(direct_vm, "2026-10-06T10:00:00Z")
     direct_vm.clear_mocks()
     mock_pr(direct_vm, int(mission_id), wallet(direct_bob), head_sha="d" * 40)
-    assert contract.resolve_mission(mission_id) == "evidence_changed"
+    assert freeze_then_resolve(contract, mission_id) == "evidence_changed"
     mission = json.loads(contract.get_mission(mission_id))
     assert mission["status"] == "OPEN"
     assert mission["pool_wei"] == str(100 * WEI)
@@ -862,7 +864,7 @@ def test_terminal_branch_unavailable_keeps_mission_open(direct_vm, direct_deploy
     set_block_time(direct_vm, "2026-10-06T10:00:00Z")
     direct_vm.clear_mocks()
     direct_vm.mock_web(r"api\.github\.com/repos/acme/widget/branches/main$", {"status": 503, "body": "{}"})
-    assert contract.resolve_mission(mission_id) == "source_unavailable"
+    assert freeze_then_resolve(contract, mission_id) == "source_unavailable"
     assert json.loads(contract.get_mission(mission_id))["status"] == "OPEN"
 
 
@@ -878,7 +880,7 @@ def test_terminal_force_push_away_from_baseline_blocks_settlement(direct_vm, dir
     direct_vm.clear_mocks()
     direct_vm.mock_web(r"api\.github\.com/repos/acme/widget/branches/main$", {"status": 200, "body": json.dumps({"name": "main", "commit": {"sha": "d" * 40}})})
     direct_vm.mock_web(r"api\.github\.com/repos/acme/widget/compare/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\.\.\.dddddddddddddddddddddddddddddddddddddddd$", {"status": 200, "body": json.dumps({"status": "diverged", "merge_base_commit": {"sha": "e" * 40}, "files": []})})
-    assert contract.resolve_mission(mission_id) == "insufficient_evidence"
+    assert freeze_then_resolve(contract, mission_id) == "insufficient_evidence"
     assert json.loads(contract.get_mission(mission_id))["status"] == "OPEN"
 
 
@@ -897,7 +899,7 @@ def test_non_ancestral_contribution_is_exposed_to_terminal_causal_judgment(direc
     mock_compare(direct_vm, "acme/widget", "a" * 40, "d" * 40)
     direct_vm.mock_web(r"api\.github\.com/repos/acme/widget/compare/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\.\.\.dddddddddddddddddddddddddddddddddddddddd$", {"status": 200, "body": json.dumps({"status": "behind", "merge_base_commit": {"sha": "b" * 40}})})
     direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({"terminal_objective_status": "ACHIEVED", "claimant_outcome": "NOT_ACHIEVED", "roles": {wallet(direct_bob): "NO_CREDIT"}, "rationale": "The historical merge is absent from terminal ancestry."}))
-    assert contract.resolve_mission(mission_id) == "settled_not_achieved"
+    assert freeze_then_resolve(contract, mission_id) == "settled_not_achieved"
     mission = json.loads(contract.get_mission(mission_id))
     assert len(mission["terminal_lineage_root"]) == 64
     assert mission["terminal_lineage_root"] == canonical_digest({"mission_id": int(mission_id), "terminal_tip_sha": mission["terminal_tip_sha"], "records": mission["terminal_lineage_records"]})
@@ -915,7 +917,7 @@ def test_validator_rejects_mission_outcome_disagreement(direct_vm, direct_deploy
     direct_vm.clear_mocks()
     mock_pr(direct_vm, int(mission_id), wallet(direct_bob))
     direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({"terminal_objective_status": "ACHIEVED", "claimant_outcome": "ACHIEVED", "roles": {wallet(direct_bob): "CORE"}, "rationale": "Leader rationale."}))
-    contract.resolve_mission(mission_id)
+    freeze_then_resolve(contract, mission_id)
     direct_vm.clear_mocks()
     direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({"terminal_objective_status": "MATERIAL_PROGRESS", "claimant_outcome": "MATERIAL_PROGRESS", "roles": {wallet(direct_bob): "CORE"}, "rationale": "Validator rationale."}))
     assert direct_vm.run_validator() is False
@@ -928,7 +930,7 @@ def test_validator_rejects_terminal_status_only_disagreement(direct_vm, direct_d
     direct_vm.value = 0; direct_vm.sender = direct_bob
     mock_pr(direct_vm, int(mission_id), wallet(direct_bob)); contract.seal_contribution(mission_id, 7, 99)
     set_block_time(direct_vm, "2026-10-06T10:00:00Z"); direct_vm.clear_mocks(); mock_pr(direct_vm, int(mission_id), wallet(direct_bob))
-    direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({"terminal_objective_status": "ACHIEVED", "claimant_outcome": "MATERIAL_PROGRESS", "roles": {wallet(direct_bob): "SUPPORTING"}, "rationale": "Leader."})); contract.resolve_mission(mission_id)
+    direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({"terminal_objective_status": "ACHIEVED", "claimant_outcome": "MATERIAL_PROGRESS", "roles": {wallet(direct_bob): "SUPPORTING"}, "rationale": "Leader."})); freeze_then_resolve(contract, mission_id)
     direct_vm.clear_mocks(); direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({"terminal_objective_status": "MATERIAL_PROGRESS", "claimant_outcome": "MATERIAL_PROGRESS", "roles": {wallet(direct_bob): "SUPPORTING"}, "rationale": "Validator."}))
     assert direct_vm.run_validator() is False
 
@@ -940,7 +942,7 @@ def test_validator_rejects_claimant_outcome_only_disagreement(direct_vm, direct_
     direct_vm.value = 0; direct_vm.sender = direct_bob
     mock_pr(direct_vm, int(mission_id), wallet(direct_bob)); contract.seal_contribution(mission_id, 7, 99)
     set_block_time(direct_vm, "2026-10-06T10:00:00Z"); direct_vm.clear_mocks(); mock_pr(direct_vm, int(mission_id), wallet(direct_bob))
-    direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({"terminal_objective_status": "ACHIEVED", "claimant_outcome": "ACHIEVED", "roles": {wallet(direct_bob): "CORE"}, "rationale": "Leader."})); contract.resolve_mission(mission_id)
+    direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({"terminal_objective_status": "ACHIEVED", "claimant_outcome": "ACHIEVED", "roles": {wallet(direct_bob): "CORE"}, "rationale": "Leader."})); freeze_then_resolve(contract, mission_id)
     direct_vm.clear_mocks(); direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({"terminal_objective_status": "ACHIEVED", "claimant_outcome": "MATERIAL_PROGRESS", "roles": {wallet(direct_bob): "CORE"}, "rationale": "Validator."}))
     assert direct_vm.run_validator() is False
 
@@ -952,7 +954,7 @@ def test_validator_rejects_incompatible_dual_status_schema(direct_vm, direct_dep
     direct_vm.value = 0; direct_vm.sender = direct_bob
     mock_pr(direct_vm, int(mission_id), wallet(direct_bob)); contract.seal_contribution(mission_id, 7, 99)
     set_block_time(direct_vm, "2026-10-06T10:00:00Z"); direct_vm.clear_mocks(); mock_pr(direct_vm, int(mission_id), wallet(direct_bob))
-    direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({"terminal_objective_status": "ACHIEVED", "claimant_outcome": "ACHIEVED", "roles": {wallet(direct_bob): "CORE"}, "rationale": "Leader."})); contract.resolve_mission(mission_id)
+    direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({"terminal_objective_status": "ACHIEVED", "claimant_outcome": "ACHIEVED", "roles": {wallet(direct_bob): "CORE"}, "rationale": "Leader."})); freeze_then_resolve(contract, mission_id)
     direct_vm.clear_mocks(); direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({"terminal_objective_status": "NOT_ACHIEVED", "claimant_outcome": "ACHIEVED", "roles": {wallet(direct_bob): "CORE"}, "rationale": "Invalid validator result."}))
     assert direct_vm.run_validator() is False
 
@@ -969,7 +971,7 @@ def test_validator_rejects_role_map_disagreement(direct_vm, direct_deploy, direc
     direct_vm.clear_mocks()
     mock_pr(direct_vm, int(mission_id), wallet(direct_bob))
     direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({"terminal_objective_status": "ACHIEVED", "claimant_outcome": "ACHIEVED", "roles": {wallet(direct_bob): "CORE"}, "rationale": "Leader rationale."}))
-    contract.resolve_mission(mission_id)
+    freeze_then_resolve(contract, mission_id)
     direct_vm.clear_mocks()
     direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({"terminal_objective_status": "ACHIEVED", "claimant_outcome": "ACHIEVED", "roles": {wallet(direct_bob): "MAJOR"}, "rationale": "Validator rationale."}))
     assert direct_vm.run_validator() is False
@@ -987,7 +989,7 @@ def test_validator_allows_rationale_wording_difference(direct_vm, direct_deploy,
     direct_vm.clear_mocks()
     mock_pr(direct_vm, int(mission_id), wallet(direct_bob))
     direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({"terminal_objective_status": "ACHIEVED", "claimant_outcome": "ACHIEVED", "roles": {wallet(direct_bob): "CORE"}, "rationale": "Leader rationale."}))
-    contract.resolve_mission(mission_id)
+    freeze_then_resolve(contract, mission_id)
     direct_vm.clear_mocks()
     direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({"terminal_objective_status": "ACHIEVED", "claimant_outcome": "ACHIEVED", "roles": {wallet(direct_bob): "CORE"}, "rationale": "Independent wording with identical economic fields."}))
     assert direct_vm.run_validator() is True
@@ -1000,7 +1002,7 @@ def test_validator_rejects_omitted_wallet_role(direct_vm, direct_deploy, direct_
     direct_vm.value = 0; direct_vm.sender = direct_bob
     mock_pr(direct_vm, int(mission_id), wallet(direct_bob)); contract.seal_contribution(mission_id, 7, 99)
     set_block_time(direct_vm, "2026-10-06T10:00:00Z"); direct_vm.clear_mocks(); mock_pr(direct_vm, int(mission_id), wallet(direct_bob))
-    direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({"terminal_objective_status": "ACHIEVED", "claimant_outcome": "ACHIEVED", "roles": {wallet(direct_bob): "CORE"}, "rationale": "Leader."})); contract.resolve_mission(mission_id)
+    direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({"terminal_objective_status": "ACHIEVED", "claimant_outcome": "ACHIEVED", "roles": {wallet(direct_bob): "CORE"}, "rationale": "Leader."})); freeze_then_resolve(contract, mission_id)
     direct_vm.clear_mocks(); direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({"terminal_objective_status": "ACHIEVED", "claimant_outcome": "ACHIEVED", "roles": {}, "rationale": "Missing wallet."}))
     assert direct_vm.run_validator() is False
 
@@ -1012,7 +1014,7 @@ def test_validator_rejects_added_wallet_role(direct_vm, direct_deploy, direct_al
     direct_vm.value = 0; direct_vm.sender = direct_bob
     mock_pr(direct_vm, int(mission_id), wallet(direct_bob)); contract.seal_contribution(mission_id, 7, 99)
     set_block_time(direct_vm, "2026-10-06T10:00:00Z"); direct_vm.clear_mocks(); mock_pr(direct_vm, int(mission_id), wallet(direct_bob))
-    direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({"terminal_objective_status": "ACHIEVED", "claimant_outcome": "ACHIEVED", "roles": {wallet(direct_bob): "CORE"}, "rationale": "Leader."})); contract.resolve_mission(mission_id)
+    direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({"terminal_objective_status": "ACHIEVED", "claimant_outcome": "ACHIEVED", "roles": {wallet(direct_bob): "CORE"}, "rationale": "Leader."})); freeze_then_resolve(contract, mission_id)
     direct_vm.clear_mocks(); direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({"terminal_objective_status": "ACHIEVED", "claimant_outcome": "ACHIEVED", "roles": {wallet(direct_bob): "CORE", "0x0000000000000000000000000000000000000001": "NO_CREDIT"}, "rationale": "Extra wallet."}))
     assert direct_vm.run_validator() is False
 
@@ -1024,7 +1026,7 @@ def test_validator_rejects_malformed_economic_schema(direct_vm, direct_deploy, d
     direct_vm.value = 0; direct_vm.sender = direct_bob
     mock_pr(direct_vm, int(mission_id), wallet(direct_bob)); contract.seal_contribution(mission_id, 7, 99)
     set_block_time(direct_vm, "2026-10-06T10:00:00Z"); direct_vm.clear_mocks(); mock_pr(direct_vm, int(mission_id), wallet(direct_bob))
-    direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({"terminal_objective_status": "ACHIEVED", "claimant_outcome": "ACHIEVED", "roles": {wallet(direct_bob): "CORE"}, "rationale": "Leader."})); contract.resolve_mission(mission_id)
+    direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({"terminal_objective_status": "ACHIEVED", "claimant_outcome": "ACHIEVED", "roles": {wallet(direct_bob): "CORE"}, "rationale": "Leader."})); freeze_then_resolve(contract, mission_id)
     direct_vm.clear_mocks(); direct_vm.mock_llm(r"allocating a funded open-source engineering mission", "{not-json")
     assert direct_vm.run_validator() is False
 
@@ -1068,9 +1070,9 @@ def test_double_settlement_rejected(direct_vm, direct_deploy, direct_alice, miss
     direct_vm.clear_mocks()
     mock_terminal(direct_vm)
     direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({"terminal_objective_status": "ACHIEVED", "claimant_outcome": "NOT_ACHIEVED", "roles": {}, "rationale": "Unregistered work achieved the terminal objective."}))
-    assert contract.resolve_mission(mission_id) == "settled_not_achieved"
+    assert freeze_then_resolve(contract, mission_id) == "settled_not_achieved"
     with direct_vm.expect_revert("mission_not_resolvable"):
-        contract.resolve_mission(mission_id)
+        freeze_then_resolve(contract, mission_id)
 
 
 def test_terminal_success_can_pay_only_material_progress_to_registered_claimant(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
@@ -1088,7 +1090,7 @@ def test_terminal_success_can_pay_only_material_progress_to_registered_claimant(
         "roles": {wallet(direct_bob): "SUPPORTING"},
         "rationale": "The sealed work helped, while decisive terminal work was unregistered.",
     }))
-    assert contract.resolve_mission(mission_id) == "settled_material_progress"
+    assert freeze_then_resolve(contract, mission_id) == "settled_material_progress"
     mission = json.loads(contract.get_mission(mission_id))
     assert mission["terminal_objective_status"] == "ACHIEVED"
     assert mission["claimant_outcome"] == "MATERIAL_PROGRESS"
@@ -1110,7 +1112,7 @@ def test_zero_claimants_can_truthfully_record_terminal_success_and_refund_sponso
         "roles": {},
         "rationale": "Terminal work is present but no MOSAIC claimant portfolio exists.",
     }))
-    assert contract.resolve_mission(mission_id) == "settled_not_achieved"
+    assert freeze_then_resolve(contract, mission_id) == "settled_not_achieved"
     mission = json.loads(contract.get_mission(mission_id))
     assert mission["terminal_objective_status"] == "ACHIEVED"
     assert mission["claimant_outcome"] == "NOT_ACHIEVED"
@@ -1131,7 +1133,7 @@ def test_zero_claimants_cannot_claim_positive_outcome(direct_vm, direct_deploy, 
         "rationale": "There is no registered portfolio.",
     }))
     with direct_vm.expect_revert("invalid_resolution_judgment"):
-        contract.resolve_mission(mission_id)
+        freeze_then_resolve(contract, mission_id)
 
 
 def test_positive_claimant_outcome_requires_positive_role(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
@@ -1149,7 +1151,7 @@ def test_positive_claimant_outcome_requires_positive_role(direct_vm, direct_depl
         "rationale": "A positive release without a creditable portfolio is invalid.",
     }))
     with direct_vm.expect_revert("invalid_resolution_judgment"):
-        contract.resolve_mission(mission_id)
+        freeze_then_resolve(contract, mission_id)
 
 
 def test_terminal_failure_cannot_claim_claimant_achievement(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
@@ -1167,7 +1169,7 @@ def test_terminal_failure_cannot_claim_claimant_achievement(direct_vm, direct_de
         "rationale": "Contradictory judgment.",
     }))
     with direct_vm.expect_revert("invalid_resolution_judgment"):
-        contract.resolve_mission(mission_id)
+        freeze_then_resolve(contract, mission_id)
 
 
 def test_withdraw_is_pull_based_and_zeroes_balance(direct_vm, direct_deploy, direct_alice, mission_terms):
@@ -1179,7 +1181,7 @@ def test_withdraw_is_pull_based_and_zeroes_balance(direct_vm, direct_deploy, dir
     direct_vm.clear_mocks()
     mock_terminal(direct_vm)
     direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({"terminal_objective_status": "ACHIEVED", "claimant_outcome": "NOT_ACHIEVED", "roles": {}, "rationale": "No registered claimant exists."}))
-    contract.resolve_mission(mission_id)
+    freeze_then_resolve(contract, mission_id)
     direct_vm.sender = direct_alice
     assert contract.withdraw() == f"withdrawn_{10 * WEI}"
     assert contract.get_balance(wallet(direct_alice)) == "0"
@@ -1223,7 +1225,7 @@ def test_missing_patch_evidence_is_not_semantically_judged(direct_vm, direct_dep
         r"api\.github\.com/repos/acme/widget/pulls/7$",
         {"status": 200, "body": json.dumps({
             "title": "binary-only", "body": "", "user": {"login": "bob", "id": 101},
-            "merged_at": "2026-10-03T10:00:00Z", "merge_commit_sha": "b" * 40,
+            "merged_at": "2026-10-01T10:00:00Z", "merge_commit_sha": "b" * 40,
             "base": {"ref": "main", "repo": {"full_name": "acme/widget"}},
             "head": {"sha": "c" * 40},
             "changed_files": 1, "additions": 0, "deletions": 0,
@@ -1266,7 +1268,7 @@ def test_not_achieved_cannot_store_positive_impact_role(direct_vm, direct_deploy
         json.dumps({"terminal_objective_status": "NOT_ACHIEVED", "claimant_outcome": "NOT_ACHIEVED", "roles": {wallet(direct_bob): "CORE"}, "rationale": "contradictory"}),
     )
     with direct_vm.expect_revert("invalid_resolution_judgment"):
-        contract.resolve_mission(mission_id)
+        freeze_then_resolve(contract, mission_id)
 
 
 def test_unresolved_expiry_cannot_run_during_grace(direct_vm, direct_deploy, direct_alice, mission_terms):
