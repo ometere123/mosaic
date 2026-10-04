@@ -1,11 +1,11 @@
 {
-  "status": "HARDENING_DEVELOPMENT",
-  "frozen_source_commit": "cab3e477a86a76b8616532ba84553ea5b5302043",
-  "frozen_source_tree": "ec723272b6c3d3581a6da8b4879f8b2076a948f7",
+  "status": "PREDEPLOYMENT_CANDIDATE",
+  "frozen_source_commit": "b5db83a51172206c5314fbdff3c9fcbc161d6f1d",
+  "frozen_source_tree": "996633198feffbaaf6993d68f7f17569a676872c",
   "contract": {
     "path": "contract/contracts/mosaic.py",
-    "canonical_sha256": "1563468f5616bf91f910282bf939d254ae1ff6e72052108dee3ee99a7be7cbde",
-    "git_blob_sha256": "1563468f5616bf91f910282bf939d254ae1ff6e72052108dee3ee99a7be7cbde",
+    "canonical_sha256": "f6e5a496b0e56d7f1082fd9579fe1ca7e9ab55c7759c28e8c365d70c04c0e831",
+    "git_blob_sha256": "f6e5a496b0e56d7f1082fd9579fe1ca7e9ab55c7759c28e8c365d70c04c0e831",
     "public_methods": [
       "open_mission", "add_funding", "seal_contribution", "freeze_terminal", "resolve_mission", "expire_unresolved",
       "withdraw", "get_mission", "get_contribution", "get_sponsor_total", "get_balance",
@@ -31,10 +31,10 @@
     "react": "19.2.4"
   },
   "evidence": {
-    "direct_mode": {"passed": 129, "total": 129},
-    "validator_adversarial_cases": 9,
-    "contract_mutation": {"unique_meaningful": 82, "killed": 82, "surviving": 0, "invalid_syntax": 0, "equivalent": 0},
-    "frontend_tests": {"passed": 135, "total": 135},
+    "direct_mode": {"passed": 139, "total": 139},
+    "validator_adversarial_cases": 12,
+    "contract_mutation": {"unique_meaningful": 81, "killed": 81, "surviving": 0, "invalid_syntax": 0, "equivalent": 0},
+    "frontend_tests": {"passed": 137, "total": 137},
     "frontend_mutation": {"unique_meaningful": 35, "killed": 35, "surviving": 0, "invalid_syntax": 0},
     "browser_smoke": {
       "performed": true,
@@ -47,12 +47,9 @@
       "non_fatal_warning": "Next.js smooth-scroll route-transition warning"
     },
     "ci": {
-      "latest_green_run": 37102925050,
-      "ubuntu_job": 111145852981,
-      "contract_mutation_job": 111145853026,
-      "windows_job": 111145853096,
-      "frontend_mutation_job": 111145853002,
-      "platform_source_sha_equal": true
+      "latest_green_run": 37237333756,
+      "platform_source_sha_equal": true,
+      "public_evidence_integration": "PASS"
     }
   },
   "known_limitations": [
@@ -63,18 +60,14 @@
     "Browser automation depends on the user-owned Chrome control bridge; live chain evidence is independently reproducible through read-only Studionet calls."
   ],
   "live_validation": {
-    "status": "HISTORICAL_SUPERSEDED_DEPLOYMENT_EXPOSED_WITHDRAWAL_DELIVERY_DEFECT",
-    "note": "This manifest preserves the predeployment and superseded-deployment record. The corrected source was subsequently deployed and live-verified; see docs/RELEASE_MANIFEST.json."
+    "status": "NOT_STARTED_FOR_HARDENED_SOURCE",
+    "note": "Historical deployments are retained below; the redesigned source has not been deployed."
   },
   "deployment": {
-    "performed": true,
-    "contract_address": "0xE8CB904b47e97C0a09bF679525C5BF8b722fF1bD",
-    "transaction": {
-      "hash": "0xffb52a0012ce2d56108ca2ba8ac64279aff432acfd9eeed2663f016b0f02863a",
-      "status": "FINALIZED",
-      "execution": "SUCCESS"
-    },
-    "note": "The corrected EVM-recipient withdrawal source was deployed and live-verified after this predeployment manifest. See docs/RELEASE_MANIFEST.json for canonical release evidence.",
+    "performed": false,
+    "note": "No deployment of this hardened source has occurred.",
+    "historical_contract_address": "0xE8CB904b47e97C0a09bF679525C5BF8b722fF1bD",
+    "historical_deployment_transaction": "0xffb52a0012ce2d56108ca2ba8ac64279aff432acfd9eeed2663f016b0f02863a",
     "superseded_contract_address": "0x05fd77aB1f916e36C718E6b55CBdf5F726216d4a",
     "superseded_deployment_transaction": "0x7def22417f48e35caff481815a7665d0dce26841bd025f5035a707da1791e167",
     "superseded_contributor_child_transfer": "0xd544e8229bbfe2bd44e1c27c3b884368c57cacedcb11a14be86946ff8bba30d2",
