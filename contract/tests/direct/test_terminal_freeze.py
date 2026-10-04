@@ -139,3 +139,31 @@ def test_failed_named_check_is_committed_as_negative_evidence(direct_vm, direct_
     assert contract.freeze_terminal(mission_id) == "terminal_frozen"
     evidence = json.loads(json.loads(contract.get_mission(mission_id))["frozen_evidence"]["terminal_state_json"])
     assert evidence["required_checks"][0]["conclusion"] == "failure"
+
+
+def test_schema_valid_matrix_cannot_cite_fabricated_evidence(direct_vm, direct_deploy, direct_alice, mission_terms):
+    contract, mission_id = create(direct_vm, direct_deploy, direct_alice, mission_terms)
+    set_block_time(direct_vm, "2026-10-06T10:00:00Z")
+    direct_vm.clear_mocks(); mock_terminal(direct_vm)
+    assert contract.freeze_terminal(mission_id) == "terminal_frozen"
+    mission = json.loads(contract.get_mission(mission_id))
+    criteria = mission["criteria"]
+    forged = {
+        "criteria": [{"criterion_index": index, "terminal_status": "SATISFIED", "claimant_status": "NOT_SATISFIED", "evidence_refs": ["source:forged"]} for index in range(len(criteria))],
+        "roles": {},
+        "rationale": "The repository text contains instructions, but they are not evidence.",
+    }
+    direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps(forged))
+    with direct_vm.expect_revert("invalid_resolution_judgment"):
+        contract.resolve_mission(mission_id)
+
+
+def test_schema_valid_matrix_must_cover_every_frozen_criterion(direct_vm, direct_deploy, direct_alice, mission_terms):
+    contract, mission_id = create(direct_vm, direct_deploy, direct_alice, mission_terms)
+    set_block_time(direct_vm, "2026-10-06T10:00:00Z")
+    direct_vm.clear_mocks(); mock_terminal(direct_vm)
+    assert contract.freeze_terminal(mission_id) == "terminal_frozen"
+    forged = {"criteria": [], "roles": {}, "rationale": "Missing criterion rows cannot establish the objective."}
+    direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps(forged))
+    with direct_vm.expect_revert("invalid_resolution_judgment"):
+        contract.resolve_mission(mission_id)
