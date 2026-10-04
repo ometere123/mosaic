@@ -1,5 +1,5 @@
 {
-  "status": "PREDEPLOYMENT_CANDIDATE",
+  "status": "DEPLOYED_RELEASE_CANDIDATE",
   "frozen_source_commit": "b5db83a51172206c5314fbdff3c9fcbc161d6f1d",
   "frozen_source_tree": "996633198feffbaaf6993d68f7f17569a676872c",
   "contract": {
@@ -60,12 +60,20 @@
     "Browser automation depends on the user-owned Chrome control bridge; live chain evidence is independently reproducible through read-only Studionet calls."
   ],
   "live_validation": {
-    "status": "NOT_STARTED_FOR_HARDENED_SOURCE",
-    "note": "Historical deployments are retained below; the redesigned source has not been deployed."
+    "status": "FRESH_HARDENED_SOURCE_DEPLOYED",
+    "note": "Fresh hardened deployment finalized; canonical live lifecycle remains gated on the manual multi-contributor plan."
   },
   "deployment": {
-    "performed": false,
-    "note": "No deployment of this hardened source has occurred.",
+    "performed": true,
+    "contract_address": "0x9F8d9eA8366948A91ADf34cBf5250a54f85f1eD5",
+    "transaction": {
+      "hash": "0x6df6965d208fd126dfabd8f978eaa21b72d4812e02813ef3933722bde580221f",
+      "status": "FINALIZED",
+      "execution": "SUCCESS",
+      "consensus": "MAJORITY_AGREE"
+    },
+    "deployed_source_sha256": "f6e5a496b0e56d7f1082fd9579fe1ca7e9ab55c7759c28e8c365d70c04c0e831",
+    "note": "Fresh hardened source deployed and retrieved source hash matches the frozen source.",
     "historical_contract_address": "0xE8CB904b47e97C0a09bF679525C5BF8b722fF1bD",
     "historical_deployment_transaction": "0xffb52a0012ce2d56108ca2ba8ac64279aff432acfd9eeed2663f016b0f02863a",
     "superseded_contract_address": "0x05fd77aB1f916e36C718E6b55CBdf5F726216d4a",

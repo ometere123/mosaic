@@ -2,7 +2,7 @@
 
 ## Final canonical release surfaces
 
-- Contract: `0xE8CB904b47e97C0a09bF679525C5BF8b722fF1bD`
+- Contract: `0x9F8d9eA8366948A91ADf34cBf5250a54f85f1eD5` (fresh hardened deployment; lifecycle gated pending manual plan)
 - Deployment transaction: `0xffb52a0012ce2d56108ca2ba8ac64279aff432acfd9eeed2663f016b0f02863a` (`FINALIZED`, `MAJORITY_AGREE`, leader execution `SUCCESS`)
 - Frontend: https://themosaic.vercel.app
 - Network: Studionet `61999` / `0xF22F`
