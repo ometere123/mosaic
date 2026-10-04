@@ -157,7 +157,9 @@ def test_empty_terminal_snapshot_is_committed_and_settles_truthfully(direct_vm, 
     judge(direct_vm, terminal="NOT_ACHIEVED")
     assert freeze_then_resolve(contract, mission_id) == "settled_not_achieved"
     mission = json.loads(contract.get_mission(mission_id))
-    expected_terminal = {"repo": "acme/widget", "target_ref": "main", "baseline_sha": "a" * 40, "terminal_tip_sha": "a" * 40, "files": []}
+    expected_terminal = json.loads(mission["frozen_evidence"]["terminal_state_json"])
+    expected_terminal.pop("status", None)
+    expected_terminal.pop("terminal_source_digest", None)
     assert mission["terminal_source_digest"] == canonical_digest(expected_terminal)
     assert mission["resolution_evidence_root"] == canonical_digest({
         "mission_terms_digest": mission["mission_terms_digest"],

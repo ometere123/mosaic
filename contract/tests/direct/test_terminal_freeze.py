@@ -106,3 +106,36 @@ def test_resolution_has_no_public_source_acquisition():
     names = {node.id for node in ast.walk(method) if isinstance(node, ast.Name)}
     assert not names.intersection({"_fetch_terminal_state", "_fetch_terminal_lineage", "_fetch_immutable_pr_evidence", "_read_json_url"})
     assert "web" not in {node.attr for node in ast.walk(method) if isinstance(node, ast.Attribute)}
+
+
+def test_typed_check_plan_is_frozen_and_missing_check_cannot_pass(direct_vm, direct_deploy, direct_alice, mission_terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/mosaic.py")
+    direct_vm.sender = direct_alice
+    direct_vm.value = WEI
+    mock_baseline(direct_vm)
+    criteria = [{"text": "the verification check passes", "evidence_kind": "GITHUB_CHECK", "check_name": "verify", "check_app_slug": "github-actions"}]
+    mission_id = contract.open_mission(mission_terms["repo"], mission_terms["target_ref"], mission_terms["baseline"], mission_terms["title"], mission_terms["objective"], json.dumps(criteria), EARLIEST)
+    set_block_time(direct_vm, "2026-10-06T10:00:00Z")
+    direct_vm.clear_mocks()
+    mock_terminal(direct_vm)
+    direct_vm.mock_web(r".*check-runs.*", {"status": 200, "body": json.dumps({"check_runs": []})})
+    assert contract.freeze_terminal(mission_id) == "insufficient_evidence"
+    assert json.loads(contract.get_mission(mission_id))["status"] == "OPEN"
+
+
+def test_failed_named_check_is_committed_as_negative_evidence(direct_vm, direct_deploy, direct_alice, mission_terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/mosaic.py")
+    direct_vm.sender = direct_alice
+    direct_vm.value = WEI
+    mock_baseline(direct_vm)
+    criteria = [{"text": "the verification check passes", "evidence_kind": "GITHUB_CHECK", "check_name": "verify", "check_app_slug": "github-actions"}]
+    mission_id = contract.open_mission(mission_terms["repo"], mission_terms["target_ref"], mission_terms["baseline"], mission_terms["title"], mission_terms["objective"], json.dumps(criteria), EARLIEST)
+    set_block_time(direct_vm, "2026-10-06T10:00:00Z")
+    direct_vm.clear_mocks()
+    mock_terminal(direct_vm)
+    direct_vm.mock_web(r".*check-runs.*", {"status": 200, "body": json.dumps({"check_runs": [{"id": 42, "name": "verify", "app": {"slug": "github-actions"}, "head_sha": "d" * 40, "status": "completed", "conclusion": "failure"}]})})
+    assert contract.freeze_terminal(mission_id) == "terminal_frozen"
+    evidence = json.loads(json.loads(contract.get_mission(mission_id))["frozen_evidence"]["terminal_state_json"])
+    assert evidence["required_checks"][0]["conclusion"] == "failure"

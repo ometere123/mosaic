@@ -30,7 +30,7 @@ export type Mission = {
   baseline_sha: string;
   title: string;
   objective: string;
-  criteria: string[];
+  criteria: Array<string | { text: string; evidence_kind: "SOURCE" | "GITHUB_CHECK"; check_name?: string; check_app_slug?: string }>;
   created_at: number;
   close_at: number;
   status: MissionStatus;
