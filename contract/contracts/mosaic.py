@@ -273,7 +273,7 @@ def _normalise_judgment(value, expected_wallets, criteria=None, evidence_objects
         return None
     if claimant_outcome in {"NOT_ACHIEVED", "INSUFFICIENT_EVIDENCE"} and any(ROLE_WEIGHT[role] > 0 for role in roles.values()):
         return None
-    if claimant_outcome in {"ACHIEVED", "MATERIAL_PROGRESS"} and not any(ROLE_WEIGHT[role] > 0 for role in roles.values()):
+    if expected_wallets and claimant_outcome in {"ACHIEVED", "MATERIAL_PROGRESS"} and not any(ROLE_WEIGHT[role] > 0 for role in roles.values()):
         return None
     if not expected_wallets and claimant_outcome != "NOT_ACHIEVED":
         return None
@@ -886,8 +886,6 @@ class Mosaic(gl.Contract):
             criteria = json.loads(criteria_json)
         except Exception:
             raise gl.vm.UserError("criteria_not_json")
-        if not isinstance(criteria, list) or len(criteria) < 1 or len(criteria) > MAX_CRITERIA:
-            raise gl.vm.UserError("invalid_criteria_count")
         cleaned_criteria = _normalise_criteria(criteria)
 
         now = _now_unix()
