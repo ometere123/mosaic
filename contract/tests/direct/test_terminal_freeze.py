@@ -167,3 +167,21 @@ def test_schema_valid_matrix_must_cover_every_frozen_criterion(direct_vm, direct
     direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps(forged))
     with direct_vm.expect_revert("invalid_resolution_judgment"):
         contract.resolve_mission(mission_id)
+
+
+def test_failed_required_check_cannot_be_overridden_by_valid_matrix(direct_vm, direct_deploy, direct_alice, mission_terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/mosaic.py")
+    direct_vm.sender = direct_alice; direct_vm.value = WEI; mock_baseline(direct_vm)
+    criteria = [{"text": "the verification check passes", "evidence_kind": "GITHUB_CHECK", "check_name": "verify", "check_app_slug": "github-actions"}]
+    mission_id = contract.open_mission(mission_terms["repo"], mission_terms["target_ref"], mission_terms["baseline"], mission_terms["title"], mission_terms["objective"], json.dumps(criteria), EARLIEST)
+    set_block_time(direct_vm, "2026-10-06T10:00:00Z"); direct_vm.clear_mocks(); mock_terminal(direct_vm)
+    direct_vm.mock_web(r".*check-runs.*", {"status": 200, "body": json.dumps({"check_runs": [{"id": 42, "name": "verify", "app": {"slug": "github-actions"}, "head_sha": "d" * 40, "status": "completed", "conclusion": "failure"}]})})
+    assert contract.freeze_terminal(mission_id) == "terminal_frozen"
+    mission = json.loads(contract.get_mission(mission_id))
+    evidence = json.loads(mission["frozen_evidence"]["terminal_state_json"])
+    check_ref = next(item["id"] for item in evidence["evidence_objects"] if item.get("id", "").startswith("check:"))
+    verdict = {"criteria": [{"criterion_index": 0, "terminal_status": "SATISFIED", "claimant_status": "NOT_SATISFIED", "evidence_refs": [check_ref]}], "roles": {}, "rationale": "A failed check cannot be rewritten by prose."}
+    direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps(verdict))
+    with direct_vm.expect_revert("invalid_resolution_judgment"):
+        contract.resolve_mission(mission_id)
