@@ -3,7 +3,10 @@ import type { Mission, MissionOutcome } from "@/lib/types";
 export function missionPhase(mission: Mission, now = Math.floor(Date.now() / 1000)) {
   if (mission.status === "SETTLED") return "SETTLED";
   if (mission.status === "EXPIRED") return "EXPIRED";
-  return now > mission.close_at ? "CLOSED · UNRESOLVED" : "OPEN";
+  if (mission.status === "TERMINAL_FROZEN") return "TERMINAL FROZEN";
+  if (mission.freeze_not_before === undefined && mission.close_at !== undefined) return now >= mission.close_at ? "CLOSED · UNRESOLVED" : "OPEN";
+  const freezeAt = mission.freeze_not_before ?? mission.close_at ?? Number.MAX_SAFE_INTEGER;
+  return now >= freezeAt ? "FREEZE ELIGIBLE" : "OPEN";
 }
 
 export function StatusStamp({ label, tone = "neutral" }: { label: string; tone?: "neutral" | "good" | "warn" | "bad" | "blue" }) {

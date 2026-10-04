@@ -87,6 +87,11 @@ export async function resolveMission(provider: Eip1193Provider, account: `0x${st
   return client.writeContract({ address: requireContractAddress(), functionName: "resolve_mission", args: [BigInt(missionId)], value: 0n });
 }
 
+export async function freezeTerminal(provider: Eip1193Provider, account: `0x${string}`, missionId: number) {
+  const client = writer(provider, account);
+  return client.writeContract({ address: requireContractAddress(), functionName: "freeze_terminal", args: [BigInt(missionId)], value: 0n });
+}
+
 export async function expireMission(provider: Eip1193Provider, account: `0x${string}`, missionId: number) {
   const client = writer(provider, account);
   return client.writeContract({ address: requireContractAddress(), functionName: "expire_unresolved", args: [BigInt(missionId)], value: 0n });

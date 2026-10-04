@@ -1,4 +1,4 @@
-export type MissionStatus = "OPEN" | "SETTLED" | "EXPIRED";
+export type MissionStatus = "OPEN" | "TERMINAL_FROZEN" | "SETTLED" | "EXPIRED";
 export type MissionOutcome =
   | "ACHIEVED"
   | "MATERIAL_PROGRESS"
@@ -32,7 +32,10 @@ export type Mission = {
   objective: string;
   criteria: Array<string | { text: string; evidence_kind: "SOURCE" | "GITHUB_CHECK"; check_name?: string; check_app_slug?: string }>;
   created_at: number;
-  close_at: number;
+  freeze_not_before?: number;
+  closed_at?: number;
+  /** legacy read compatibility for historical fixtures only */
+  close_at?: number;
   status: MissionStatus;
   pool_wei: string;
   total_funded_wei: string;
