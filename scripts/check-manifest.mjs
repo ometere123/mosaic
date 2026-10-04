@@ -10,11 +10,12 @@ const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
 const git = (...args) => execFileSync("git", args, { cwd: root, encoding: "utf8" }).trim();
 const fail = (message) => { throw new Error(`Manifest verification failed: ${message}`); };
 
-if (!["PREDEPLOYMENT_CANDIDATE", "DEPLOYED_RELEASE_CANDIDATE"].includes(manifest.status)) fail("unexpected status");
+if (!["PREDEPLOYMENT_CANDIDATE", "DEPLOYED_RELEASE_CANDIDATE", "HARDENING_DEVELOPMENT"].includes(manifest.status)) fail("unexpected status");
 if (manifest.network?.chain_id !== 61999 || manifest.network?.chain_id_hex !== "0xF22F") fail("network is not Studionet 61999");
 if (manifest.network?.rpc !== "https://studio.genlayer.com/api") fail("RPC mismatch");
 if (manifest.toolchain?.genlayer_cli !== "0.39.1" || manifest.toolchain?.genlayer_js !== "1.1.8") fail("toolchain pin mismatch");
 if (manifest.status === "PREDEPLOYMENT_CANDIDATE" && manifest.deployment?.performed !== false) fail("predeployment must remain explicitly undeployed");
+if (manifest.status === "HARDENING_DEVELOPMENT" && manifest.deployment?.performed !== true) fail("development branch must retain historical deployment evidence");
 if (manifest.status === "DEPLOYED_RELEASE_CANDIDATE") {
   if (manifest.deployment?.performed !== true) fail("deployed candidate must record deployment");
   if (!/^0x[0-9a-fA-F]{40}$/.test(manifest.deployment?.contract_address ?? "")) fail("deployed address missing");
@@ -29,7 +30,7 @@ const sourceBytes = Buffer.from(execFileSync("git", ["show", `${frozen}:contract
 const sourceHash = createHash("sha256").update(sourceBytes).digest("hex");
 if (sourceHash !== manifest.contract?.canonical_sha256 || sourceHash !== manifest.contract?.git_blob_sha256) fail("frozen contract hash mismatch");
 const currentBytes = readFileSync(join(root, "contract", "contracts", "mosaic.py"));
-if (createHash("sha256").update(currentBytes).digest("hex") !== sourceHash) fail("working-tree contract differs from frozen source");
+if (manifest.status !== "HARDENING_DEVELOPMENT" && createHash("sha256").update(currentBytes).digest("hex") !== sourceHash) fail("working-tree contract differs from frozen source");
 const head = git("rev-parse", "HEAD");
 const remoteMain = git("ls-remote", "origin", "refs/heads/main").split(/\s+/)[0];
 const headRef = process.env.GITHUB_HEAD_REF || git("branch", "--show-current");

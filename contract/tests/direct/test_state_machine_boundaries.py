@@ -1,3 +1,4 @@
+from helpers import freeze_then_resolve
 import json
 
 import pytest
@@ -62,7 +63,12 @@ def test_add_funding_rejects_after_close(direct_vm, direct_deploy, direct_alice,
     contract = direct_deploy("contract/contracts/mosaic.py")
     mission_id = open_mission(contract, direct_vm, direct_alice, mission_terms)
     set_block_time(direct_vm, "2026-10-06T10:00:00Z"); direct_vm.sender = direct_bob; direct_vm.value = WEI
-    with direct_vm.expect_revert("mission_closed"):
+    direct_vm.value = 0
+    direct_vm.clear_mocks()
+    mock_terminal(direct_vm)
+    assert contract.freeze_terminal(mission_id) == "terminal_frozen"
+    direct_vm.value = WEI
+    with direct_vm.expect_revert("mission_not_open"):
         contract.add_funding(mission_id)
 
 
@@ -71,16 +77,19 @@ def test_seal_contribution_rejects_after_close(direct_vm, direct_deploy, direct_
     contract = direct_deploy("contract/contracts/mosaic.py")
     mission_id = open_mission(contract, direct_vm, direct_alice, mission_terms)
     set_block_time(direct_vm, "2026-10-06T10:00:00Z"); direct_vm.sender = direct_bob; direct_vm.value = 0
-    with direct_vm.expect_revert("mission_closed"):
+    direct_vm.clear_mocks()
+    mock_terminal(direct_vm)
+    assert contract.freeze_terminal(mission_id) == "terminal_frozen"
+    with direct_vm.expect_revert("mission_not_open"):
         contract.seal_contribution(mission_id, 7, 99)
 
 
-def test_resolve_rejects_until_close_passes(direct_vm, direct_deploy, direct_alice, mission_terms):
+def test_resolve_rejects_until_terminal_freeze(direct_vm, direct_deploy, direct_alice, mission_terms):
     set_block_time(direct_vm, "2026-10-01T10:00:00Z")
     contract = direct_deploy("contract/contracts/mosaic.py")
     mission_id = open_mission(contract, direct_vm, direct_alice, mission_terms)
     direct_vm.value = 0
-    with direct_vm.expect_revert("mission_still_open"):
+    with direct_vm.expect_revert("mission_not_resolvable"):
         contract.resolve_mission(mission_id)
 
 
@@ -101,7 +110,7 @@ def test_settled_mission_rejects_funding_and_expiry(direct_vm, direct_deploy, di
     direct_vm.value = 0; set_block_time(direct_vm, "2026-10-06T10:00:00Z"); direct_vm.clear_mocks()
     mock_terminal(direct_vm)
     direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({"terminal_objective_status": "NOT_ACHIEVED", "claimant_outcome": "NOT_ACHIEVED", "roles": {}, "rationale": "No claimant portfolio exists."}))
-    assert contract.resolve_mission(mission_id) == "settled_not_achieved"
+    assert freeze_then_resolve(contract, mission_id) == "settled_not_achieved"
     direct_vm.sender = direct_alice; direct_vm.value = WEI
     with direct_vm.expect_revert("mission_not_open"):
         contract.add_funding(mission_id)
@@ -116,7 +125,7 @@ def test_expired_mission_rejects_resolution(direct_vm, direct_deploy, direct_ali
     direct_vm.value = 0; set_block_time(direct_vm, "2026-11-10T10:00:00Z")
     assert contract.expire_unresolved(mission_id) == "expired_refunded"
     with direct_vm.expect_revert("mission_not_resolvable"):
-        contract.resolve_mission(mission_id)
+        freeze_then_resolve(contract, mission_id)
 
 
 def test_source_failure_can_retry_to_a_terminal_settlement(direct_vm, direct_deploy, direct_alice, mission_terms):
@@ -125,10 +134,10 @@ def test_source_failure_can_retry_to_a_terminal_settlement(direct_vm, direct_dep
     mission_id = open_mission(contract, direct_vm, direct_alice, mission_terms)
     direct_vm.value = 0; set_block_time(direct_vm, "2026-10-06T10:00:00Z"); direct_vm.clear_mocks()
     direct_vm.mock_web(r"api\.github\.com/repos/acme/widget/branches/main$", {"status": 503, "body": "{}"})
-    assert contract.resolve_mission(mission_id) == "source_unavailable"
+    assert freeze_then_resolve(contract, mission_id) == "source_unavailable"
     direct_vm.clear_mocks(); mock_terminal(direct_vm)
     direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({"terminal_objective_status": "NOT_ACHIEVED", "claimant_outcome": "NOT_ACHIEVED", "roles": {}, "rationale": "No claimant portfolio exists."}))
-    assert contract.resolve_mission(mission_id) == "settled_not_achieved"
+    assert freeze_then_resolve(contract, mission_id) == "settled_not_achieved"
     mission = json.loads(contract.get_mission(mission_id))
-    assert mission["resolution_attempts"] == 2
-
+    assert mission["freeze_attempts"] == 2
+    assert mission["resolution_attempts"] == 1

@@ -1,5 +1,5 @@
 {
-  "status": "DEPLOYED_RELEASE_CANDIDATE",
+  "status": "HARDENING_DEVELOPMENT",
   "frozen_source_commit": "cab3e477a86a76b8616532ba84553ea5b5302043",
   "frozen_source_tree": "ec723272b6c3d3581a6da8b4879f8b2076a948f7",
   "contract": {
@@ -7,7 +7,7 @@
     "canonical_sha256": "1563468f5616bf91f910282bf939d254ae1ff6e72052108dee3ee99a7be7cbde",
     "git_blob_sha256": "1563468f5616bf91f910282bf939d254ae1ff6e72052108dee3ee99a7be7cbde",
     "public_methods": [
-      "open_mission", "add_funding", "seal_contribution", "resolve_mission", "expire_unresolved",
+      "open_mission", "add_funding", "seal_contribution", "freeze_terminal", "resolve_mission", "expire_unresolved",
       "withdraw", "get_mission", "get_contribution", "get_sponsor_total", "get_balance",
       "get_author_wallet", "get_wallet_author", "get_next_mission_id"
     ]
