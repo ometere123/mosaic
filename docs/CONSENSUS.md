@@ -11,7 +11,7 @@ Terminal objective status describes the actual bounded target-state snapshot. Cl
 
 ## Settlement-state semantics
 
-`close_at` freezes who may fund or seal evidence. It does not freeze a claimed GitHub branch tip, because public GitHub does not provide a trustworthy historical branch-tip oracle for an arbitrary second. Resolution therefore judges the first successfully consensus-observed post-close terminal snapshot. This makes surviving product state economically relevant: reverted, superseded, or independently reimplemented work remains causal evidence rather than an automatic historical entitlement. Resolution timing consequently determines which post-close snapshot is first successfully adjudicated; a successful settlement is final, while source uncertainty fails closed and remains retryable.
+`freeze_not_before` is only the earliest time a mission may be economically closed. A permissionless `freeze_terminal` transaction performs the terminal and machine-evidence reads atomically with the eligibility transition, stores `closed_at`, and commits the resulting evidence forever. `resolve_mission` cannot discover a later branch tip or check result. This makes surviving product state economically relevant while removing resolution-time substitution: after `closed_at`, target changes cannot alter settlement evidence. The trade-off is explicit that the first successful freeze determines the terminal snapshot; source uncertainty leaves the mission open and retryable.
 
 ## Deterministic economic policy
 
