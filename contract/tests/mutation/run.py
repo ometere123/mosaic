@@ -17,6 +17,7 @@ REPORT = ROOT / "contract" / "tests" / "mutation" / "latest-report.json"
 # The unmodified full Direct Mode suite remains the control; targeted runs make
 # individual source mutants practical in CI while preserving a concrete kill proof.
 MUTANTS = {
+    "resolve_requires_terminal_freeze": ("if mission[\"status\"] != \"TERMINAL_FROZEN\":\n            raise gl.vm.UserError(\"mission_not_resolvable\")", "if False:\n            raise gl.vm.UserError(\"mission_not_resolvable\")", "contract/tests/direct/test_state_machine_boundaries.py::test_resolution_requires_terminal_freeze"),
     "baseline_verification": ("if baseline_result.get(\"status\") != \"OK\" or baseline_result.get(\"sha\") != baseline_sha:", "if False:", "contract/tests/direct/test_mosaic.py::test_open_mission_rejects_target_diverged_from_baseline"),
     "baseline_source_unavailable": ("if baseline_result.get(\"status\") == \"SOURCE_UNAVAILABLE\":", "if False:", "contract/tests/direct/test_mosaic.py::test_baseline_unavailable_fails_before_lock"),
     "repository_validation": ("if not _repo_ok(repo_slug):", "if False:", "contract/tests/direct/test_state_machine_boundaries.py::test_open_mission_rejects_each_frozen_term_boundary"),
