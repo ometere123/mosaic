@@ -10,4 +10,4 @@ The public check result establishes what the named producer reported; it does no
 
 Each terminal source object and normalized check object receives a bounded evidence ID and digest. Criterion judgments may cite only IDs in that frozen set. The validator output must contain exactly one row for every frozen criterion and exactly one role entry for every eligible claimant wallet. Deterministic code derives terminal and claimant outcomes from the criterion statuses, applies compatibility rules, then allocates GEN.
 
-The current compatibility path accepts legacy string criteria as explicit SOURCE criteria so existing callers fail safely while clients migrate. New frontend launch forms should send typed objects when a machine check is required.
+Legacy string criteria and legacy free-verdict settlement are not accepted by the hardened contract. Every new mission must freeze explicit typed objects, and every economic judgment must return the criterion matrix plus wallet-owned role evidence.
