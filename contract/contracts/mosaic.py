@@ -1338,7 +1338,7 @@ class Mosaic(gl.Contract):
         ordered_contribution_root = _canonical_digest({"mission_id": int(mission_id), "records": ordered_records})
         terminal_lineage_root = _canonical_digest({"mission_id": int(mission_id), "terminal_tip_sha": terminal["terminal_tip_sha"], "records": lineage_records})
         terminal["evidence_objects"] = list(terminal.get("evidence_objects", [])) + [
-            {"id": f"contribution:{item['index']}:{item['contribution_commitment']}", "kind": "CONTRIBUTION", "contribution_index": item["index"], "wallet": item["wallet"], "pr_number": item["pr_number"], "merge_sha": item["merge_sha"], "commitment": item["contribution_commitment"], "digest": item["contribution_commitment"]}
+            {"id": f"contribution:{item['index']}", "kind": "CONTRIBUTION", "contribution_index": item["index"], "wallet": item["wallet"], "pr_number": item["pr_number"], "merge_sha": item["merge_sha"], "commitment": item["contribution_commitment"], "digest": item["contribution_commitment"]}
             for item in [json.loads(self.contributions[f"{int(mission_id)}:{i}"]) for i in range(int(mission["contribution_count"]))]
             if item.get("status") == "SEALED"
         ]
