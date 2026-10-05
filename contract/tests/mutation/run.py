@@ -89,6 +89,9 @@ MUTANTS = {
     "settlement_contributor_binding": ("\"residual_wei\": str(residual),\n            \"contributor_allocations\": contributor_allocations,", "\"residual_wei\": str(residual),\n            \"contributor_allocations\": {},", "contract/tests/direct/test_mosaic.py::test_evidence_root_and_settlement_digest_are_reproducible"),
     "settlement_timestamp_binding": ("\"contributor_allocations\": contributor_allocations,\n            \"sponsor_allocations\": sponsor_allocations,\n            \"settled_at\": settled_at,", "\"contributor_allocations\": contributor_allocations,\n            \"sponsor_allocations\": sponsor_allocations,\n            \"settled_at\": 0,", "contract/tests/direct/test_mosaic.py::test_evidence_root_and_settlement_digest_are_reproducible"),
     "settlement_residual_binding": ("\"residual_wei\": str(residual),\n            \"contributor_allocations\": contributor_allocations,", "\"residual_wei\": \"0\",\n            \"contributor_allocations\": contributor_allocations,", "contract/tests/direct/test_terminal_commitments.py::test_settlement_digest_commits_both_economic_statuses"),
+    "machine_success_status_binding": ("if check and check.get(\"conclusion\") == \"success\" and terminal != \"SATISFIED\":", "if False:", "contract/tests/direct/test_terminal_freeze.py::test_successful_machine_check_cannot_be_downgraded_by_matrix"),
+    "machine_failure_status_binding": ("if check and check.get(\"conclusion\") != \"success\" and terminal != \"NOT_SATISFIED\":", "if False:", "contract/tests/direct/test_terminal_freeze.py::test_failed_machine_check_accepts_only_not_satisfied"),
+    "criterion_check_binding": ("and obj.get(\"criterion_index\") == index\n                and obj.get(\"run_id\")", "and obj.get(\"run_id\")", "contract/tests/direct/test_terminal_freeze.py::test_check_evidence_from_another_criterion_is_rejected"),
 }
 
 def main() -> int:
@@ -98,7 +101,7 @@ def main() -> int:
         raise RuntimeError("unknown mutant filter")
     active = {name: value for name, value in MUTANTS.items() if not selected or name in selected}
     if not os.environ.get("MOSAIC_MUTANT_SKIP_CONTROL"):
-        control = subprocess.run([sys.executable, "-m", "pytest", "contract/tests/direct", "-q"], cwd=ROOT, check=False)
+        control = subprocess.run([sys.executable, "-m", "pytest", "contract/tests/direct", "contract/tests/test_evidence_boundary_static.py", "-q"], cwd=ROOT, check=False)
         if control.returncode:
             print("control failed")
             return control.returncode
@@ -115,7 +118,7 @@ def main() -> int:
                 invalid_syntax.append(name)
                 continue
             env = dict(os.environ, MOSAIC_MUTANT_CONTRACT=str(path))
-            result = subprocess.run([sys.executable, "-m", "pytest", target, "-q"], cwd=ROOT, env=env, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
+            result = subprocess.run([sys.executable, "-m", "pytest", target, "contract/tests/test_evidence_boundary_static.py", "-q"], cwd=ROOT, env=env, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.STDOUT)
             (killed if result.returncode else survivors).append(name)
     report = {"total": len(active), "unique_meaningful": len(active), "killed": killed, "surviving": survivors, "equivalent": [], "invalid_syntax": invalid_syntax}
     REPORT.write_text(json.dumps(report, sort_keys=True, indent=2) + "\n", encoding="utf-8")

@@ -1,4 +1,5 @@
 import json
+import pytest
 
 from helpers import mock_baseline, mock_pr, mock_terminal, set_block_time
 
@@ -196,6 +197,62 @@ def test_failed_required_check_cannot_be_overridden_by_valid_matrix(direct_vm, d
     evidence = json.loads(mission["frozen_evidence"]["terminal_state_json"])
     check_ref = next(item["id"] for item in evidence["evidence_objects"] if item.get("id", "").startswith("check:"))
     verdict = {"criteria": [{"criterion_index": 0, "terminal_status": "SATISFIED", "claimant_status": "NOT_SATISFIED", "evidence_refs": [check_ref]}], "roles": {}, "rationale": "A failed check cannot be rewritten by prose."}
+    direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps(verdict))
+    with direct_vm.expect_revert("invalid_resolution_judgment"):
+        contract.resolve_mission(mission_id)
+
+
+def _check_mission(vm, deploy, sponsor, terms, conclusion):
+    criteria = [{"text": "the verification check passes", "evidence_kind": "GITHUB_CHECK", "check_name": "verify", "check_app_slug": "github-actions"}]
+    terms = {**terms, "criteria": criteria}
+    contract, mission_id = create(vm, deploy, sponsor, terms)
+    set_block_time(vm, "2026-10-06T10:00:00Z")
+    vm.clear_mocks(); mock_terminal(vm)
+    vm.mock_web(r".*check-runs.*", {"status": 200, "body": json.dumps({"total_count": 1, "check_runs": [{"id": 42, "name": "verify", "app": {"slug": "github-actions"}, "head_sha": "d" * 40, "status": "completed", "conclusion": conclusion}]})})
+    assert contract.freeze_terminal(mission_id) == "terminal_frozen"
+    mission = json.loads(contract.get_mission(mission_id))
+    check_ref = next(item["id"] for item in json.loads(mission["frozen_evidence"]["terminal_state_json"])["evidence_objects"] if item["kind"] == "GITHUB_CHECK")
+    return contract, mission_id, check_ref
+
+
+@pytest.mark.parametrize("terminal_status", ["NOT_SATISFIED", "PARTIAL", "UNVERIFIABLE"])
+def test_successful_machine_check_cannot_be_downgraded_by_matrix(direct_vm, direct_deploy, direct_alice, mission_terms, terminal_status):
+    contract, mission_id, check_ref = _check_mission(direct_vm, direct_deploy, direct_alice, mission_terms, "success")
+    verdict = {"criteria": [{"criterion_index": 0, "terminal_status": terminal_status, "claimant_status": "NOT_SATISFIED", "evidence_refs": [check_ref]}], "roles": {}, "rationale": "The frozen machine result is authoritative."}
+    direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps(verdict))
+    with direct_vm.expect_revert("invalid_resolution_judgment"):
+        contract.resolve_mission(mission_id)
+
+
+def test_successful_machine_check_accepts_satisfied_matrix(direct_vm, direct_deploy, direct_alice, mission_terms):
+    contract, mission_id, check_ref = _check_mission(direct_vm, direct_deploy, direct_alice, mission_terms, "success")
+    verdict = {"criteria": [{"criterion_index": 0, "terminal_status": "SATISFIED", "claimant_status": "NOT_SATISFIED", "evidence_refs": [check_ref]}], "roles": {}, "rationale": "The frozen machine result is authoritative."}
+    direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps(verdict))
+    assert contract.resolve_mission(mission_id) == "settled_not_achieved"
+
+
+def test_failed_machine_check_accepts_only_not_satisfied(direct_vm, direct_deploy, direct_alice, mission_terms):
+    contract, mission_id, check_ref = _check_mission(direct_vm, direct_deploy, direct_alice, mission_terms, "failure")
+    verdict = {"criteria": [{"criterion_index": 0, "terminal_status": "NOT_SATISFIED", "claimant_status": "NOT_SATISFIED", "evidence_refs": [check_ref]}], "roles": {}, "rationale": "The failed frozen check remains negative."}
+    direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps(verdict))
+    assert contract.resolve_mission(mission_id) == "settled_not_achieved"
+
+
+def test_check_evidence_from_another_criterion_is_rejected(direct_vm, direct_deploy, direct_alice, mission_terms):
+    criteria = [
+        {"text": "first check", "evidence_kind": "GITHUB_CHECK", "check_name": "verify", "check_app_slug": "github-actions"},
+        {"text": "second check", "evidence_kind": "GITHUB_CHECK", "check_name": "lint", "check_app_slug": "github-actions"},
+    ]
+    contract, mission_id = create(direct_vm, direct_deploy, direct_alice, {**mission_terms, "criteria": criteria})
+    set_block_time(direct_vm, "2026-10-06T10:00:00Z"); direct_vm.clear_mocks(); mock_terminal(direct_vm)
+    direct_vm.mock_web(r".*check-runs.*", {"status": 200, "body": json.dumps({"total_count": 2, "check_runs": [
+        {"id": 42, "name": "verify", "app": {"slug": "github-actions"}, "head_sha": "d" * 40, "status": "completed", "conclusion": "success"},
+        {"id": 43, "name": "lint", "app": {"slug": "github-actions"}, "head_sha": "d" * 40, "status": "completed", "conclusion": "success"},
+    ]})})
+    assert contract.freeze_terminal(mission_id) == "terminal_frozen"
+    mission = json.loads(contract.get_mission(mission_id)); evidence = json.loads(mission["frozen_evidence"]["terminal_state_json"])
+    verify_ref = next(item["id"] for item in evidence["evidence_objects"] if item.get("run_id") == 42)
+    verdict = {"criteria": [{"criterion_index": 0, "terminal_status": "SATISFIED", "claimant_status": "NOT_SATISFIED", "evidence_refs": [verify_ref]}, {"criterion_index": 1, "terminal_status": "SATISFIED", "claimant_status": "NOT_SATISFIED", "evidence_refs": [verify_ref]}], "roles": {}, "rationale": "Each machine criterion must cite its own frozen check."}
     direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps(verdict))
     with direct_vm.expect_revert("invalid_resolution_judgment"):
         contract.resolve_mission(mission_id)

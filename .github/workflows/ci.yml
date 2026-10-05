@@ -43,6 +43,8 @@ jobs:
         run: genvm-lint check contract/contracts/mosaic.py
       - name: Direct Mode
         run: python -m pytest contract/tests/direct -q
+      - name: Evidence-boundary static tests
+        run: python -m pytest contract/tests/test_evidence_boundary_static.py -q
       - name: Frontend lint
         run: npm --prefix frontend run lint
       - name: Frontend typecheck

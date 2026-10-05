@@ -212,9 +212,17 @@ def _normalise_matrix_judgment(verdict, expected_wallets, criteria, evidence_obj
             if not check or check.get("status") != "completed":
                 if terminal in {"SATISFIED", "PARTIAL"} or claimant in {"SATISFIED", "PARTIAL"}:
                     return None
-            if check and check.get("conclusion") != "success" and terminal in {"SATISFIED", "PARTIAL"}:
+            matching_check_refs = [
+                obj for obj in row_objects
+                if obj.get("kind") == "GITHUB_CHECK"
+                and obj.get("criterion_index") == index
+                and obj.get("run_id") == (check or {}).get("run_id")
+            ]
+            if check and not matching_check_refs:
                 return None
-            if check and not any(obj.get("kind") == "GITHUB_CHECK" and obj.get("run_id") == check.get("run_id") for obj in row_objects):
+            if check and check.get("conclusion") == "success" and terminal != "SATISFIED":
+                return None
+            if check and check.get("conclusion") != "success" and terminal != "NOT_SATISFIED":
                 return None
         if terminal == "NOT_SATISFIED" and claimant in {"SATISFIED", "PARTIAL"}:
             return None

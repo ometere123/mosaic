@@ -33,6 +33,6 @@
 - `0x05fd77aB1f916e36C718E6b55CBdf5F726216d4a`: **SUPERSEDED** after live withdrawal delivery exposed an EOA transfer-interface defect.
 - `0xCd019C05232F6b67BB9d75FEB8D96f48AAe57921`: **SUPERSEDED** prior release-candidate deployment; a stale already-open browser bundle submitted one launch there before the final browser was hard-reloaded.
 
-The canonical deployment corrected the earlier EOA-transfer defect. Mission `0` against `ometere123/backfill` finalized with an `ACHIEVED` terminal status and claimant outcome; its 1 GEN allocation was withdrawn through production. The parent withdrawal finalized successfully and emitted a final, value-credited 1 GEN EOA transfer to the contributor wallet. Full references are in `LIVE_VALIDATION.md` and `RELEASE_MANIFEST.json`.
+The corrected deployment is source-verified and ready for the gated lifecycle. The earlier Backfill mission evidence and payout proof belong to superseded deployments and are historical only. Full deployment and lifecycle provenance is in `LIVE_VALIDATION.md` and `RELEASE_MANIFEST.json`.
 
 The deployment above is the corrected hardened release candidate. The earlier `0x9F8d9eA8366948A91ADf34cBf5250a54f85f1eD5` deployment is **SUPERSEDED** and its lifecycle evidence is historical only; the new canonical lifecycle remains gated pending the required manual multi-contributor plan.

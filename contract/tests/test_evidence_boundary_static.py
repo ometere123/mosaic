@@ -1,8 +1,9 @@
 import ast
+import os
 from pathlib import Path
 
 
-SOURCE = Path(__file__).parents[1] / "contracts" / "mosaic.py"
+SOURCE = Path(os.environ.get("MOSAIC_MUTANT_CONTRACT", str(Path(__file__).parents[1] / "contracts" / "mosaic.py")))
 TREE = ast.parse(SOURCE.read_text(encoding="utf-8"))
 
 
@@ -37,5 +38,5 @@ def test_settlement_commits_matrix_and_role_evidence():
 
 
 def test_typed_criterion_text_is_bounded():
-    source = CONTRACT.read_text(encoding="utf-8")
+    source = SOURCE.read_text(encoding="utf-8")
     assert "len(text.strip()) > MAX_CRITERION_CHARS" in source

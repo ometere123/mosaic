@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createClient } from "../frontend/node_modules/genlayer-js/dist/index.js";
+import { TransactionHashVariant } from "../frontend/node_modules/genlayer-js/dist/types/index.js";
 import { studionet } from "../frontend/node_modules/genlayer-js/dist/chains/index.js";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
@@ -38,13 +39,14 @@ const rpc = async (method, params) => {
 
 if (Number(studionet.id) !== 61999) fail(`SDK Studionet chain is ${studionet.id}, expected 61999`);
 const client = createClient({ chain: studionet });
+const readFinal = (functionName, args) => client.readContract({ address: CONTRACT, functionName, args, transactionHashVariant: TransactionHashVariant.LATEST_FINAL });
 
 const localSource = canonical(readFileSync(`${ROOT}/contract/contracts/mosaic.py`, "utf8"));
 if (sha256(localSource) !== SOURCE_SHA) fail("working-tree contract source hash mismatch");
 const deployedSource = canonical(await client.getContractCode(CONTRACT));
 if (sha256(deployedSource) !== SOURCE_SHA || deployedSource !== localSource) fail("deployed source does not equal frozen source");
 
-const nextId = Number(await client.readContract({ address: CONTRACT, functionName: "get_next_mission_id", args: [] }));
+const nextId = Number(await readFinal("get_next_mission_id", []));
 if (!Number.isSafeInteger(nextId) || nextId < 0) fail(`invalid next mission id ${nextId}`);
 
 let mission = null;
@@ -53,16 +55,16 @@ let sponsorTotal = null;
 let walletBalance = null;
 if (MISSION_ID !== null) {
   if (!Number.isSafeInteger(MISSION_ID) || MISSION_ID < 0 || MISSION_ID >= nextId) fail(`mission ${MISSION_ID_TEXT} is absent (next id ${nextId})`);
-  mission = parse(await client.readContract({ address: CONTRACT, functionName: "get_mission", args: [BigInt(MISSION_ID)] }), "get_mission");
+  mission = parse(await readFinal("get_mission", [BigInt(MISSION_ID)]), "get_mission");
   if (!mission.repo || !mission.target_ref || !mission.baseline_sha) fail("mission lacks its frozen source boundary");
   if (!mission.total_funded_wei) fail("mission lacks funded accounting");
   if (Number(mission.contribution_count) > 0) {
-    contribution = parse(await client.readContract({ address: CONTRACT, functionName: "get_contribution", args: [BigInt(MISSION_ID), 0] }), "get_contribution");
+    contribution = parse(await readFinal("get_contribution", [BigInt(MISSION_ID), 0]), "get_contribution");
     if (!contribution.status || !contribution.record_commitment) fail("first contribution lacks an auditable record commitment");
   }
   if (SPONSOR) {
-    sponsorTotal = String(await client.readContract({ address: CONTRACT, functionName: "get_sponsor_total", args: [BigInt(MISSION_ID), SPONSOR] }));
-    walletBalance = String(await client.readContract({ address: CONTRACT, functionName: "get_balance", args: [SPONSOR] }));
+    sponsorTotal = String(await readFinal("get_sponsor_total", [BigInt(MISSION_ID), SPONSOR]));
+    walletBalance = String(await readFinal("get_balance", [SPONSOR]));
     if (EXPECTED_BALANCE_WEI !== undefined && walletBalance !== EXPECTED_BALANCE_WEI) fail(`wallet balance is ${walletBalance}, expected ${EXPECTED_BALANCE_WEI}`);
   }
 }
@@ -96,6 +98,24 @@ if (mission?.settlement) {
   const funded = BigInt(mission.total_funded_wei);
   if (released + residual !== funded) fail(`settlement conservation mismatch: ${released} + ${residual} != ${funded}`);
   if (!mission.settlement_digest || !mission.resolution_evidence_root || !mission.ordered_contribution_root) fail("settled mission is missing commitment roots");
+  if (!Array.isArray(mission.settlement.criterion_matrix) || mission.settlement.criterion_matrix.length !== mission.criteria.length) fail("settled mission lacks complete criterion_matrix");
+  const indexes = mission.settlement.criterion_matrix.map((row) => Number(row.criterion_index));
+  if (new Set(indexes).size !== mission.criteria.length || indexes.some((index) => index < 0 || index >= mission.criteria.length)) fail("settlement criterion coverage is invalid");
+  if (!mission.settlement.role_evidence || typeof mission.settlement.role_evidence !== "object") fail("settled mission lacks role_evidence");
+}
+
+if (mission && mission.status !== "OPEN") {
+  if (!mission.terminal_tip_sha || !mission.closed_at || !mission.terminal_source_digest || !mission.frozen_evidence) fail("non-open mission lacks an auditable frozen terminal snapshot");
+  let frozen;
+  try { frozen = JSON.parse(mission.frozen_evidence.terminal_state_json ?? ""); } catch { fail("frozen terminal snapshot is malformed"); }
+  const checks = Array.isArray(frozen.required_checks) ? frozen.required_checks : [];
+  const objects = Array.isArray(frozen.evidence_objects) ? frozen.evidence_objects : [];
+  for (const [index, criterion] of mission.criteria.entries()) {
+    if (typeof criterion === "object" && criterion.evidence_kind === "GITHUB_CHECK") {
+      const check = checks.find((item) => Number(item.criterion_index) === index);
+      if (!check || check.status !== "completed" || !objects.some((item) => item.kind === "GITHUB_CHECK" && Number(item.criterion_index) === index && String(item.run_id) === String(check.run_id))) fail(`criterion ${index} lacks criterion-bound frozen check evidence`);
+    }
+  }
 }
 
 console.log(JSON.stringify({

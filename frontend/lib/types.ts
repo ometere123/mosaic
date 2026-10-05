@@ -61,6 +61,7 @@ export type Mission = {
   mission_evidence_root: string;
   settlement_digest: string;
   settlement: Settlement | null;
+  frozen_evidence?: { terminal_state_json?: string; [key: string]: unknown } | null;
 };
 
 export type Contribution = {
