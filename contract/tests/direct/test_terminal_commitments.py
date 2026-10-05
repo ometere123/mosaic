@@ -202,6 +202,8 @@ def test_settlement_digest_commits_both_economic_statuses(direct_vm, direct_depl
         "terminal_objective_status": "ACHIEVED",
         "claimant_outcome": "NOT_ACHIEVED",
         "roles": {},
+        "criterion_matrix": settlement["criterion_matrix"],
+        "role_evidence": settlement["role_evidence"],
         "released_wei": "0",
         "residual_wei": str(10 * WEI),
         "contributor_allocations": {},

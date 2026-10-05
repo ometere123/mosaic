@@ -55,7 +55,7 @@ def migrate_legacy_test_verdicts(direct_vm):
             value = json.loads(response)
         except Exception:
             return original(pattern, response)
-        legacy = isinstance(value, dict) and {"terminal_objective_status", "claimant_outcome", "roles", "rationale"}.issubset(value)
+        legacy = isinstance(value, dict) and set(value.keys()) == {"terminal_objective_status", "claimant_outcome", "roles", "rationale"}
         if not legacy:
             return original(pattern, response)
         terminal = value["terminal_objective_status"]

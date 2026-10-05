@@ -561,6 +561,8 @@ def test_evidence_root_and_settlement_digest_are_reproducible(direct_vm, direct_
             "terminal_objective_status": "ACHIEVED",
         "claimant_outcome": "ACHIEVED",
         "roles": {wallet(direct_bob): "CORE"},
+        "criterion_matrix": settlement["criterion_matrix"],
+        "role_evidence": settlement["role_evidence"],
         "released_wei": str(10 * WEI),
         "residual_wei": "0",
         "contributor_allocations": {wallet(direct_bob): str(10 * WEI)},
@@ -1110,6 +1112,8 @@ def test_zero_claimants_can_truthfully_record_terminal_success_and_refund_sponso
         "terminal_objective_status": "ACHIEVED",
         "claimant_outcome": "NOT_ACHIEVED",
         "roles": {},
+        "criterion_matrix": settlement["criterion_matrix"],
+        "role_evidence": settlement["role_evidence"],
         "rationale": "Terminal work is present but no MOSAIC claimant portfolio exists.",
     }))
     assert freeze_then_resolve(contract, mission_id) == "settled_not_achieved"
