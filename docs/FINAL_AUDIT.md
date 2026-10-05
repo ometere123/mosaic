@@ -27,6 +27,6 @@ Three distinct live fail-closed behaviours have been observed: duplicate PR exec
 
 ## Audit close-out for the corrected release candidate
 
-The corrected source/deployment evidence and frontend rebinding were committed; the final verification CI run `37270992511` completed green. Canonical contract/source correspondence remains verified for `0x418180Bf909C50c8710C4B378E9113264d484eDF`, and the Vercel/Git status is green. The corrected canonical lifecycle has not started because the required manual multi-contributor plan is still pending.
+The fresh source/deployment evidence and frontend rebinding were committed; final CI run `37296061284` completed green. Canonical contract/source correspondence remains verified for `0x97C9AB9afd4dCC03cAeF693cc5c8E93A7Db0395e`, and the Vercel/Git status is green. The canonical lifecycle has not started because the required manual multi-contributor plan is still pending.
 
 At this release checkpoint, no remaining material blocker was identified in the source, deployment, or automated evidence audit. The remaining intentional gate is the manual multi-contributor plan before any new funded lifecycle. `RELEASE_MANIFEST.json` contains the exact deployment and verification anchors.

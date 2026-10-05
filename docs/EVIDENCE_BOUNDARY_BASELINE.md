@@ -7,7 +7,7 @@ This document records the starting implementation, not completion of the upgrade
 - Source/repository commit: `1fc5988bd017c14c3936953bf2e03f68874abcba`.
 - Historical baseline contract SHA-256: `1563468f5616bf91f910282bf939d254ae1ff6e72052108dee3ee99a7be7cbde`.
 - Starting main CI: GitHub Actions run `37137106670`, successful.
-- Historical deployment: `0xE8CB904b47e97C0a09bF679525C5BF8b722fF1bD`, Studionet 61999. The superseded hardened deployment was `0x9F8d9eA8366948A91ADf34cBf5250a54f85f1eD5`; the corrected source is now deployed at `0x418180Bf909C50c8710C4B378E9113264d484eDF` and is covered by the release manifest.
+- Historical deployment: `0xE8CB904b47e97C0a09bF679525C5BF8b722fF1bD`, Studionet 61999. The superseded hardened deployments were `0x9F8d9eA8366948A91ADf34cBf5250a54f85f1eD5` and `0x418180Bf909C50c8710C4B378E9113264d484eDF`; the current deployed release candidate is `0x97C9AB9afd4dCC03cAeF693cc5c8E93A7Db0395e` and is covered by the release manifest.
 - Development branch: `hardening/reviewer-evidence-boundary`.
 
 ## Reproduced baseline

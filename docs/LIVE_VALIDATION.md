@@ -3,13 +3,13 @@
 ## Final canonical release surfaces
 
 - Contract: `0x97C9AB9afd4dCC03cAeF693cc5c8E93A7Db0395e` (fresh hardened deployment; lifecycle gated pending manual plan)
-- Deployment transaction: `0x785a22183aef5897b4975806f899006bfdb05bd058664b2013fed4304462476f` (`FINALIZED`, `MAJORITY_AGREE`, leader execution `SUCCESS`)
+- Deployment transaction: `0x3a5c8a6a305469d56d183af7c35e116189ea85cb6dc36e347080ec0be8b23668` (`FINALIZED`, `MAJORITY_AGREE`, leader execution `SUCCESS`)
 - Frontend: https://themosaic.vercel.app
 - Network: Studionet `61999` / `0xF22F`
 
 The earlier MOSAIC-self-validation mission, the Backfill lifecycle on the superseded hardened deployment, and all older deployment evidence are historical/superseded only. They are not canonical live proof for this corrected source.
 
-## Canonical external-repository lifecycle
+## Historical/superseded external-repository lifecycle
 
 - External repository: `ometere123/backfill`, created `2026-09-06T17:05:17Z`; target ref `main`.
 - Mission `0`, baseline `987fca62be4eaba1741195910e4d2079402e419d`, funded with `1 GEN`; launch tx `0xf4624fd2427590d0735fa61417d0828545e853e0c0e46bd09de117a7c2ec5ab7` finalized with successful execution.
