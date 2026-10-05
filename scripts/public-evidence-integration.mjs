@@ -21,6 +21,9 @@ const baseline = await get(`/repos/${repo}/commits/${expected.baseline}`);
 if (baseline.sha !== expected.baseline) fail("baseline commit unavailable");
 const merge = await get(`/repos/${repo}/commits/${expected.merge}`);
 if (merge.sha !== expected.merge || merge.commit?.tree?.sha === undefined) fail("merge commit unavailable");
+const comparison = await get(`/repos/${repo}/compare/${expected.baseline}...${expected.merge}`);
+if (!['ahead', 'identical'].includes(String(comparison.status).toLowerCase())) fail("baseline-to-merge comparison is not descended");
+if (comparison.merge_base_commit?.sha !== expected.baseline) fail("baseline is not the merge base");
 const files = await get(`/repos/${repo}/pulls/${prNumber}/files?per_page=100`);
 if (!Array.isArray(files) || files.length === 0) fail("changed-file evidence missing");
 const comments = await get(`/repos/${repo}/issues/${prNumber}/comments?per_page=100`);
@@ -29,4 +32,4 @@ if (!proof || proof.user?.id !== expected.authorId) fail("proof comment identity
 const checks = await get(`/repos/${repo}/commits/${expected.merge}/check-runs?per_page=100`);
 const verify = checks.check_runs?.filter((run) => run.name === "verify" && run.app?.slug === "github-actions" && run.head_sha === expected.merge);
 if (!verify || verify.length !== 1 || verify[0].status !== "completed" || verify[0].conclusion !== "success") fail("merge check evidence mismatch");
-console.log(JSON.stringify({ repository: repo, pr: prNumber, baseline: expected.baseline, merge: expected.merge, author_id: expected.authorId, proof_comment_id: expected.proofCommentId, changed_files: files.length, check: { name: verify[0].name, app_slug: verify[0].app.slug, conclusion: verify[0].conclusion } }));
+console.log(JSON.stringify({ repository: repo, pr: prNumber, baseline: expected.baseline, merge: expected.merge, compare_status: comparison.status, merge_base: comparison.merge_base_commit.sha, author_id: expected.authorId, proof_comment_id: expected.proofCommentId, changed_files: files.length, check: { name: verify[0].name, app_slug: verify[0].app.slug, head_sha: verify[0].head_sha, conclusion: verify[0].conclusion } }));
