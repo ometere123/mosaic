@@ -20,11 +20,11 @@
 
 - Vercel project: `mosaic` (`prj_YuwUxgdIrmVoKwkl9LaGQv4i2ftX`)
 - Root directory: `frontend`
-- Deployment: `dpl_2jzijfhwZpTnMBcUMTZnArDcNVij`
+- Deployment: `dpl_E4D3LcVYDSccPotNzV2pemy2wWyH`
 - Production URL: [themosaic.vercel.app](https://themosaic.vercel.app)
 - Production environment points to the canonical contract address above.
 - Deployment status: `READY`; build completed with Next.js `16.3.8`.
-- Release commit: `83da9aa6ad6b2cd11588c54cb1ac8d88d9124faa`.
+- Release commit: `30e4137471b72e84aa81f82dd55b8aedd8733dcf`.
 
 ## Historical addresses
 
