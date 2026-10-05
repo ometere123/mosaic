@@ -1,7 +1,7 @@
 {
   "status": "HARDENING_DEVELOPMENT",
-  "repository": {"canonical_branch": "main", "source_anchor": "ef4c8a6621752f0ead6b2e7e0203667b88ffa640"},
-  "contract_source": {"commit": "ef4c8a6621752f0ead6b2e7e0203667b88ffa640", "tree": "PENDING_AFTER_HARDENING", "path": "contract/contracts/mosaic.py", "sha256": "fc4985a34a8982a246bd28005587bce97620ec63476d4c559e15918154b48b86"},
+  "repository": {"canonical_branch": "main", "source_anchor": "107ebf5a38f441cec6d6cf0e1250d116f3e72f96"},
+  "contract_source": {"commit": "107ebf5a38f441cec6d6cf0e1250d116f3e72f96", "tree": "62ba12f9fdb51b8aa87d65ce2fa0c34cbe71b08f", "path": "contract/contracts/mosaic.py", "sha256": "92a8a514cd3ac556cb033fb2d9cd8dd4164a6c8cec37291e0873de79a85d5b58"},
   "network": {"name": "Studionet", "chain_id": 61999, "chain_id_hex": "0xF22F", "rpc": "https://studio.genlayer.com/api", "currency": "GEN"},
   "deployment": {"contract": "0x9F8d9eA8366948A91ADf34cBf5250a54f85f1eD5", "transaction": "0x6df6965d208fd126dfabd8f978eaa21b72d4812e02813ef3933722bde580221f", "status": "SUPERSEDED_BY_HARDENING", "consensus": "MAJORITY_AGREE", "leader_execution": "SUCCESS", "retrieved_source_sha256": "f6e5a496b0e56d7f1082fd9579fe1ca7e9ab55c7759c28e8c365d70c04c0e831", "source_correspondence": "historical deployment; no longer matches current hardened source"},
   "frontend": {"project": "mosaic", "project_id": "prj_YuwUxgdIrmVoKwkl9LaGQv4i2ftX", "production_url": "https://themosaic.vercel.app", "production_deployment_id": "dpl_3j9o7JaQWqba5aq5Sp85bozjhZbc", "production_deployment_url": "https://mosaic-bvud8l5uh-delealufejoel-4184s-projects.vercel.app", "production_release_commit": "2cf18e6", "contract_binding": "0x9F8d9eA8366948A91ADf34cBf5250a54f85f1eD5", "production_redeployment": "READY"},
