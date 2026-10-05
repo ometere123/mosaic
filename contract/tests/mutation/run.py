@@ -76,7 +76,7 @@ MUTANTS = {
     "title_required": ("if not title or len(title) > MAX_TITLE_CHARS:", "if False:", "contract/tests/direct/test_state_machine_boundaries.py::test_open_mission_rejects_each_frozen_term_boundary"),
     "objective_required": ("if not objective or len(objective) > MAX_OBJECTIVE_CHARS:", "if False:", "contract/tests/direct/test_state_machine_boundaries.py::test_open_mission_rejects_each_frozen_term_boundary"),
     "criteria_collection_bound": ("if not isinstance(value, list) or len(value) < 1 or len(value) > MAX_CRITERIA:", "if False:", "contract/tests/direct/test_state_machine_boundaries.py::test_open_mission_rejects_each_frozen_term_boundary"),
-    "criterion_text_bound": ("if not text or len(text) > MAX_CRITERION_CHARS:", "if False:", "contract/tests/direct/test_state_machine_boundaries.py::test_open_mission_rejects_each_frozen_term_boundary"),
+    "criterion_text_bound": ("if not isinstance(text, str) or not text.strip() or len(text.strip()) > MAX_CRITERION_CHARS:", "if False:", "contract/tests/direct/test_state_machine_boundaries.py::test_open_mission_rejects_each_frozen_term_boundary"),
     "merge_window_guard": ("if merged_unix < int(mission[\"created_at\"]) or merged_unix > _now_unix():", "if False:", "contract/tests/direct/test_mosaic.py::test_merge_timestamp_outside_mission_window_rejected"),
     "proof_status_schema": ("if status not in {\"OK\", \"INSUFFICIENT_EVIDENCE\"}:", "if False:", "contract/tests/direct/test_mosaic.py::test_malformed_compare_payload_rejected"),
     "seal_source_failure_record": ("if status == \"SOURCE_UNAVAILABLE\":", "if False:", "contract/tests/direct/test_mosaic.py::test_source_unavailable_is_not_low_impact"),
