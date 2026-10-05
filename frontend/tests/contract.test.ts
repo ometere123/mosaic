@@ -57,7 +57,7 @@ describe("injected-wallet writes", () => {
       baseline: "a".repeat(40),
       title: "Release reliability",
       objective: "Harden the release line.",
-      criteria: ["Recovery works"],
+      criteria: [{ text: "Recovery works", evidence_kind: "SOURCE" }],
       closeAt: 1_800_000_000,
       value: 10n ** 18n,
     });
@@ -65,7 +65,7 @@ describe("injected-wallet writes", () => {
     expect(writeContract).toHaveBeenCalledWith({
       address: "0x1111111111111111111111111111111111111111",
       functionName: "open_mission",
-      args: ["acme/widget", "release/v2", "a".repeat(40), "Release reliability", "Harden the release line.", '["Recovery works"]', 1_800_000_000],
+      args: ["acme/widget", "release/v2", "a".repeat(40), "Release reliability", "Harden the release line.", '[{"text":"Recovery works","evidence_kind":"SOURCE"}]', 1_800_000_000],
       value: 10n ** 18n,
     });
     expect(connect).not.toHaveBeenCalled();

@@ -7,15 +7,17 @@ import { studionet } from "../frontend/node_modules/genlayer-js/dist/chains/inde
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const RPC = "https://studio.genlayer.com/api";
 const FRONTEND = "https://themosaic.vercel.app";
-const CONTRACT = process.env.MOSAIC_SMOKE_CONTRACT ?? "0xE8CB904b47e97C0a09bF679525C5BF8b722fF1bD";
-const SOURCE_SHA = "1563468f5616bf91f910282bf939d254ae1ff6e72052108dee3ee99a7be7cbde";
+const fail = (message) => { throw new Error(`Release smoke failed: ${message}`); };
+const manifest = JSON.parse(readFileSync(`${ROOT}/docs/RELEASE_MANIFEST.json`, "utf8"));
+const CONTRACT = process.env.MOSAIC_SMOKE_CONTRACT ?? manifest.deployment?.contract;
+const SOURCE_SHA = process.env.MOSAIC_SMOKE_SOURCE_SHA ?? manifest.contract_source?.sha256;
+if (!CONTRACT || !SOURCE_SHA) fail("release manifest lacks current deployment anchors");
 const MISSION_ID_TEXT = process.env.MOSAIC_SMOKE_MISSION_ID;
 const MISSION_ID = MISSION_ID_TEXT === undefined ? null : Number(MISSION_ID_TEXT);
 const SPONSOR = process.env.MOSAIC_SMOKE_SPONSOR?.toLowerCase();
 const EXPECTED_BALANCE_WEI = process.env.MOSAIC_SMOKE_EXPECTED_BALANCE_WEI;
 const CHILD_TRANSFER_HASHES = (process.env.MOSAIC_SMOKE_CHILD_TRANSFER_HASHES ?? "").split(",").map((item) => item.trim()).filter(Boolean);
 
-const fail = (message) => { throw new Error(`Release smoke failed: ${message}`); };
 const canonical = (value) => value.replace(/\r\n/g, "\n");
 const sha256 = (value) => createHash("sha256").update(value).digest("hex");
 const parse = (value, label) => {

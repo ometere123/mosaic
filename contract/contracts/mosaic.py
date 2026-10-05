@@ -128,19 +128,13 @@ def _digest_ok(digest: str) -> bool:
 def _normalise_criteria(value):
     """Normalize the frozen verification plan into bounded typed criteria.
 
-    Legacy string criteria are explicitly SOURCE criteria for migration. New
-    machine claims must use a GITHUB_CHECK object with a named producer.
+    New missions require explicit typed criterion objects. Legacy string
+    criteria are rejected so economic judgment cannot bypass the frozen plan.
     """
     if not isinstance(value, list) or len(value) < 1 or len(value) > MAX_CRITERIA:
         raise gl.vm.UserError("invalid_criteria_count")
     result = []
     for item in value:
-        if isinstance(item, str):
-            text = item.strip()
-            if not text or len(text) > MAX_CRITERION_CHARS:
-                raise gl.vm.UserError("invalid_criterion")
-            result.append({"text": text, "evidence_kind": "SOURCE"})
-            continue
         if not isinstance(item, dict):
             raise gl.vm.UserError("invalid_criterion")
         if set(item.keys()) - {"text", "evidence_kind", "check_name", "check_app_slug"}:
@@ -184,7 +178,8 @@ def _normalise_matrix_judgment(verdict, expected_wallets, criteria, evidence_obj
     rationale = verdict.get("rationale")
     if not isinstance(rows, list) or len(rows) != len(criteria) or not isinstance(roles_raw, dict):
         return None
-    allowed_refs = {str(item.get("id")) for item in evidence_objects if isinstance(item, dict)}
+    evidence_by_id = {str(item.get("id")): item for item in evidence_objects if isinstance(item, dict) and isinstance(item.get("id"), str)}
+    allowed_refs = set(evidence_by_id)
     check_by_index = {int(item["criterion_index"]): item for item in required_checks}
     seen = set()
     terminal_statuses, claimant_statuses = [], []
@@ -204,11 +199,27 @@ def _normalise_matrix_judgment(verdict, expected_wallets, criteria, evidence_obj
         if any(not isinstance(ref, str) or ref not in allowed_refs for ref in refs):
             return None
         criterion = criteria[index]
+        row_objects = [evidence_by_id[ref] for ref in refs]
+        terminal_tip = str(next((item.get("terminal_tip_sha") for item in evidence_objects if isinstance(item, dict) and item.get("terminal_tip_sha")), ""))
+        source_refs = [obj for obj in row_objects if obj.get("kind") == "SOURCE" and obj.get("terminal_tip_sha") == terminal_tip]
+        claimant_refs = [obj for obj in row_objects if obj.get("kind") == "CONTRIBUTION"]
+        if terminal in {"SATISFIED", "PARTIAL"} and criterion.get("evidence_kind") == "SOURCE" and not source_refs:
+            return None
+        if claimant in {"SATISFIED", "PARTIAL"} and not claimant_refs:
+            return None
         if criterion.get("evidence_kind") == "GITHUB_CHECK":
             check = check_by_index.get(index)
-            if not check or check.get("status") != "completed" or check.get("conclusion") != "success":
-                if terminal == "SATISFIED" or claimant == "SATISFIED":
+            if not check or check.get("status") != "completed":
+                if terminal in {"SATISFIED", "PARTIAL"} or claimant in {"SATISFIED", "PARTIAL"}:
                     return None
+            if check and check.get("conclusion") != "success" and terminal in {"SATISFIED", "PARTIAL"}:
+                return None
+            if check and not any(obj.get("kind") == "GITHUB_CHECK" and obj.get("run_id") == check.get("run_id") for obj in row_objects):
+                return None
+        if terminal == "NOT_SATISFIED" and claimant in {"SATISFIED", "PARTIAL"}:
+            return None
+        if terminal == "UNVERIFIABLE" and claimant in {"SATISFIED", "PARTIAL"}:
+            return None
         terminal_statuses.append(terminal)
         claimant_statuses.append(claimant)
         normalized_rows.append({"criterion_index": index, "terminal_status": terminal, "claimant_status": claimant, "evidence_refs": sorted(refs)})
@@ -222,7 +233,11 @@ def _normalise_matrix_judgment(verdict, expected_wallets, criteria, evidence_obj
             return None
         if any(not isinstance(ref, str) or ref not in allowed_refs for ref in detail["evidence_refs"]):
             return None
-        if ROLE_WEIGHT[detail["role"]] > 0 and not detail["evidence_refs"]:
+        role_objects = [evidence_by_id[ref] for ref in detail["evidence_refs"]]
+        if ROLE_WEIGHT[detail["role"]] > 0 and not any(
+            obj.get("kind") == "CONTRIBUTION" and str(obj.get("wallet", "")).lower() == str(wallet).lower()
+            for obj in role_objects
+        ):
             return None
         roles[wallet] = {"role": detail["role"], "evidence_refs": sorted(detail["evidence_refs"])}
     terminal_outcome = _derive_matrix_outcome(terminal_statuses, any(item == "UNVERIFIABLE" for item in terminal_statuses))
@@ -230,6 +245,12 @@ def _normalise_matrix_judgment(verdict, expected_wallets, criteria, evidence_obj
     if claimant_outcome in {"NOT_ACHIEVED", "INSUFFICIENT_EVIDENCE"} and any(ROLE_WEIGHT[item["role"]] > 0 for item in roles.values()):
         return None
     if claimant_outcome in {"ACHIEVED", "MATERIAL_PROGRESS"} and not any(ROLE_WEIGHT[item["role"]] > 0 for item in roles.values()):
+        return None
+    if terminal_outcome == "NOT_ACHIEVED" and claimant_outcome not in {"NOT_ACHIEVED", "INSUFFICIENT_EVIDENCE"}:
+        return None
+    if terminal_outcome == "MATERIAL_PROGRESS" and claimant_outcome == "ACHIEVED":
+        return None
+    if terminal_outcome == "INSUFFICIENT_EVIDENCE" and claimant_outcome in {"ACHIEVED", "MATERIAL_PROGRESS"}:
         return None
     if not expected_wallets and claimant_outcome != "NOT_ACHIEVED":
         return None
@@ -242,47 +263,9 @@ def _normalise_judgment(value, expected_wallets, criteria=None, evidence_objects
     verdict = _safe_json(value)
     if not isinstance(verdict, dict):
         return None
-    if "criteria" in verdict:
-        return _normalise_matrix_judgment(verdict, expected_wallets, criteria or [], evidence_objects or [], required_checks or [])
-    if set(verdict.keys()) != {"terminal_objective_status", "claimant_outcome", "roles", "rationale"}:
+    if "criteria" not in verdict:
         return None
-    terminal_objective_status = verdict.get("terminal_objective_status")
-    claimant_outcome = verdict.get("claimant_outcome")
-    roles = verdict.get("roles")
-    rationale = verdict.get("rationale")
-    if (
-        not isinstance(terminal_objective_status, str)
-        or terminal_objective_status not in MISSION_OUTCOMES
-        or terminal_objective_status == "SOURCE_UNAVAILABLE"
-        or not isinstance(claimant_outcome, str)
-        or claimant_outcome not in MISSION_OUTCOMES
-        or claimant_outcome == "SOURCE_UNAVAILABLE"
-    ):
-        return None
-    if not isinstance(roles, dict) or set(roles.keys()) != set(expected_wallets):
-        return None
-    if any(not isinstance(role, str) or role not in IMPACT_ROLES for role in roles.values()):
-        return None
-    if not isinstance(rationale, str) or not rationale.strip() or len(rationale) > MAX_RESOLUTION_RATIONALE_CHARS:
-        return None
-    if terminal_objective_status == "NOT_ACHIEVED" and claimant_outcome not in {"NOT_ACHIEVED", "INSUFFICIENT_EVIDENCE"}:
-        return None
-    if terminal_objective_status == "MATERIAL_PROGRESS" and claimant_outcome == "ACHIEVED":
-        return None
-    if terminal_objective_status == "INSUFFICIENT_EVIDENCE" and claimant_outcome != "INSUFFICIENT_EVIDENCE":
-        return None
-    if claimant_outcome in {"NOT_ACHIEVED", "INSUFFICIENT_EVIDENCE"} and any(ROLE_WEIGHT[role] > 0 for role in roles.values()):
-        return None
-    if expected_wallets and claimant_outcome in {"ACHIEVED", "MATERIAL_PROGRESS"} and not any(ROLE_WEIGHT[role] > 0 for role in roles.values()):
-        return None
-    if not expected_wallets and claimant_outcome != "NOT_ACHIEVED":
-        return None
-    return {
-        "terminal_objective_status": terminal_objective_status,
-        "claimant_outcome": claimant_outcome,
-        "roles": roles,
-        "rationale": rationale.strip(),
-    }
+    return _normalise_matrix_judgment(verdict, expected_wallets, criteria or [], evidence_objects or [], required_checks or [])
 
 
 def _target_ref_ok(target_ref: str) -> bool:
@@ -688,17 +671,23 @@ def _fetch_terminal_state(context_json: str) -> str:
         return _canonical_json({"status": "INSUFFICIENT_EVIDENCE", "reason": "terminal_change_budget_exceeded"})
     state = {"repo": repo, "target_ref": target_ref, "baseline_sha": baseline, "terminal_tip_sha": tip, "files": normalized}
     checks = []
+    check_payloads = {}
     for index, criterion in enumerate(criteria):
         if not isinstance(criterion, dict) or criterion.get("evidence_kind") != "GITHUB_CHECK":
             continue
         check_name = str(criterion.get("check_name") or "")
         app_slug = str(criterion.get("check_app_slug") or "")
-        payload, reason = _read_json_url(f"https://api.github.com/repos/{repo}/commits/{tip}/check-runs?per_page=100")
+        if tip not in check_payloads:
+            check_payloads[tip], reason = _read_json_url(f"https://api.github.com/repos/{repo}/commits/{tip}/check-runs?per_page=100")
+        payload = check_payloads[tip]
         if payload is None:
             return _canonical_json({"status": "SOURCE_UNAVAILABLE", "reason": f"checks:{reason}"})
         runs = payload.get("check_runs") if isinstance(payload, dict) else None
         if not isinstance(runs, list):
             return _canonical_json({"status": "INVALID", "reason": "malformed_check_runs"})
+        total_count = payload.get("total_count")
+        if not isinstance(total_count, int) or total_count != len(runs):
+            return _canonical_json({"status": "INSUFFICIENT_EVIDENCE", "reason": "check_runs_incomplete"})
         matches = []
         for run in runs:
             if not isinstance(run, dict):
@@ -714,11 +703,13 @@ def _fetch_terminal_state(context_json: str) -> str:
         conclusion = str(run.get("conclusion") or "").lower()
         if head_sha != tip:
             return _canonical_json({"status": "INVALID", "reason": "check_sha_mismatch"})
-        if status not in {"completed", "queued", "in_progress"}:
+        if status != "completed":
+            return _canonical_json({"status": "SOURCE_UNAVAILABLE", "reason": "check_pending"})
+        if not conclusion:
             return _canonical_json({"status": "INVALID", "reason": "check_status_invalid"})
         checks.append({"criterion_index": index, "name": check_name, "app_slug": app_slug, "run_id": int(run.get("id") or 0), "head_sha": head_sha, "status": status, "conclusion": conclusion})
     state["required_checks"] = checks
-    state["evidence_objects"] = [{"id": f"source:{index}:{item['filename']}", "criterion_indexes": [index], "terminal_tip_sha": tip, "digest": _canonical_digest(item)} for index, item in enumerate(normalized)] + [{"id": f"check:{item['criterion_index']}:{item['run_id']}", "criterion_indexes": [item['criterion_index']], "digest": _canonical_digest(item)} for item in checks]
+    state["evidence_objects"] = [{"id": f"source:{index}:{item['filename']}", "kind": "SOURCE", "terminal_tip_sha": tip, "path": item["filename"], "digest": _canonical_digest(item)} for index, item in enumerate(normalized)] + [{"id": f"check:{item['criterion_index']}:{item['run_id']}", "kind": "GITHUB_CHECK", "criterion_index": item["criterion_index"], "repository": repo, "terminal_tip_sha": tip, "name": item["name"], "app_slug": item["app_slug"], "run_id": item["run_id"], "status": item["status"], "conclusion": item["conclusion"], "digest": _canonical_digest(item)} for item in checks]
     state["terminal_source_digest"] = _canonical_digest(state)
     state["status"] = "OK"
     return _canonical_json(state)
@@ -1347,7 +1338,7 @@ class Mosaic(gl.Contract):
         ordered_contribution_root = _canonical_digest({"mission_id": int(mission_id), "records": ordered_records})
         terminal_lineage_root = _canonical_digest({"mission_id": int(mission_id), "terminal_tip_sha": terminal["terminal_tip_sha"], "records": lineage_records})
         terminal["evidence_objects"] = list(terminal.get("evidence_objects", [])) + [
-            {"id": f"contribution:{item['index']}:{item['contribution_commitment']}", "criterion_indexes": list(range(len(mission["criteria"]))), "digest": item["contribution_commitment"]}
+            {"id": f"contribution:{item['index']}:{item['contribution_commitment']}", "kind": "CONTRIBUTION", "contribution_index": item["index"], "wallet": item["wallet"], "pr_number": item["pr_number"], "merge_sha": item["merge_sha"], "commitment": item["contribution_commitment"], "digest": item["contribution_commitment"]}
             for item in [json.loads(self.contributions[f"{int(mission_id)}:{i}"]) for i in range(int(mission["contribution_count"]))]
             if item.get("status") == "SEALED"
         ]
@@ -1433,6 +1424,8 @@ class Mosaic(gl.Contract):
         terminal_objective_status = verdict["terminal_objective_status"]
         claimant_outcome = verdict["claimant_outcome"]
         roles = verdict["roles"]
+        criterion_matrix = verdict.get("criterion_matrix", [])
+        role_evidence = verdict.get("role_evidence", {})
         rationale = verdict["rationale"]
 
         mission["resolution_attempts"] = int(mission["resolution_attempts"]) + 1
@@ -1443,7 +1436,7 @@ class Mosaic(gl.Contract):
             self._save_mission(mission_id, mission)
             return "insufficient_evidence"
 
-        self._settle(mission_id, mission, terminal_objective_status, claimant_outcome, roles, rationale)
+        self._settle(mission_id, mission, terminal_objective_status, claimant_outcome, roles, rationale, criterion_matrix, role_evidence)
         return f"settled_{claimant_outcome.lower()}"
 
     @gl.public.write
@@ -1591,7 +1584,7 @@ class Mosaic(gl.Contract):
             raise gl.vm.UserError("residual_conservation_failed")
         return allocations
 
-    def _settle(self, mission_id: u256, mission, terminal_objective_status: str, claimant_outcome: str, roles: dict, rationale: str) -> None:
+    def _settle(self, mission_id: u256, mission, terminal_objective_status: str, claimant_outcome: str, roles: dict, rationale: str, criterion_matrix: list, role_evidence: dict) -> None:
         pool = int(mission["pool_wei"])
         if claimant_outcome == "ACHIEVED":
             released = pool
@@ -1637,6 +1630,8 @@ class Mosaic(gl.Contract):
             "terminal_objective_status": terminal_objective_status,
             "claimant_outcome": claimant_outcome,
             "roles": roles,
+            "criterion_matrix": criterion_matrix,
+            "role_evidence": role_evidence,
             "released_wei": str(released),
             "residual_wei": str(residual),
             "contributor_allocations": contributor_allocations,
@@ -1656,6 +1651,8 @@ class Mosaic(gl.Contract):
             "terminal_objective_status": terminal_objective_status,
             "claimant_outcome": claimant_outcome,
             "roles": roles,
+            "criterion_matrix": criterion_matrix,
+            "role_evidence": role_evidence,
             "rationale": rationale,
             "contributor_allocations": contributor_allocations,
             "sponsor_allocations": sponsor_allocations,

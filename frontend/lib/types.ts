@@ -8,12 +8,15 @@ export type MissionOutcome =
   | "EXPIRED"
   | "";
 export type ImpactRole = "CORE" | "MAJOR" | "SUPPORTING" | "NO_CREDIT";
+export type Criterion = { text: string; evidence_kind: "SOURCE" | "GITHUB_CHECK"; check_name?: string; check_app_slug?: string };
 
 export type Settlement = {
   settlement_type: "RESOLVED" | "EXPIRED";
   terminal_objective_status: MissionOutcome;
   claimant_outcome: MissionOutcome;
   roles: Record<string, ImpactRole>;
+  criterion_matrix?: Array<Record<string, unknown>>;
+  role_evidence?: Record<string, Record<string, unknown>>;
   rationale: string;
   contributor_allocations: Record<string, string>;
   sponsor_allocations: Record<string, string>;
@@ -30,10 +33,15 @@ export type Mission = {
   baseline_sha: string;
   title: string;
   objective: string;
-  criteria: Array<string | { text: string; evidence_kind: "SOURCE" | "GITHUB_CHECK"; check_name?: string; check_app_slug?: string }>;
+  criteria: Array<Criterion | string>;
   created_at: number;
   freeze_not_before?: number;
   closed_at?: number;
+  terminal_tip_sha?: string;
+  terminal_source_digest?: string;
+  terminal_lineage_root?: string;
+  resolution_evidence_root?: string;
+  ordered_contribution_root?: string;
   /** legacy read compatibility for historical fixtures only */
   close_at?: number;
   status: MissionStatus;

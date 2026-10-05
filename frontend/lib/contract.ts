@@ -63,7 +63,7 @@ function writer(provider: Eip1193Provider, account: `0x${string}`) {
 }
 
 export async function openMission(provider: Eip1193Provider, account: `0x${string}`, input: {
-  repo: string; targetRef: string; baseline: string; title: string; objective: string; criteria: string[]; closeAt: number; value: bigint;
+  repo: string; targetRef: string; baseline: string; title: string; objective: string; criteria: Array<{ text: string; evidence_kind: "SOURCE" | "GITHUB_CHECK"; check_name?: string; check_app_slug?: string }>; closeAt: number; value: bigint;
 }) {
   const client = writer(provider, account);
   return client.writeContract({

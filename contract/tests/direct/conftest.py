@@ -33,7 +33,7 @@ def mission_terms():
         "title": "Wallet reliability pass",
         "objective": "Make injected-wallet account switching and rejected-signature recovery reliable.",
         "criteria": [
-            "Account changes must update application state without reload.",
-            "Rejected signatures must recover without duplicate submission.",
+            {"text": "Account changes must update application state without reload.", "evidence_kind": "SOURCE"},
+            {"text": "Rejected signatures must recover without duplicate submission.", "evidence_kind": "SOURCE"},
         ],
     }
