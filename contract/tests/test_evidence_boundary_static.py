@@ -34,3 +34,8 @@ def test_settlement_commits_matrix_and_role_evidence():
     source = SOURCE.read_text(encoding="utf-8")
     assert '"criterion_matrix": criterion_matrix' in source
     assert '"role_evidence": role_evidence' in source
+
+
+def test_typed_criterion_text_is_bounded():
+    source = CONTRACT.read_text(encoding="utf-8")
+    assert "len(text.strip()) > MAX_CRITERION_CHARS" in source
