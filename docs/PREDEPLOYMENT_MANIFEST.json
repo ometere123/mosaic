@@ -31,9 +31,9 @@
     "react": "19.2.4"
   },
   "evidence": {
-    "direct_mode": {"passed": 139, "total": 139},
+    "direct_mode": {"passed": 138, "total": 139, "skipped": 1},
     "validator_adversarial_cases": 12,
-    "contract_mutation": {"unique_meaningful": 81, "killed": 81, "surviving": 0, "invalid_syntax": 0, "equivalent": 0},
+    "contract_mutation": {"unique_meaningful": 72, "killed": 72, "surviving": 0, "invalid_syntax": 0, "equivalent": 0},
     "frontend_tests": {"passed": 137, "total": 137},
     "frontend_mutation": {"unique_meaningful": 35, "killed": 35, "surviving": 0, "invalid_syntax": 0},
     "browser_smoke": {
@@ -47,7 +47,7 @@
       "non_fatal_warning": "Next.js smooth-scroll route-transition warning"
     },
     "ci": {
-      "latest_green_run": 37237333756,
+      "latest_green_run": 37269103408,
       "platform_source_sha_equal": true,
       "public_evidence_integration": "PASS"
     }
