@@ -10,7 +10,7 @@
 - Corrected source tree: `62ba12f9fdb51b8aa87d65ce2fa0c34cbe71b08f`
 - Contract source: `contract/contracts/mosaic.py`
 - Canonical source SHA-256: `92a8a514cd3ac556cb033fb2d9cd8dd4164a6c8cec37291e0873de79a85d5b58`
-- Final hardened release candidate: `0x418180Bf909C50c8710C4B378E9113264d484eDF`
+- Final hardened release candidate: `0x97C9AB9afd4dCC03cAeF693cc5c8E93A7Db0395e`
 - Deployment transaction: [`0x785a22183aef5897b4975806f899006bfdb05bd058664b2013fed4304462476f`](https://explorer-studio.genlayer.com/tx/0x785a22183aef5897b4975806f899006bfdb05bd058664b2013fed4304462476f) (`FINALIZED`, `SUCCESS`, `MAJORITY_AGREE`)
 - Receipt: `FINALIZED`, consensus `MAJORITY_AGREE`, leader execution `SUCCESS`
 - Created on 2026-10-03 (Studionet receipt timestamp `1791025599`).

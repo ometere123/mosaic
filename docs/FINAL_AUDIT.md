@@ -18,7 +18,7 @@ Three distinct live fail-closed behaviours have been observed: duplicate PR exec
 ## Superseded canonical release audit
 
 - Repository source and retrieved source for the earlier `0xE8CB904b47e97C0a09bF679525C5BF8b722fF1bD` release match SHA-256 `1563468f5616bf91f910282bf939d254ae1ff6e72052108dee3ee99a7be7cbde` under the documented LF canonicalization; that release is **HISTORICAL/SUPERSEDED**.
-- The corrected hardened release candidate is `0x418180Bf909C50c8710C4B378E9113264d484eDF` on Studionet `61999`; the production frontend is rebound to it. The earlier lifecycle remains historical/superseded and the new canonical lifecycle is gated pending the manual multi-contributor plan.
+- The fresh hardened release candidate is `0x97C9AB9afd4dCC03cAeF693cc5c8E93A7Db0395e` on Studionet `61999`; the production frontend is being rebound to it. The earlier lifecycle remains historical/superseded and the new canonical lifecycle is gated pending the manual multi-contributor plan.
 - The historical Backfill mission `0` (baseline `987fca62be4eaba1741195910e4d2079402e419d`, PR #4, merge `73ad12c5534d713c8fa01efc8c3bdce2f06f2e1c`, proof comment `5970233201`) is superseded evidence and is not the canonical lifecycle for the corrected release candidate.
 - The seal and resolution both finalized with `MAJORITY_AGREE` and successful leader execution. The settlement was terminal `ACHIEVED`, claimant `ACHIEVED`, and the complete registered role map assigned the sole claimant `CORE`.
 - Accounting was verified as `1000000000000000000 = 1000000000000000000 + 0` wei. The parent withdrawal finalized successfully, zeroed `get_balance`, and emitted a finalized EOA transfer to the claimant for 1 GEN with `value_credited: true`.

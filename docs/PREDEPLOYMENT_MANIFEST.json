@@ -1,5 +1,5 @@
 {
-  "status": "PREDEPLOYMENT_CANDIDATE",
+  "status": "DEPLOYED_RELEASE_CANDIDATE",
   "frozen_source_commit": "a78e73daf0ce89cdaaa5fb5fd2eefd8b6b99a91a",
   "frozen_source_tree": "e89fb2862a8e847e2d175287bf28a696a60cc9ab",
   "contract": {
@@ -47,7 +47,7 @@
       "non_fatal_warning": "Next.js smooth-scroll route-transition warning"
     },
     "ci": {
-      "latest_green_run": 37270992511,
+      "latest_green_run": 37293145127,
       "platform_source_sha_equal": true,
       "public_evidence_integration": "PASS"
     }
@@ -60,19 +60,19 @@
     "Browser automation depends on the user-owned Chrome control bridge; live chain evidence is independently reproducible through read-only Studionet calls."
   ],
   "live_validation": {
-    "status": "CORRECTED_HARDENED_SOURCE_DEPLOYED",
+    "status": "DEPLOYED_RELEASE_CANDIDATE",
     "note": "Fresh hardened deployment finalized; canonical live lifecycle remains gated on the manual multi-contributor plan."
   },
   "deployment": {
-    "performed": false,
-    "contract_address": "0x418180Bf909C50c8710C4B378E9113264d484eDF",
+    "performed": true,
+    "contract_address": "0x97C9AB9afd4dCC03cAeF693cc5c8E93A7Db0395e",
     "transaction": {
-      "hash": "0x785a22183aef5897b4975806f899006bfdb05bd058664b2013fed4304462476f",
+      "hash": "0x3a5c8a6a305469d56d183af7c35e116189ea85cb6dc36e347080ec0be8b23668",
       "status": "FINALIZED",
       "execution": "SUCCESS",
       "consensus": "MAJORITY_AGREE"
     },
-    "deployed_source_sha256": "92a8a514cd3ac556cb033fb2d9cd8dd4164a6c8cec37291e0873de79a85d5b58",
+    "deployed_source_sha256": "a9f7ce4fa90ba1299740181c7fbaf5b5a6eb2cea9903a16d93dadecc497028fe",
     "note": "Corrected hardened source deployed and retrieved source hash matches the frozen source.",
     "superseded_hardened_contract_address": "0x9F8d9eA8366948A91ADf34cBf5250a54f85f1eD5",
     "superseded_hardened_deployment_transaction": "0x6df6965d208fd126dfabd8f978eaa21b72d4812e02813ef3933722bde580221f",

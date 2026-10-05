@@ -9,8 +9,8 @@
 | Payout | Deterministic contract code | Fixed 5/3/1 roles, 100/40/0 policy, conservation tests |
 | Recovery | Contract | Retry on source failure; expiry after grace |
 | Browser transaction status | SDK receipt + contract reread | Accepted is provisional; finalized without execution success is not success |
-| Final contract/source | Studionet receipt + source retrieval | `0x418180Bf909C50c8710C4B378E9113264d484eDF`, finalized deployment tx `0x785a22183aef5897b4975806f899006bfdb05bd058664b2013fed4304462476f`, retrieved source canonicalized to SHA-256 `92a8a514cd3ac556cb033fb2d9cd8dd4164a6c8cec37291e0873de79a85d5b58` |
-| Production frontend | Vercel CLI + Git status | Project `mosaic`, deployment `dpl_DnEq3unxhtzshQz7ToBSry5H8LG3`, URL https://themosaic.vercel.app, READY, production contract variable set to `0x418180Bf909C50c8710C4B378E9113264d484eDF` |
+| Final release-candidate contract/source | Studionet receipt + source retrieval | `0x97C9AB9afd4dCC03cAeF693cc5c8E93A7Db0395e`, finalized deployment tx `0x3a5c8a6a305469d56d183af7c35e116189ea85cb6dc36e347080ec0be8b23668`, retrieved source canonicalized to SHA-256 `a9f7ce4fa90ba1299740181c7fbaf5b5a6eb2cea9903a16d93dadecc497028fe` |
+| Production frontend | Vercel CLI + Git status | Project `mosaic`, URL https://themosaic.vercel.app, rebinding to `0x97C9AB9afd4dCC03cAeF693cc5c8E93A7Db0395e` pending the final CLI deployment |
 | Historical/superseded external causal proof | GitHub + contract | Backfill mission `0`, PR `4`, seal and settlement evidence listed below belong to the superseded deployment and are not canonical proof for the corrected release candidate. |
 | Historical/superseded duplicate replay rejection | Final contract receipt + reread | Backfill duplicate replay tx `0x32c7d8fa3e3650887dcf86b8d0e01098065d87628d95ccfc286b1556ae19372c`; preserved as historical evidence only. |
 | Historical/superseded settlement and EOA payout | Final contract receipt + triggered external transfer | Backfill settlement and payout transactions below are preserved as historical/superseded evidence; the corrected deployment lifecycle has not started. |
