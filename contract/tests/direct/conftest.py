@@ -65,7 +65,7 @@ def migrate_legacy_test_verdicts(direct_vm):
         role_items = list(value.get("roles", {}).items())
         roles = {wallet: {"role": role, "evidence_refs": [f"contribution:{index}"] if role != "NO_CREDIT" else []} for index, (wallet, role) in enumerate(role_items)}
         claimant_refs = [f"contribution:{index}" for index, (_, role) in enumerate(role_items) if role != "NO_CREDIT"]
-        row_refs = ["source:0:src/wallet.ts", *claimant_refs] if claimant_status in {"SATISFIED", "PARTIAL"} else ["source:0:src/wallet.ts"]
+        row_refs = ["source:0:src/wallet.ts", *claimant_refs] if claimant_status in {"SATISFIED", "PARTIAL"} or terminal_status in {"SATISFIED", "PARTIAL"} else []
         rows = [{"criterion_index": 0, "terminal_status": terminal_status, "claimant_status": claimant_status, "evidence_refs": row_refs}, {"criterion_index": 1, "terminal_status": terminal_status, "claimant_status": claimant_status, "evidence_refs": row_refs}]
         original(pattern, json.dumps({"criteria": rows, "roles": roles, "rationale": value["rationale"]}))
 
