@@ -1,5 +1,6 @@
 {
   "status": "DEPLOYED_RELEASE_CANDIDATE",
+  "evidence_snapshot": "Updated closeout evidence for the frozen source; filename retained for historical predeployment-manifest compatibility.",
   "frozen_source_commit": "a78e73daf0ce89cdaaa5fb5fd2eefd8b6b99a91a",
   "frozen_source_tree": "e89fb2862a8e847e2d175287bf28a696a60cc9ab",
   "contract": {
@@ -31,9 +32,11 @@
     "react": "19.2.4"
   },
   "evidence": {
-    "direct_mode": {"passed": 138, "total": 139, "skipped": 1},
+    "direct_mode": {"passed": 146, "total": 147, "skipped": 1},
     "validator_adversarial_cases": 12,
-    "contract_mutation": {"unique_meaningful": 72, "killed": 72, "surviving": 0, "invalid_syntax": 0, "equivalent": 0},
+    "static_boundary": {"passed": 5, "total": 5},
+    "mutation_control": {"passed": 151, "skipped": 1},
+    "contract_mutation": {"unique_meaningful": 75, "killed": 75, "surviving": 0, "invalid_syntax": 0, "equivalent": 0},
     "frontend_tests": {"passed": 137, "total": 137},
     "frontend_mutation": {"unique_meaningful": 35, "killed": 35, "surviving": 0, "invalid_syntax": 0},
     "browser_smoke": {
