@@ -1,5 +1,5 @@
 {
-  "status": "HARDENING_DEVELOPMENT",
+  "status": "DEPLOYED_RELEASE_CANDIDATE",
   "frozen_source_commit": "107ebf5a38f441cec6d6cf0e1250d116f3e72f96",
   "frozen_source_tree": "62ba12f9fdb51b8aa87d65ce2fa0c34cbe71b08f",
   "contract": {
@@ -60,20 +60,22 @@
     "Browser automation depends on the user-owned Chrome control bridge; live chain evidence is independently reproducible through read-only Studionet calls."
   ],
   "live_validation": {
-    "status": "FRESH_HARDENED_SOURCE_DEPLOYED",
+    "status": "CORRECTED_HARDENED_SOURCE_DEPLOYED",
     "note": "Fresh hardened deployment finalized; canonical live lifecycle remains gated on the manual multi-contributor plan."
   },
   "deployment": {
     "performed": true,
-    "contract_address": "0x9F8d9eA8366948A91ADf34cBf5250a54f85f1eD5",
+    "contract_address": "0x418180Bf909C50c8710C4B378E9113264d484eDF",
     "transaction": {
-      "hash": "0x6df6965d208fd126dfabd8f978eaa21b72d4812e02813ef3933722bde580221f",
+      "hash": "0x785a22183aef5897b4975806f899006bfdb05bd058664b2013fed4304462476f",
       "status": "FINALIZED",
       "execution": "SUCCESS",
       "consensus": "MAJORITY_AGREE"
     },
-    "deployed_source_sha256": "f6e5a496b0e56d7f1082fd9579fe1ca7e9ab55c7759c28e8c365d70c04c0e831",
-    "note": "Fresh hardened source deployed and retrieved source hash matches the frozen source.",
+    "deployed_source_sha256": "92a8a514cd3ac556cb033fb2d9cd8dd4164a6c8cec37291e0873de79a85d5b58",
+    "note": "Corrected hardened source deployed and retrieved source hash matches the frozen source.",
+    "superseded_hardened_contract_address": "0x9F8d9eA8366948A91ADf34cBf5250a54f85f1eD5",
+    "superseded_hardened_deployment_transaction": "0x6df6965d208fd126dfabd8f978eaa21b72d4812e02813ef3933722bde580221f",
     "historical_contract_address": "0xE8CB904b47e97C0a09bF679525C5BF8b722fF1bD",
     "historical_deployment_transaction": "0xffb52a0012ce2d56108ca2ba8ac64279aff432acfd9eeed2663f016b0f02863a",
     "superseded_contract_address": "0x05fd77aB1f916e36C718E6b55CBdf5F726216d4a",
