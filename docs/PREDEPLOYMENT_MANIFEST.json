@@ -50,7 +50,8 @@
       "non_fatal_warning": "Next.js smooth-scroll route-transition warning"
     },
     "ci": {
-      "latest_green_run": 37293145127,
+      "predeployment_evidence_anchor_run": 37293145127,
+      "ci_status_note": "Historical/predeployment evidence anchor only; current branch CI is authoritative and may contain later successful runs.",
       "platform_source_sha_equal": true,
       "public_evidence_integration": "PASS"
     }
