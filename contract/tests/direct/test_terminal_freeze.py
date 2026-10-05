@@ -238,16 +238,24 @@ def test_failed_machine_check_accepts_only_not_satisfied(direct_vm, direct_deplo
     assert contract.resolve_mission(mission_id) == "settled_not_achieved"
 
 
+@pytest.mark.parametrize("terminal_status", ["SATISFIED", "PARTIAL"])
+def test_failed_machine_check_cannot_be_positive_or_partial(direct_vm, direct_deploy, direct_alice, mission_terms, terminal_status):
+    contract, mission_id, check_ref = _check_mission(direct_vm, direct_deploy, direct_alice, mission_terms, "failure")
+    verdict = {"criteria": [{"criterion_index": 0, "terminal_status": terminal_status, "claimant_status": "NOT_SATISFIED", "evidence_refs": [check_ref]}], "roles": {}, "rationale": "A failed frozen check cannot be rewritten by a model."}
+    direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps(verdict))
+    with direct_vm.expect_revert("invalid_resolution_judgment"):
+        contract.resolve_mission(mission_id)
+
+
 def test_check_evidence_from_another_criterion_is_rejected(direct_vm, direct_deploy, direct_alice, mission_terms):
     criteria = [
         {"text": "first check", "evidence_kind": "GITHUB_CHECK", "check_name": "verify", "check_app_slug": "github-actions"},
-        {"text": "second check", "evidence_kind": "GITHUB_CHECK", "check_name": "lint", "check_app_slug": "github-actions"},
+        {"text": "second check", "evidence_kind": "GITHUB_CHECK", "check_name": "verify", "check_app_slug": "github-actions"},
     ]
     contract, mission_id = create(direct_vm, direct_deploy, direct_alice, {**mission_terms, "criteria": criteria})
     set_block_time(direct_vm, "2026-10-06T10:00:00Z"); direct_vm.clear_mocks(); mock_terminal(direct_vm)
-    direct_vm.mock_web(r".*check-runs.*", {"status": 200, "body": json.dumps({"total_count": 2, "check_runs": [
+    direct_vm.mock_web(r".*check-runs.*", {"status": 200, "body": json.dumps({"total_count": 1, "check_runs": [
         {"id": 42, "name": "verify", "app": {"slug": "github-actions"}, "head_sha": "d" * 40, "status": "completed", "conclusion": "success"},
-        {"id": 43, "name": "lint", "app": {"slug": "github-actions"}, "head_sha": "d" * 40, "status": "completed", "conclusion": "success"},
     ]})})
     assert contract.freeze_terminal(mission_id) == "terminal_frozen"
     mission = json.loads(contract.get_mission(mission_id)); evidence = json.loads(mission["frozen_evidence"]["terminal_state_json"])
