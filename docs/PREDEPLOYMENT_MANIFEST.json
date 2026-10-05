@@ -1,11 +1,11 @@
 {
-  "status": "DEPLOYED_RELEASE_CANDIDATE",
-  "frozen_source_commit": "b5db83a51172206c5314fbdff3c9fcbc161d6f1d",
-  "frozen_source_tree": "996633198feffbaaf6993d68f7f17569a676872c",
+  "status": "HARDENING_DEVELOPMENT",
+  "frozen_source_commit": "ef4c8a6621752f0ead6b2e7e0203667b88ffa640",
+  "frozen_source_tree": "4e5dacf8b10b462e8276e54ca522436c79041f78",
   "contract": {
     "path": "contract/contracts/mosaic.py",
-    "canonical_sha256": "f6e5a496b0e56d7f1082fd9579fe1ca7e9ab55c7759c28e8c365d70c04c0e831",
-    "git_blob_sha256": "f6e5a496b0e56d7f1082fd9579fe1ca7e9ab55c7759c28e8c365d70c04c0e831",
+    "canonical_sha256": "fc4985a34a8982a246bd28005587bce97620ec63476d4c559e15918154b48b86",
+    "git_blob_sha256": "fc4985a34a8982a246bd28005587bce97620ec63476d4c559e15918154b48b86",
     "public_methods": [
       "open_mission", "add_funding", "seal_contribution", "freeze_terminal", "resolve_mission", "expire_unresolved",
       "withdraw", "get_mission", "get_contribution", "get_sponsor_total", "get_balance",
