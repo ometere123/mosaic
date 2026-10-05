@@ -1,9 +1,9 @@
 {
-  "status": "DEPLOYED_RELEASE_CANDIDATE",
-  "repository": {"canonical_branch": "main", "source_anchor": "107ebf5a38f441cec6d6cf0e1250d116f3e72f96"},
-  "contract_source": {"commit": "107ebf5a38f441cec6d6cf0e1250d116f3e72f96", "tree": "62ba12f9fdb51b8aa87d65ce2fa0c34cbe71b08f", "path": "contract/contracts/mosaic.py", "sha256": "92a8a514cd3ac556cb033fb2d9cd8dd4164a6c8cec37291e0873de79a85d5b58"},
+  "status": "PREDEPLOYMENT_CANDIDATE",
+  "repository": {"canonical_branch": "main", "source_anchor": "a78e73daf0ce89cdaaa5fb5fd2eefd8b6b99a91a"},
+  "contract_source": {"commit": "a78e73daf0ce89cdaaa5fb5fd2eefd8b6b99a91a", "tree": "e89fb2862a8e847e2d175287bf28a696a60cc9ab", "path": "contract/contracts/mosaic.py", "sha256": "a9f7ce4fa90ba1299740181c7fbaf5b5a6eb2cea9903a16d93dadecc497028fe"},
   "network": {"name": "Studionet", "chain_id": 61999, "chain_id_hex": "0xF22F", "rpc": "https://studio.genlayer.com/api", "currency": "GEN"},
-  "deployment": {"contract": "0x418180Bf909C50c8710C4B378E9113264d484eDF", "transaction": "0x785a22183aef5897b4975806f899006bfdb05bd058664b2013fed4304462476f", "status": "FINALIZED", "consensus": "MAJORITY_AGREE", "leader_execution": "SUCCESS", "retrieved_source_sha256": "92a8a514cd3ac556cb033fb2d9cd8dd4164a6c8cec37291e0873de79a85d5b58", "source_correspondence": "retrieved deployed source equals frozen repository source"},
+  "deployment": {"contract": "0x418180Bf909C50c8710C4B378E9113264d484eDF", "transaction": "0x785a22183aef5897b4975806f899006bfdb05bd058664b2013fed4304462476f", "status": "SUPERSEDED_BY_PENDING_SOURCE_CHANGE", "superseded_by_source": "a78e73daf0ce89cdaaa5fb5fd2eefd8b6b99a91a"},
   "frontend": {"project": "mosaic", "project_id": "prj_YuwUxgdIrmVoKwkl9LaGQv4i2ftX", "production_url": "https://themosaic.vercel.app", "production_deployment_id": "dpl_DnEq3unxhtzshQz7ToBSry5H8LG3", "production_deployment_url": "https://mosaic-55vw6c6gt-delealufejoel-4184s-projects.vercel.app", "production_release_commit": "51000d7", "contract_binding": "0x418180Bf909C50c8710C4B378E9113264d484eDF", "production_redeployment": "READY"},
   "ci": {"final_green_run": 37270992511, "final_green_run_before_deployment": 37269103408, "direct_mode": {"passed": 138, "total": 139, "skipped": 1}, "contract_mutation": {"unique_meaningful": 72, "killed": 72, "surviving": 0, "invalid_syntax": 0}, "frontend_tests": {"passed": 137, "total": 137}, "frontend_mutation": {"unique_meaningful": 35, "killed": 35, "surviving": 0}, "windows_portable": "PASS", "ubuntu_verify": "PASS", "public_evidence_integration": "PASS"},
   "canonical_lifecycle": {"status": "NOT_STARTED_MANUAL_PLAN_REQUIRED", "contract": "0x418180Bf909C50c8710C4B378E9113264d484eDF"},

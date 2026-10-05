@@ -1,11 +1,11 @@
 {
-  "status": "DEPLOYED_RELEASE_CANDIDATE",
-  "frozen_source_commit": "107ebf5a38f441cec6d6cf0e1250d116f3e72f96",
-  "frozen_source_tree": "62ba12f9fdb51b8aa87d65ce2fa0c34cbe71b08f",
+  "status": "PREDEPLOYMENT_CANDIDATE",
+  "frozen_source_commit": "a78e73daf0ce89cdaaa5fb5fd2eefd8b6b99a91a",
+  "frozen_source_tree": "e89fb2862a8e847e2d175287bf28a696a60cc9ab",
   "contract": {
     "path": "contract/contracts/mosaic.py",
-    "canonical_sha256": "92a8a514cd3ac556cb033fb2d9cd8dd4164a6c8cec37291e0873de79a85d5b58",
-    "git_blob_sha256": "92a8a514cd3ac556cb033fb2d9cd8dd4164a6c8cec37291e0873de79a85d5b58",
+    "canonical_sha256": "a9f7ce4fa90ba1299740181c7fbaf5b5a6eb2cea9903a16d93dadecc497028fe",
+    "git_blob_sha256": "a9f7ce4fa90ba1299740181c7fbaf5b5a6eb2cea9903a16d93dadecc497028fe",
     "public_methods": [
       "open_mission", "add_funding", "seal_contribution", "freeze_terminal", "resolve_mission", "expire_unresolved",
       "withdraw", "get_mission", "get_contribution", "get_sponsor_total", "get_balance",
@@ -64,7 +64,7 @@
     "note": "Fresh hardened deployment finalized; canonical live lifecycle remains gated on the manual multi-contributor plan."
   },
   "deployment": {
-    "performed": true,
+    "performed": false,
     "contract_address": "0x418180Bf909C50c8710C4B378E9113264d484eDF",
     "transaction": {
       "hash": "0x785a22183aef5897b4975806f899006bfdb05bd058664b2013fed4304462476f",
