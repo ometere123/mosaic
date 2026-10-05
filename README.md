@@ -164,7 +164,7 @@ genvm-lint download --version v0.2.12
 For local development against the canonical release, create `frontend/.env.local`:
 
 ```text
-NEXT_PUBLIC_MOSAIC_CONTRACT_ADDRESS=0x9F8d9eA8366948A91ADf34cBf5250a54f85f1eD5
+NEXT_PUBLIC_MOSAIC_CONTRACT_ADDRESS=0x418180Bf909C50c8710C4B378E9113264d484eDF
 ```
 
 Then:
@@ -214,9 +214,9 @@ npm run check
 
 MOSAIC is deployed on **GenLayer Studionet 61999**.
 
-- Canonical contract: `0x9F8d9eA8366948A91ADf34cBf5250a54f85f1eD5`
+- Canonical contract: `0x418180Bf909C50c8710C4B378E9113264d484eDF`
 - Production: https://themosaic.vercel.app
-- Canonical source SHA-256: `f6e5a496b0e56d7f1082fd9579fe1ca7e9ab55c7759c28e8c365d70c04c0e831`
+- Canonical source SHA-256: `92a8a514cd3ac556cb033fb2d9cd8dd4164a6c8cec37291e0873de79a85d5b58`
 
 See [deployment evidence](docs/DEPLOYMENT.md), [live validation](docs/LIVE_VALIDATION.md), and the machine-readable [release manifest](docs/RELEASE_MANIFEST.json) for exact release records.
 

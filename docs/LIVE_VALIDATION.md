@@ -2,12 +2,12 @@
 
 ## Final canonical release surfaces
 
-- Contract: `0x9F8d9eA8366948A91ADf34cBf5250a54f85f1eD5` (fresh hardened deployment; lifecycle gated pending manual plan)
-- Deployment transaction: `0xffb52a0012ce2d56108ca2ba8ac64279aff432acfd9eeed2663f016b0f02863a` (`FINALIZED`, `MAJORITY_AGREE`, leader execution `SUCCESS`)
+- Contract: `0x418180Bf909C50c8710C4B378E9113264d484eDF` (corrected hardened deployment; lifecycle gated pending manual plan)
+- Deployment transaction: `0x785a22183aef5897b4975806f899006bfdb05bd058664b2013fed4304462476f` (`FINALIZED`, `MAJORITY_AGREE`, leader execution `SUCCESS`)
 - Frontend: https://themosaic.vercel.app
 - Network: Studionet `61999` / `0xF22F`
 
-The earlier MOSAIC-self-validation mission and the old deployment evidence are historical/superseded only. They are not the canonical live proof.
+The earlier MOSAIC-self-validation mission, the Backfill lifecycle on the superseded hardened deployment, and all older deployment evidence are historical/superseded only. They are not canonical live proof for this corrected source.
 
 ## Canonical external-repository lifecycle
 
@@ -50,6 +50,6 @@ Observed adverse evidence on the final contract includes finalized duplicate-PR 
 
 ## Completion status
 
-The canonical external-repository lifecycle is complete: launch, GitHub proof, contribution sealing, resolution, accounting and withdrawal were exercised against the final contract. The corrected payout path was proven by both a successful parent withdrawal and a successful EOA value credit. Live duplicate same-mission PR rejection and real wallet rejection/failure behavior were also observed.
+The corrected hardened deployment is finalized, source-correspondence verified, frontend-rebound and covered by green automated evidence. The prior Backfill lifecycle and corrected payout proof remain historical/superseded evidence; the canonical lifecycle for this deployment has not started and remains gated pending the required manual multi-contributor plan.
 
-The historical failed child-transfer records above remain intentionally preserved: they explain why the superseded deployment was replaced and are not claimed as final payout delivery. Final evidence reconciliation and the hostile audit are complete; CI run `37135654460` and Vercel/Git status are green.
+The historical failed child-transfer records above remain intentionally preserved: they explain why the superseded deployment was replaced and are not claimed as final payout delivery for the corrected source.

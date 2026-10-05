@@ -15,18 +15,18 @@ Mission `0` uses age-qualified external repository `ometere123/backfill`, a genu
 
 Three distinct live fail-closed behaviours have been observed: duplicate PR execution rejection, below-minimum funding rejection before wallet submission, and a real wallet rejection with no state transition. Final completion still requires the remaining browser/wallet QA matrix, evidence reconciliation to the final commit and CI run, and a fresh hostile audit.
 
-## Final canonical release audit
+## Superseded canonical release audit
 
-- Repository source `contract/contracts/mosaic.py` and retrieved source from `0xE8CB904b47e97C0a09bF679525C5BF8b722fF1bD` match SHA-256 `1563468f5616bf91f910282bf939d254ae1ff6e72052108dee3ee99a7be7cbde` under the documented LF canonicalization.
-- The production frontend at https://themosaic.vercel.app is bound to that canonical contract on Studionet `61999`; the superseded addresses remain historical only.
+- Repository source and retrieved source for the earlier `0xE8CB904b47e97C0a09bF679525C5BF8b722fF1bD` release match SHA-256 `1563468f5616bf91f910282bf939d254ae1ff6e72052108dee3ee99a7be7cbde` under the documented LF canonicalization; that release is **HISTORICAL/SUPERSEDED**.
+- The corrected hardened release candidate is `0x418180Bf909C50c8710C4B378E9113264d484eDF` on Studionet `61999`; the production frontend is rebound to it. The earlier lifecycle remains historical/superseded and the new canonical lifecycle is gated pending the manual multi-contributor plan.
 - The canonical external mission is Backfill mission `0`, baseline `987fca62be4eaba1741195910e4d2079402e419d`, PR #4, merge `73ad12c5534d713c8fa01efc8c3bdce2f06f2e1c`, and proof comment `5970233201` by the matching stable GitHub account.
 - The seal and resolution both finalized with `MAJORITY_AGREE` and successful leader execution. The settlement was terminal `ACHIEVED`, claimant `ACHIEVED`, and the complete registered role map assigned the sole claimant `CORE`.
 - Accounting was verified as `1000000000000000000 = 1000000000000000000 + 0` wei. The parent withdrawal finalized successfully, zeroed `get_balance`, and emitted a finalized EOA transfer to the claimant for 1 GEN with `value_credited: true`.
 - The duplicate same-mission PR attempt finalized with `pr_already_sealed`; it did not add a record or move GEN. The deployed frontend distinguishes accepted, finalized-unverified, success and failure states, and durable UI state is reread from contract state.
 - The architecture retains no application backend, database authority, server signer, central payout selector or privileged GitHub proxy. Public GitHub and public RPC failures remain bounded, retryable dependencies; uncertainty moves no GEN.
 
-## Audit close-out
+## Audit close-out for the corrected release candidate
 
-The final documentation and release-evidence reconciliation was committed and CI run `37135654460` completed green. Canonical contract/source correspondence remains verified; the canonical live lifecycle, including the credited EOA payout, is complete; and the Vercel/Git status is green.
+The corrected source/deployment evidence and frontend rebinding were committed; the final verification CI run `37270992511` completed green. Canonical contract/source correspondence remains verified for `0x418180Bf909C50c8710C4B378E9113264d484eDF`, and the Vercel/Git status is green. The corrected canonical lifecycle has not started because the required manual multi-contributor plan is still pending.
 
-At this release checkpoint, no remaining material blocker was identified by the final hostile audit. `RELEASE_MANIFEST.json` contains the exact live transaction references used by this audit.
+At this release checkpoint, no remaining material blocker was identified in the source, deployment, or automated evidence audit. The remaining intentional gate is the manual multi-contributor plan before any new funded lifecycle. `RELEASE_MANIFEST.json` contains the exact deployment and verification anchors.

@@ -47,7 +47,7 @@
       "non_fatal_warning": "Next.js smooth-scroll route-transition warning"
     },
     "ci": {
-      "latest_green_run": 37269103408,
+      "latest_green_run": 37270992511,
       "platform_source_sha_equal": true,
       "public_evidence_integration": "PASS"
     }

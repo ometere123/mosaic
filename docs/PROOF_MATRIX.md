@@ -9,7 +9,7 @@
 | Payout | Deterministic contract code | Fixed 5/3/1 roles, 100/40/0 policy, conservation tests |
 | Recovery | Contract | Retry on source failure; expiry after grace |
 | Browser transaction status | SDK receipt + contract reread | Accepted is provisional; finalized without execution success is not success |
-| Final contract/source | Studionet receipt + source retrieval | `0xE8CB904b47e97C0a09bF679525C5BF8b722fF1bD`, finalized deployment tx `0xffb52a0012ce2d56108ca2ba8ac64279aff432acfd9eeed2663f016b0f02863a`, retrieved source canonicalized to SHA-256 `1563468f5616bf91f910282bf939d254ae1ff6e72052108dee3ee99a7be7cbde` |
+| Final contract/source | Studionet receipt + source retrieval | `0x418180Bf909C50c8710C4B378E9113264d484eDF`, finalized deployment tx `0x785a22183aef5897b4975806f899006bfdb05bd058664b2013fed4304462476f`, retrieved source canonicalized to SHA-256 `92a8a514cd3ac556cb033fb2d9cd8dd4164a6c8cec37291e0873de79a85d5b58` |
 | Production frontend | Vercel CLI + Git status | Project `mosaic`, deployment `dpl_6g2QcTCQCAVV9dP3CzcGVABHccC7`, URL https://themosaic.vercel.app, READY, production contract variable set to the current release-candidate address |
 | Current external causal proof | GitHub + contract | `ometere123/backfill` mission `0`, PR `4`, baseline `987fca62be4eaba1741195910e4d2079402e419d`, merge `73ad12c5534d713c8fa01efc8c3bdce2f06f2e1c`, proof comment `5970233201`, seal tx `0x0d6f55284dc92e0f470d6982a42ec4c3f8a5ce192d14fd6eaae6ff5d3daf36b6` |
 | Current duplicate replay rejection | Final contract receipt + reread | `0x32c7d8fa3e3650887dcf86b8d0e01098065d87628d95ccfc286b1556ae19372c` finalized with execution `ERROR` / `pr_already_sealed`; contributor count stayed one |
