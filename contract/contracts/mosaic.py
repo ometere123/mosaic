@@ -881,6 +881,42 @@ class Mosaic(gl.Contract):
     def __init__(self):
         self.next_mission_id = u256(0)
 
+    def _legacy_preview(self, source_mission_id: u256):
+        fail = lambda stage, reason, stored="", recomputed="": {"ok": False, "stage": stage, "reason": reason, "stored": str(stored)[:160], "recomputed": str(recomputed)[:160]}
+        if int(source_mission_id) != 0:
+            return fail("MISSION_ID", "unsupported_source_mission")
+        try:
+            source = _safe_json(_LegacyMosaic(Address(V2_MOSAIC_ADDRESS)).view().get_mission(source_mission_id))
+        except Exception:
+            return fail("MISSION_READ", "v2_view_failed")
+        if not isinstance(source, dict): return fail("MISSION_JSON", "malformed")
+        if int(source.get("id", -1)) != 0: return fail("MISSION_ID", "mismatch", source.get("id"), 0)
+        if source.get("status") != "TERMINAL_FROZEN": return fail("MISSION_STATUS", "not_frozen", source.get("status"), "TERMINAL_FROZEN")
+        if source.get("migration_status") != "FROZEN_BY_LEGACY_MOSAIC": return fail("MIGRATION_STATUS", "mismatch", source.get("migration_status"), "FROZEN_BY_LEGACY_MOSAIC")
+        if str(source.get("legacy_source_contract", "")).lower() != LEGACY_MOSAIC_ADDRESS: return fail("LEGACY_V1_SOURCE", "mismatch", source.get("legacy_source_contract"), LEGACY_MOSAIC_ADDRESS)
+        if source.get("settlement") not in (None, "") or source.get("settlement_digest", ""): return fail("SETTLEMENT_STATE", "already_settled")
+        if str(source.get("terminal_tip_sha", "")).lower() != LEGACY_TERMINAL_SHA: return fail("TERMINAL_TIP", "mismatch", source.get("terminal_tip_sha"), LEGACY_TERMINAL_SHA)
+        frozen = source.get("frozen_evidence")
+        if not isinstance(frozen, dict): return fail("FROZEN_EVIDENCE", "missing")
+        if _canonical_digest(frozen) != source.get("frozen_evidence_digest"): return fail("FROZEN_EVIDENCE_DIGEST", "mismatch", source.get("frozen_evidence_digest"), _canonical_digest(frozen))
+        count = int(source.get("contribution_count", 0))
+        if count != 2: return fail("CONTRIBUTION_COUNT", "unexpected", count, 2)
+        records = []
+        for i in range(count):
+            try: item = _safe_json(_LegacyMosaic(Address(V2_MOSAIC_ADDRESS)).view().get_contribution(source_mission_id, u256(i)))
+            except Exception: return fail(f"CONTRIBUTION_{i}_READ", "v2_view_failed")
+            if not isinstance(item, dict): return fail(f"CONTRIBUTION_{i}_READ", "malformed")
+            if item.get("status") != "SEALED": return fail(f"CONTRIBUTION_{i}_STATUS", "not_sealed", item.get("status"), "SEALED")
+            records.append(item)
+        wallets = [_wallet(item.get("wallet", "")) for item in records]
+        expected = ["0xca13851553cb7522a8eebfa19938314a6eb2f661", "0xd896103417d3605aea085c0192dcb1cd305da56e"]
+        if wallets != expected: return fail("CONTRIBUTOR_WALLETS", "mismatch", wallets, expected)
+        return {"ok": True, "stage": "READY", "source_contract": V2_MOSAIC_ADDRESS, "source_mission_id": 0, "terminal_tip_sha": source.get("terminal_tip_sha"), "contribution_count": count, "source_pool_wei": source.get("total_funded_wei"), "frozen_evidence_digest": source.get("frozen_evidence_digest"), "mission_evidence_root": source.get("mission_evidence_root"), "resolution_evidence_root": source.get("resolution_evidence_root"), "ordered_contribution_root": source.get("ordered_contribution_root"), "terminal_lineage_root": source.get("terminal_lineage_root"), "terminal_source_digest": source.get("terminal_source_digest"), "import_digest": source.get("legacy_import_digest")}
+
+    @gl.public.view
+    def preview_legacy_import(self, source_mission_id: u256) -> str:
+        return _canonical_json(self._legacy_preview(source_mission_id))
+
     @gl.public.write.payable
     def import_legacy_frozen_mission(self, source_mission_id: u256) -> u256:
         """One-time trustless import of the canonical unresolved V1 mission."""
@@ -888,6 +924,9 @@ class Mosaic(gl.Contract):
             raise gl.vm.UserError("legacy_import_not_available")
         if int(gl.message.value) != 0:
             raise gl.vm.UserError("legacy_import_funding_mismatch")
+        preview = self._legacy_preview(source_mission_id)
+        if not preview.get("ok"):
+            raise gl.vm.UserError("legacy_preview_" + str(preview.get("stage", "invalid")).lower())
         legacy = _LegacyMosaic(Address(V2_MOSAIC_ADDRESS))
         raw = legacy.view().get_mission(source_mission_id)
         source = _safe_json(raw)
