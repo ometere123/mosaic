@@ -1055,6 +1055,22 @@ class Mosaic(gl.Contract):
         imported["role_evidence_components"] = {}
         imported["adjudication_complete"] = False
         imported["adjudication_digest"] = ""
+        imported["terminal_verification_receipt"] = {
+            "version": 1,
+            "mission_terms_digest": imported.get("mission_terms_digest", ""),
+            "baseline_sha": imported.get("baseline_sha", ""),
+            "checkpoint_tip_sha": imported.get("terminal_tip_sha", ""),
+            "checkpointed_at": int(imported.get("closed_at", 0)),
+            "checkpoint_digest": imported.get("legacy_import_digest", ""),
+            "terminal_source_digest": imported.get("terminal_source_digest", ""),
+            "mission_evidence_root": imported.get("mission_evidence_root", ""),
+            "ordered_contribution_root": imported.get("ordered_contribution_root", ""),
+            "terminal_lineage_root": imported.get("terminal_lineage_root", ""),
+            "resolution_evidence_root": imported.get("resolution_evidence_root", ""),
+            "verification_plan_digest": _canonical_digest(imported.get("criteria", [])),
+            "closed_at": int(imported.get("closed_at", 0)),
+        }
+        imported["terminal_verification_receipt_digest"] = _canonical_digest(imported["terminal_verification_receipt"])
         self.missions[0] = json.dumps(imported, sort_keys=True)
         self.next_mission_id = u256(1)
         sponsor = imported["creator"]
@@ -1069,6 +1085,10 @@ class Mosaic(gl.Contract):
         return _component_prompt(mission, index, wallet, self._frozen_adjudication_context(mission))
 
     def _frozen_adjudication_context(self, mission):
+        receipt = mission.get("terminal_verification_receipt")
+        receipt_digest = mission.get("terminal_verification_receipt_digest", "")
+        if not isinstance(receipt, dict) or _canonical_digest(receipt) != receipt_digest:
+            raise gl.vm.UserError("component_terminal_receipt_invalid")
         frozen = mission.get("frozen_evidence")
         if not isinstance(frozen, dict):
             raise gl.vm.UserError("component_frozen_context_missing")
@@ -1367,6 +1387,8 @@ class Mosaic(gl.Contract):
             "terminal_checkpoint": None,
             "checkpoint_digest": "",
             "checkpointed_at": 0,
+            "terminal_verification_receipt": None,
+            "terminal_verification_receipt_digest": "",
             "freeze_not_before": freeze_not_before,
             "closed_at": 0,
             "freeze_attempts": 0,
@@ -1880,6 +1902,22 @@ class Mosaic(gl.Contract):
         mission["terminal_lineage_records"] = lineage_records
         mission["resolution_evidence_root"] = resolution_evidence_root
         mission["ordered_contribution_root"] = ordered_contribution_root
+        mission["terminal_verification_receipt"] = {
+            "version": 1,
+            "mission_terms_digest": mission["mission_terms_digest"],
+            "baseline_sha": mission["baseline_sha"],
+            "checkpoint_tip_sha": checkpoint["checkpoint_tip_sha"],
+            "checkpointed_at": int(checkpoint["checkpointed_at"]),
+            "checkpoint_digest": checkpoint["checkpoint_digest"],
+            "terminal_source_digest": terminal["terminal_source_digest"],
+            "mission_evidence_root": mission_evidence_root,
+            "ordered_contribution_root": ordered_contribution_root,
+            "terminal_lineage_root": terminal_lineage_root,
+            "resolution_evidence_root": resolution_evidence_root,
+            "verification_plan_digest": _canonical_digest(mission["criteria"]),
+            "closed_at": int(mission["closed_at"]),
+        }
+        mission["terminal_verification_receipt_digest"] = _canonical_digest(mission["terminal_verification_receipt"])
         mission["freeze_attempts"] = int(mission["freeze_attempts"]) + 1
         mission["last_freeze"] = "FROZEN"
         mission["status"] = "TERMINAL_FROZEN"
