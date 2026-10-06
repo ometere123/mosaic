@@ -888,7 +888,8 @@ def _component_prompt(mission, criterion_index, wallet=""):
     contributions = [mission.get("contributor_wallets", [])[i] for i in range(len(mission.get("contributor_wallets", [])))]
     if wallet:
         return json.dumps({"kind": "ROLE", "wallet": wallet, "objective": mission.get("objective", ""), "criterion_matrix": mission.get("criterion_results", []), "portfolio": [x for x in evidence if x.get("kind") == "CONTRIBUTION" and _wallet(x.get("wallet", "")) == wallet]}, sort_keys=True)
-    return json.dumps({"kind": "CRITERION", "criterion_index": criterion_index, "criterion": criterion, "terminal_state": mission.get("frozen_evidence", {}).get("terminal_state_json", ""), "evidence": evidence, "claimant_wallets": contributions}, sort_keys=True)
+    manifest = [{"id": x.get("id"), "kind": x.get("kind"), "criterion_index": x.get("criterion_index"), "wallet": x.get("wallet")} for x in evidence if x.get("kind") in {"SOURCE", "GITHUB_CHECK", "CONTRIBUTION"} and (x.get("kind") != "SOURCE" or x.get("criterion_index", criterion_index) == criterion_index)]
+    return json.dumps({"kind": "CRITERION", "criterion_index": criterion_index, "criterion": criterion, "terminal_state": mission.get("frozen_evidence", {}).get("terminal_state_json", ""), "allowed_evidence": manifest, "claimant_wallets": contributions, "status_enum":["SATISFIED","PARTIAL","NOT_SATISFIED","UNVERIFIABLE"], "rules":"Use exact uppercase status enum only. SATISFIED/PARTIAL terminal SOURCE requires a SOURCE ref; positive claimant status requires a CONTRIBUTION ref; use only allowed evidence IDs. Do not emit ACHIEVED, PASS, FAILED, TRUE, FALSE or synonyms."}, sort_keys=True)
 
 
 class Mosaic(gl.Contract):
@@ -1029,26 +1030,36 @@ class Mosaic(gl.Contract):
     def _component_context(self, mission, index, wallet=""):
         return _component_prompt(mission, index, wallet)
 
-    def _run_component(self, prompt, kind, criterion_index=None, wallet=""):
-        def leader_fn():
-            raw = gl.nondet.exec_prompt(
-                prompt + ("\nReturn ONLY JSON: {\"terminal_status\":\"...\",\"claimant_status\":\"...\",\"evidence_refs\":[],\"rationale\":\"...\"}" if kind == "CRITERION" else "\nReturn ONLY JSON: {\"role\":\"CORE|MAJOR|SUPPORTING|NO_CREDIT\",\"evidence_refs\":[],\"rationale\":\"...\"}"),
-                response_format="json",
-            )
-            if not isinstance(raw, dict):
-                raise gl.vm.UserError("component_malformed")
+    def _run_component(self, prompt, kind, criterion_index=None, wallet="", allowed=None, check_kind=False):
+        allowed = allowed or {}
+        def normalize(raw, repair=False):
+            if not isinstance(raw, dict): return None
             if kind == "CRITERION":
-                terminal = str(raw.get("terminal_status", ""))
-                claimant = str(raw.get("claimant_status", ""))
+                terminal = str(raw.get("terminal_status", "")).strip().upper()
+                claimant = str(raw.get("claimant_status", "")).strip().upper()
                 refs = raw.get("evidence_refs", [])
-                if terminal not in COMPONENT_STATUSES or claimant not in COMPONENT_STATUSES or not isinstance(refs, list):
-                    raise gl.vm.UserError("component_invalid_status")
-                return {"terminal_status": terminal, "claimant_status": claimant, "evidence_refs": sorted(set(str(x) for x in refs)), "rationale": str(raw.get("rationale", ""))[:320]}
-            role = str(raw.get("role", ""))
-            refs = raw.get("evidence_refs", [])
-            if role not in IMPACT_ROLES or not isinstance(refs, list):
-                raise gl.vm.UserError("role_invalid")
-            return {"role": role, "evidence_refs": sorted(set(str(x) for x in refs)), "rationale": str(raw.get("rationale", ""))[:320]}
+                if terminal not in COMPONENT_STATUSES or claimant not in COMPONENT_STATUSES or not isinstance(refs, list): return None
+                refs = sorted(set(str(x) for x in refs))
+                if any(x not in allowed for x in refs): return None
+                if criterion_index is not None and allowed.get("__kind") == "SOURCE" and terminal in {"SATISFIED", "PARTIAL"} and not any(allowed[x].get("kind") == "SOURCE" for x in refs): return None
+                if claimant in {"SATISFIED", "PARTIAL"} and not any(allowed[x].get("kind") == "CONTRIBUTION" for x in refs): return None
+                if check_kind and not any(allowed[x].get("kind") == "GITHUB_CHECK" and int(allowed[x].get("criterion_index", -1)) == int(criterion_index) for x in refs): return None
+                return {"terminal_status": terminal, "claimant_status": claimant, "evidence_refs": refs, "rationale": str(raw.get("rationale", ""))[:320]}
+            role = str(raw.get("role", "")).strip().upper(); refs = raw.get("evidence_refs", [])
+            if role not in IMPACT_ROLES or not isinstance(refs, list): return None
+            refs = sorted(set(str(x) for x in refs))
+            if any(x not in allowed for x in refs): return None
+            if ROLE_WEIGHT[role] > 0 and not any(allowed[x].get("kind") == "CONTRIBUTION" and _wallet(allowed[x].get("wallet", "")) == wallet for x in refs): return None
+            return {"role": role, "evidence_refs": refs, "rationale": str(raw.get("rationale", ""))[:320]}
+        correction = "\nThe prior response was invalid. Use ONLY these exact status values: SATISFIED, PARTIAL, NOT_SATISFIED, UNVERIFIABLE. Use only evidence IDs listed below. Positive terminal SOURCE status requires a SOURCE ref. Positive claimant status requires a CONTRIBUTION ref. Return only the required JSON."
+        def leader_fn():
+            suffix = "\nReturn ONLY JSON: {\"terminal_status\":\"SATISFIED|PARTIAL|NOT_SATISFIED|UNVERIFIABLE\",\"claimant_status\":\"SATISFIED|PARTIAL|NOT_SATISFIED|UNVERIFIABLE\",\"evidence_refs\":[],\"rationale\":\"...\"}" if kind == "CRITERION" else "\nReturn ONLY JSON: {\"role\":\"CORE|MAJOR|SUPPORTING|NO_CREDIT\",\"evidence_refs\":[],\"rationale\":\"...\"}"
+            raw = gl.nondet.exec_prompt(prompt + suffix, response_format="json")
+            result = normalize(raw)
+            if result is None:
+                result = normalize(gl.nondet.exec_prompt(prompt + correction + suffix, response_format="json"))
+            if result is None: raise gl.vm.UserError("component_invalid_status")
+            return result
 
         def validator_fn(leaders_res):
             if not isinstance(leaders_res, gl.vm.Return):
@@ -1079,12 +1090,14 @@ class Mosaic(gl.Contract):
                 raise gl.vm.UserError("required_check_unavailable")
             result["terminal_status"] = "SATISFIED" if checks[0].get("conclusion") == "success" else "NOT_SATISFIED"
             result["evidence_refs"] = [checks[0].get("id")]
-            judged = self._run_component(self._component_context(mission, idx), "CRITERION", idx)
+            allowed = {str(x.get("id")): x for x in mission.get("evidence_objects", [])}; allowed["__kind"] = "GITHUB_CHECK"
+            judged = self._run_component(self._component_context(mission, idx), "CRITERION", idx, allowed=allowed, check_kind=True)
             result["claimant_status"] = judged.get("claimant_status", "UNVERIFIABLE")
             result["evidence_refs"] = sorted(set(result["evidence_refs"] + list(judged.get("evidence_refs", []))))
             result["rationale"] = judged.get("rationale", "")
         else:
-            judged = self._run_component(self._component_context(mission, idx), "CRITERION", idx)
+            allowed = {str(x.get("id")): x for x in mission.get("evidence_objects", [])}; allowed["__kind"] = criteria[idx].get("evidence_kind")
+            judged = self._run_component(self._component_context(mission, idx), "CRITERION", idx, allowed=allowed)
             if not isinstance(judged, dict): raise gl.vm.UserError("component_disagreement")
             result.update(judged)
         if result["terminal_status"] not in COMPONENT_STATUSES or result["claimant_status"] not in COMPONENT_STATUSES:
@@ -1123,7 +1136,8 @@ class Mosaic(gl.Contract):
         done = mission.get("role_adjudicated", {})
         if done.get(wallet):
             raise gl.vm.UserError("role_already_adjudicated")
-        raw = self._run_component(self._component_context(mission, 0, wallet), "ROLE", wallet=wallet)
+        allowed = {str(x.get("id")): x for x in mission.get("evidence_objects", [])}
+        raw = self._run_component(self._component_context(mission, 0, wallet), "ROLE", wallet=wallet, allowed=allowed)
         if not isinstance(raw, dict): raise gl.vm.UserError("role_disagreement")
         result = raw
         if result.get("role") not in IMPACT_ROLES:
