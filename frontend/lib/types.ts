@@ -41,6 +41,7 @@ export type Settlement = {
 
 export type Mission = {
   id: number;
+  protocol_version?: number;
   creator: string;
   repo: string;
   target_ref: string;
@@ -58,6 +59,11 @@ export type Mission = {
   ordered_contribution_root?: string;
   /** legacy read compatibility for historical fixtures only */
   close_at?: number;
+  checkpointed_at?: number;
+  checkpoint_digest?: string;
+  terminal_checkpoint?: Record<string, unknown> | null;
+  terminal_verification_receipt?: Record<string, unknown> | null;
+  terminal_verification_receipt_digest?: string;
   status: MissionStatus;
   pool_wei: string;
   total_funded_wei: string;
