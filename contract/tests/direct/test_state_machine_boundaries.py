@@ -72,6 +72,21 @@ def test_add_funding_rejects_after_close(direct_vm, direct_deploy, direct_alice,
         contract.add_funding(mission_id)
 
 
+def test_checkpoint_is_required_and_freezes_latest_preclose_candidate(direct_vm, direct_deploy, direct_alice, mission_terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/mosaic.py")
+    mission_id = open_mission(contract, direct_vm, direct_alice, mission_terms)
+    direct_vm.value = 0
+    set_block_time(direct_vm, "2026-10-05T11:00:00Z")
+    direct_vm.clear_mocks(); mock_terminal(direct_vm)
+    assert contract.checkpoint_terminal(mission_id) == "checkpointed"
+    set_block_time(direct_vm, "2026-10-05T12:30:00Z")
+    assert contract.freeze_terminal(mission_id) == "terminal_frozen"
+    mission = json.loads(contract.get_mission(mission_id))
+    assert mission["terminal_tip_sha"] == "d" * 40
+    assert mission["checkpoint_digest"]
+
+
 def test_seal_contribution_rejects_after_close(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
     set_block_time(direct_vm, "2026-10-01T10:00:00Z")
     contract = direct_deploy("contract/contracts/mosaic.py")
