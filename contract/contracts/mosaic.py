@@ -1389,7 +1389,7 @@ class Mosaic(gl.Contract):
             "residual_wei": "0",
             "mission_evidence_root": "",
             "settlement_digest": "",
-            "mission_terms_digest": _canonical_digest({"repo": repo_slug, "target_ref": target_ref, "baseline_sha": baseline_sha, "title": title, "objective": objective, "criteria": cleaned_criteria, "freeze_not_before": freeze_not_before}),
+            "mission_terms_digest": _canonical_digest({"repo": repo_slug, "target_ref": target_ref, "baseline_sha": baseline_sha, "title": title, "objective": objective, "criteria": cleaned_criteria, "freeze_not_before": freeze_not_before, "close_at": close_at, "protocol_version": 5}),
             "terminal_source_digest": "",
             "terminal_tip_sha": "",
             "terminal_lineage_root": "",
