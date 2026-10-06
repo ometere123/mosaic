@@ -8,7 +8,21 @@ export type MissionOutcome =
   | "EXPIRED"
   | "";
 export type ImpactRole = "CORE" | "MAJOR" | "SUPPORTING" | "NO_CREDIT";
-export type Criterion = { text: string; evidence_kind: "SOURCE" | "GITHUB_CHECK"; check_name?: string; check_app_slug?: string };
+export type Criterion = {
+  text: string;
+  evidence_kind: "SOURCE" | "GITHUB_CHECK" | "DEPLOYMENT_PROBE" | "METRIC_RECEIPT";
+  check_name?: string;
+  check_app_slug?: string;
+  url?: string;
+  expected_status?: number;
+  terminal_sha_field?: string;
+  predicates?: Array<{ field: string; operator: "EQ" | "NE" | "LT" | "LTE" | "GT" | "GTE"; value: string | number | boolean }>;
+  path_or_url?: string;
+  metric_name?: string;
+  comparator?: "EQ" | "NE" | "LT" | "LTE" | "GT" | "GTE";
+  threshold?: number;
+  scale?: number;
+};
 
 export type Settlement = {
   settlement_type: "RESOLVED" | "EXPIRED";
