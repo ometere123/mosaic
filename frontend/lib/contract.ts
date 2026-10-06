@@ -63,7 +63,7 @@ function writer(provider: Eip1193Provider, account: `0x${string}`) {
 }
 
 export async function openMission(provider: Eip1193Provider, account: `0x${string}`, input: {
-  repo: string; targetRef: string; baseline: string; title: string; objective: string; criteria: Array<{ text: string; evidence_kind: "SOURCE" | "GITHUB_CHECK"; check_name?: string; check_app_slug?: string }>; closeAt: number; value: bigint;
+  repo: string; targetRef: string; baseline: string; title: string; objective: string; criteria: Array<{ text: string; evidence_kind: "SOURCE" | "GITHUB_CHECK" | "DEPLOYMENT_PROBE" | "METRIC_RECEIPT"; check_name?: string; check_app_slug?: string; url?: string; expected_status?: number; terminal_sha_field?: string; predicates?: unknown[]; path_or_url?: string; metric_name?: string; comparator?: "EQ" | "NE" | "LT" | "LTE" | "GT" | "GTE"; threshold?: number; scale?: number }>; closeAt: number; value: bigint;
 }) {
   const client = writer(provider, account);
   return client.writeContract({

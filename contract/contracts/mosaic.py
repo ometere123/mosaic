@@ -29,6 +29,9 @@ MAX_OBJECTIVE_CHARS = 1200
 MAX_CRITERION_CHARS = 320
 MAX_CHECK_NAME_CHARS = 120
 MAX_CHECK_APP_SLUG_CHARS = 80
+MAX_PROFILE_URL_CHARS = 240
+MAX_METRIC_NAME_CHARS = 80
+MAX_PROFILE_PREDICATES = 8
 MAX_TARGET_REF_CHARS = 120
 MAX_CHANGED_FILES = 30
 MAX_PATCH_CHARS = 24000
@@ -155,7 +158,8 @@ def _normalise_criteria(value):
     for item in value:
         if not isinstance(item, dict):
             raise gl.vm.UserError("invalid_criterion")
-        if set(item.keys()) - {"text", "evidence_kind", "check_name", "check_app_slug"}:
+        allowed_keys = {"text", "evidence_kind", "check_name", "check_app_slug", "url", "expected_status", "terminal_sha_field", "predicates", "path_or_url", "metric_name", "comparator", "threshold", "scale"}
+        if set(item.keys()) - allowed_keys:
             raise gl.vm.UserError("invalid_criterion_schema")
         text = item.get("text")
         kind = item.get("evidence_kind")
@@ -173,6 +177,31 @@ def _normalise_criteria(value):
                     or not isinstance(app, str) or not app.strip() or len(app.strip()) > MAX_CHECK_APP_SLUG_CHARS):
                 raise gl.vm.UserError("invalid_check_requirement")
             result.append({"text": text, "evidence_kind": kind, "check_name": name.strip(), "check_app_slug": app.strip()})
+        elif kind == "DEPLOYMENT_PROBE":
+            url = item.get("url")
+            status = item.get("expected_status")
+            field = item.get("terminal_sha_field", "")
+            predicates = item.get("predicates", [])
+            if (set(item.keys()) - {"text", "evidence_kind", "url", "expected_status", "terminal_sha_field", "predicates"}
+                    or not isinstance(url, str) or not url.startswith("https://") or len(url) > MAX_PROFILE_URL_CHARS
+                    or not isinstance(status, int) or status < 100 or status > 599
+                    or not isinstance(field, str) or len(field) > 80
+                    or not isinstance(predicates, list) or len(predicates) > MAX_PROFILE_PREDICATES):
+                raise gl.vm.UserError("invalid_deployment_probe")
+            result.append({"text": text, "evidence_kind": kind, "url": url, "expected_status": status, "terminal_sha_field": field, "predicates": predicates})
+        elif kind == "METRIC_RECEIPT":
+            path = item.get("path_or_url")
+            metric = item.get("metric_name")
+            comparator = item.get("comparator")
+            threshold = item.get("threshold")
+            scale = item.get("scale", 1)
+            if (set(item.keys()) - {"text", "evidence_kind", "path_or_url", "metric_name", "comparator", "threshold", "scale"}
+                    or not isinstance(path, str) or not path.startswith(("https://", "/")) or len(path) > MAX_PROFILE_URL_CHARS
+                    or not isinstance(metric, str) or not metric.strip() or len(metric) > MAX_METRIC_NAME_CHARS
+                    or comparator not in {"EQ", "NE", "LT", "LTE", "GT", "GTE"}
+                    or not isinstance(threshold, int) or not isinstance(scale, int) or scale <= 0):
+                raise gl.vm.UserError("invalid_metric_receipt")
+            result.append({"text": text, "evidence_kind": kind, "path_or_url": path, "metric_name": metric.strip(), "comparator": comparator, "threshold": threshold, "scale": scale})
         else:
             raise gl.vm.UserError("invalid_evidence_kind")
     return result
