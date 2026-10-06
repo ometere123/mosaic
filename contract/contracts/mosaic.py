@@ -1024,6 +1024,7 @@ class Mosaic(gl.Contract):
         if not contributors or len(contributors) != len(source.get("contributor_wallets", [])):
             raise gl.vm.UserError("legacy_contributor_set_mismatch")
         imported = dict(source)
+        imported["protocol_version"] = 5
         imported["id"] = 0
         imported["creator"] = _wallet(source.get("creator", ""))
         imported["pool_wei"] = "0"
@@ -1347,6 +1348,7 @@ class Mosaic(gl.Contract):
         sponsor = _wallet(gl.message.sender_address)
         mission = {
             "id": int(mission_id),
+            "protocol_version": 5,
             "creator": sponsor,
             "repo": repo_slug,
             "target_ref": target_ref,
@@ -1882,6 +1884,8 @@ class Mosaic(gl.Contract):
     @gl.public.write
     def resolve_mission(self, mission_id: u256) -> str:
         mission = self._mission(mission_id)
+        if int(mission.get("protocol_version", 1)) >= 5:
+            raise gl.vm.UserError("monolithic_resolver_disabled")
         if mission["status"] != "TERMINAL_FROZEN":
             raise gl.vm.UserError("mission_not_resolvable")
         frozen_evidence = mission.get("frozen_evidence")
