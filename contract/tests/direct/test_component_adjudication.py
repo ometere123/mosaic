@@ -72,3 +72,21 @@ def test_unregistered_role_wallet_is_rejected(direct_vm, direct_deploy, direct_a
     contract, mission_id, _ = _open_frozen(direct_vm, direct_deploy, direct_alice, mission_terms)
     with direct_vm.expect_revert("unregistered_wallet"):
         contract.adjudicate_role(mission_id, "0x0000000000000000000000000000000000000001")
+
+
+def test_checkpoint_source_failure_is_retryable(direct_vm, direct_deploy, direct_alice, mission_terms):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/mosaic.py")
+    direct_vm.sender = direct_alice
+    direct_vm.value = WEI
+    mock_baseline(direct_vm)
+    mission_id = contract.open_mission(
+        mission_terms["repo"], mission_terms["target_ref"], mission_terms["baseline"],
+        mission_terms["title"], mission_terms["objective"],
+        json.dumps(mission_terms["criteria"]), 1791201600,
+    )
+    set_block_time(direct_vm, "2026-10-05T12:30:00Z")
+    direct_vm.value = 0
+    direct_vm.clear_mocks()
+    direct_vm.mock_web(r"api\.github\.com/repos/acme/widget/branches/main$", {"status": 503, "body": "{}"})
+    assert contract.checkpoint_terminal(mission_id) == "source_unavailable"
