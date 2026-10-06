@@ -30,7 +30,7 @@ if (contract.split(/\r?\n/, 1)[0] !== runner) findings.push("Contract runner hea
 
 const publicMethods = [...contract.matchAll(/@gl\.public\.(?:view|write)(?:\.payable)?\s+def\s+(\w+)\s*\(/g)].map((match) => match[1]);
 const expectedMethods = [
-  "preview_legacy_import", "import_legacy_frozen_mission", "adjudicate_resolution", "preview_component_context", "get_terminal_verification_receipt", "adjudicate_criterion", "adjudicate_role", "finalize_adjudication", "fund_and_settle_imported", "settle_finalized", "open_mission", "add_funding", "seal_contribution", "checkpoint_terminal", "freeze_terminal", "resolve_mission", "expire_unresolved",
+  "preview_component_context", "get_terminal_verification_receipt", "adjudicate_criterion", "adjudicate_role", "finalize_adjudication", "settle_finalized", "open_mission", "add_funding", "seal_contribution", "checkpoint_terminal", "freeze_terminal", "resolve_mission", "expire_unresolved",
   "withdraw", "withdraw_for", "get_mission", "get_contribution", "get_sponsor_total", "get_balance",
   "get_author_wallet", "get_wallet_author", "get_next_mission_id",
 ];

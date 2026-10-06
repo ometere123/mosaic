@@ -48,12 +48,6 @@ MAX_RESOLUTION_RATIONALE_CHARS = 1200
 MAX_TERMINAL_FILES = 30
 MAX_TERMINAL_PATCH_CHARS = 24000
 MAX_TERMINAL_TOTAL_CHANGES = 2500
-LEGACY_MOSAIC_ADDRESS = "0x97c9ab9afd4dcc03caef693cc5c8e93a7db0395e"
-V2_MOSAIC_ADDRESS = "0xd9e634650011989b9587537f051b265d2b7fe493"
-LEGACY_MISSION_ID = 0
-LEGACY_TERMINAL_SHA = "82bee53969172af1fcfa575fe4605fb18c974017"
-LEGACY_POOL_WEI = 10 * MIN_FUND_WEI
-
 MISSION_OUTCOMES = {
     "ACHIEVED",
     "MATERIAL_PROGRESS",
@@ -71,20 +65,6 @@ class _Recipient:
         pass
     class Write:
         pass
-
-
-@gl.contract_interface
-class _LegacyMosaic:
-    class View:
-        def get_mission(self, mission_id: u256) -> str:
-            pass
-
-        def get_contribution(self, mission_id: u256, index: u256) -> str:
-            pass
-
-    class Write:
-        pass
-
 
 def _canonical_json(value) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
@@ -1013,144 +993,6 @@ class Mosaic(gl.Contract):
     def __init__(self):
         self.next_mission_id = u256(0)
 
-    def _legacy_preview(self, source_mission_id: u256):
-        fail = lambda stage, reason, stored="", recomputed="": {"ok": False, "stage": stage, "reason": reason, "stored": str(stored)[:160], "recomputed": str(recomputed)[:160]}
-        if int(source_mission_id) != 0:
-            return fail("MISSION_ID", "unsupported_source_mission")
-        try:
-            source = _safe_json(_LegacyMosaic(Address(V2_MOSAIC_ADDRESS)).view().get_mission(source_mission_id))
-        except Exception:
-            return fail("MISSION_READ", "v2_view_failed")
-        if not isinstance(source, dict): return fail("MISSION_JSON", "malformed")
-        if int(source.get("id", -1)) != 0: return fail("MISSION_ID", "mismatch", source.get("id"), 0)
-        if source.get("status") != "TERMINAL_FROZEN": return fail("MISSION_STATUS", "not_frozen", source.get("status"), "TERMINAL_FROZEN")
-        if source.get("migration_status") != "FROZEN_BY_LEGACY_MOSAIC": return fail("MIGRATION_STATUS", "mismatch", source.get("migration_status"), "FROZEN_BY_LEGACY_MOSAIC")
-        if str(source.get("legacy_source_contract", "")).lower() != LEGACY_MOSAIC_ADDRESS: return fail("LEGACY_V1_SOURCE", "mismatch", source.get("legacy_source_contract"), LEGACY_MOSAIC_ADDRESS)
-        if source.get("settlement") not in (None, "") or source.get("settlement_digest", ""): return fail("SETTLEMENT_STATE", "already_settled")
-        if str(source.get("terminal_tip_sha", "")).lower() != LEGACY_TERMINAL_SHA: return fail("TERMINAL_TIP", "mismatch", source.get("terminal_tip_sha"), LEGACY_TERMINAL_SHA)
-        frozen = source.get("frozen_evidence")
-        if not isinstance(frozen, dict): return fail("FROZEN_EVIDENCE", "missing")
-        if _canonical_digest(frozen) != source.get("frozen_evidence_digest"): return fail("FROZEN_EVIDENCE_DIGEST", "mismatch", source.get("frozen_evidence_digest"), _canonical_digest(frozen))
-        count = int(source.get("contribution_count", 0))
-        if count != 2: return fail("CONTRIBUTION_COUNT", "unexpected", count, 2)
-        records = []
-        for i in range(count):
-            try: item = _safe_json(_LegacyMosaic(Address(V2_MOSAIC_ADDRESS)).view().get_contribution(source_mission_id, u256(i)))
-            except Exception: return fail(f"CONTRIBUTION_{i}_READ", "v2_view_failed")
-            if not isinstance(item, dict): return fail(f"CONTRIBUTION_{i}_READ", "malformed")
-            if item.get("status") != "SEALED": return fail(f"CONTRIBUTION_{i}_STATUS", "not_sealed", item.get("status"), "SEALED")
-            records.append(item)
-        wallets = [_wallet(item.get("wallet", "")) for item in records]
-        expected = ["0xca13851553cb7522a8eebfa19938314a6eb2f661", "0xd896103417d3605aea085c0192dcb1cd305da56e"]
-        if wallets != expected: return fail("CONTRIBUTOR_WALLETS", "mismatch", wallets, expected)
-        return {"ok": True, "stage": "READY", "source_contract": V2_MOSAIC_ADDRESS, "source_mission_id": 0, "terminal_tip_sha": source.get("terminal_tip_sha"), "contribution_count": count, "source_pool_wei": source.get("total_funded_wei"), "frozen_evidence_digest": source.get("frozen_evidence_digest"), "mission_evidence_root": source.get("mission_evidence_root"), "resolution_evidence_root": source.get("resolution_evidence_root"), "ordered_contribution_root": source.get("ordered_contribution_root"), "terminal_lineage_root": source.get("terminal_lineage_root"), "terminal_source_digest": source.get("terminal_source_digest"), "import_digest": source.get("legacy_import_digest")}
-
-    @gl.public.view
-    def preview_legacy_import(self, source_mission_id: u256) -> str:
-        return _canonical_json(self._legacy_preview(source_mission_id))
-
-    @gl.public.write.payable
-    def import_legacy_frozen_mission(self, source_mission_id: u256) -> u256:
-        """One-time trustless import of the canonical unresolved V1 mission."""
-        if int(source_mission_id) != LEGACY_MISSION_ID or int(self.next_mission_id) != 0:
-            raise gl.vm.UserError("legacy_import_not_available")
-        if int(gl.message.value) != 0:
-            raise gl.vm.UserError("legacy_import_funding_mismatch")
-        preview = self._legacy_preview(source_mission_id)
-        if not preview.get("ok"):
-            raise gl.vm.UserError("legacy_preview_" + str(preview.get("stage", "invalid")).lower())
-        legacy = _LegacyMosaic(Address(V2_MOSAIC_ADDRESS))
-        raw = legacy.view().get_mission(source_mission_id)
-        source = _safe_json(raw)
-        if not isinstance(source, dict) or int(source.get("id", -1)) != LEGACY_MISSION_ID:
-            raise gl.vm.UserError("legacy_mission_missing")
-        if source.get("status") != "TERMINAL_FROZEN" or source.get("settlement") not in (None, "") or source.get("settlement_digest", "") or source.get("migration_status") != "FROZEN_BY_LEGACY_MOSAIC" or str(source.get("legacy_source_contract", "")).lower() != LEGACY_MOSAIC_ADDRESS:
-            raise gl.vm.UserError("legacy_mission_not_unsettled")
-        frozen = source.get("frozen_evidence")
-        if not isinstance(frozen, dict) or _canonical_digest(frozen) != source.get("frozen_evidence_digest"):
-            raise gl.vm.UserError("legacy_frozen_evidence_invalid")
-        terminal_sha = str(source.get("terminal_tip_sha") or "").lower()
-        terminal = _safe_json(frozen.get("terminal_state_json", ""))
-        if terminal_sha != LEGACY_TERMINAL_SHA or not isinstance(terminal, dict) or terminal.get("terminal_tip_sha") != terminal_sha:
-            raise gl.vm.UserError("legacy_terminal_sha_mismatch")
-        roots = ("mission_evidence_root", "resolution_evidence_root", "ordered_contribution_root", "terminal_lineage_root")
-        if any(not _digest_ok(str(source.get(key) or "")) for key in roots):
-            raise gl.vm.UserError("legacy_root_invalid")
-        count = int(source.get("contribution_count", 0))
-        if count < 1 or count > MAX_CONTRIBUTIONS:
-            raise gl.vm.UserError("legacy_contribution_count_invalid")
-        records = []
-        contributors = []
-        for index in range(count):
-            item = _safe_json(legacy.view().get_contribution(source_mission_id, u256(index)))
-            if not isinstance(item, dict) or item.get("status") != "SEALED" or not _digest_ok(str(item.get("record_commitment") or "")):
-                raise gl.vm.UserError("legacy_contribution_invalid")
-            wallet = _wallet(item.get("wallet", ""))
-            if not re.fullmatch(r"0x[0-9a-f]{40}", wallet):
-                raise gl.vm.UserError("legacy_wallet_invalid")
-            if wallet not in contributors:
-                contributors.append(wallet)
-            records.append(item)
-            self.contributions[f"0:{index}"] = json.dumps(item, sort_keys=True)
-        if not contributors or len(contributors) != len(source.get("contributor_wallets", [])):
-            raise gl.vm.UserError("legacy_contributor_set_mismatch")
-        imported = dict(source)
-        imported["protocol_version"] = 5
-        imported["id"] = 0
-        imported["creator"] = _wallet(source.get("creator", ""))
-        imported["pool_wei"] = "0"
-        imported["total_funded_wei"] = str(LEGACY_POOL_WEI)
-        imported["source_pool_wei"] = str(LEGACY_POOL_WEI)
-        imported["settlement_pool_wei"] = "0"
-        imported["required_settlement_pool_wei"] = str(LEGACY_POOL_WEI)
-        imported["status"] = "TERMINAL_FROZEN"
-        imported["settlement"] = None
-        imported["settlement_digest"] = ""
-        imported["migration_status"] = "FROZEN_BY_LEGACY_MOSAIC"
-        imported["legacy_source_contract"] = LEGACY_MOSAIC_ADDRESS
-        imported["legacy_source_mission_id"] = LEGACY_MISSION_ID
-        imported["legacy_frozen_evidence_digest"] = source.get("frozen_evidence_digest", "")
-        imported["legacy_mission_evidence_root"] = source.get("mission_evidence_root", "")
-        imported["legacy_resolution_evidence_root"] = source.get("resolution_evidence_root", "")
-        imported["legacy_ordered_contribution_root"] = source.get("ordered_contribution_root", "")
-        imported["legacy_terminal_lineage_root"] = source.get("terminal_lineage_root", "")
-        imported["legacy_terminal_tip_sha"] = terminal_sha
-        imported["legacy_terminal_source_digest"] = source.get("terminal_source_digest", "")
-        imported["legacy_import_digest"] = _canonical_digest({"contract": LEGACY_MOSAIC_ADDRESS, "mission_id": 0, "frozen_evidence_digest": source.get("frozen_evidence_digest", ""), "mission_evidence_root": source.get("mission_evidence_root", ""), "resolution_evidence_root": source.get("resolution_evidence_root", ""), "ordered_contribution_root": source.get("ordered_contribution_root", ""), "terminal_lineage_root": source.get("terminal_lineage_root", ""), "terminal_tip_sha": terminal_sha})
-        imported["contributor_wallets"] = contributors
-        imported["criterion_adjudicated"] = [False for _ in imported.get("criteria", [])]
-        imported["criterion_results"] = [{} for _ in imported.get("criteria", [])]
-        imported["role_adjudicated"] = {w: False for w in contributors}
-        imported["role_results"] = {}
-        imported["role_evidence_components"] = {}
-        imported["adjudication_complete"] = False
-        imported["adjudication_digest"] = ""
-        imported["terminal_verification_receipt"] = {
-            "version": 1,
-            "mission_terms_digest": imported.get("mission_terms_digest", ""),
-            "baseline_sha": imported.get("baseline_sha", ""),
-            "checkpoint_tip_sha": imported.get("terminal_tip_sha", ""),
-            "checkpointed_at": int(imported.get("closed_at", 0)),
-            "checkpoint_digest": imported.get("legacy_import_digest", ""),
-            "terminal_source_digest": imported.get("terminal_source_digest", ""),
-            "mission_evidence_root": imported.get("mission_evidence_root", ""),
-            "ordered_contribution_root": imported.get("ordered_contribution_root", ""),
-            "terminal_lineage_root": imported.get("terminal_lineage_root", ""),
-            "resolution_evidence_root": imported.get("resolution_evidence_root", ""),
-            "verification_plan_digest": _canonical_digest(imported.get("criteria", [])),
-            "closed_at": int(imported.get("closed_at", 0)),
-        }
-        imported["terminal_verification_receipt_digest"] = _canonical_digest(imported["terminal_verification_receipt"])
-        self.missions[0] = json.dumps(imported, sort_keys=True)
-        self.next_mission_id = u256(1)
-        sponsor = imported["creator"]
-        self.sponsor_totals[f"0:{sponsor}"] = "0"
-        return u256(0)
-
-    @gl.public.write
-    def adjudicate_resolution(self, mission_id: u256) -> str:
-        raise gl.vm.UserError("componentized_adjudication_required")
-
     def _component_context(self, mission, index, wallet=""):
         return _component_prompt(mission, index, wallet, self._frozen_adjudication_context(mission))
 
@@ -1393,24 +1235,6 @@ class Mosaic(gl.Contract):
         mission["adjudication"] = {"terminal_objective_status": terminal, "claimant_outcome": claimant, "roles": roles, "criterion_matrix": rows, "role_evidence": mission.get("role_evidence_components", {}), "rationale": "componentized adjudication", "judgment_digest": digest, "adjudicated_at": _now_unix()}
         self._save_mission(mission_id, mission)
         return "adjudication_finalized"
-
-    @gl.public.write.payable
-    def fund_and_settle_imported(self, mission_id: u256) -> str:
-        mission = self._mission(mission_id)
-        if mission.get("migration_status") != "FROZEN_BY_LEGACY_MOSAIC" or not mission.get("adjudication_complete") or not mission.get("adjudication"):
-            raise gl.vm.UserError("adjudication_required")
-        if mission.get("status") == "SETTLED":
-            raise gl.vm.UserError("already_settled")
-        required = int(mission.get("required_settlement_pool_wei", LEGACY_POOL_WEI))
-        if int(gl.message.value) != required:
-            raise gl.vm.UserError("settlement_funding_mismatch")
-        mission["pool_wei"] = str(required)
-        self._save_mission(mission_id, mission)
-        adjudication = mission["adjudication"]
-        self._settle(mission_id, mission, adjudication["terminal_objective_status"], adjudication["claimant_outcome"], adjudication["roles"], adjudication["rationale"], adjudication["criterion_matrix"], adjudication["role_evidence"])
-        return "settled_imported"
-
-    @gl.public.write
     def settle_finalized(self, mission_id: u256) -> str:
         """Deterministically settle a normally funded V5 mission.
 
@@ -1419,8 +1243,6 @@ class Mosaic(gl.Contract):
         Imported missions continue to use the payable funding gate above.
         """
         mission = self._mission(mission_id)
-        if mission.get("migration_status") == "FROZEN_BY_LEGACY_MOSAIC":
-            raise gl.vm.UserError("use_imported_settlement_path")
         if mission.get("status") != "TERMINAL_FROZEN":
             raise gl.vm.UserError("mission_not_frozen")
         if mission.get("status") == "SETTLED" or mission.get("settlement"):
