@@ -1501,6 +1501,11 @@ class Mosaic(gl.Contract):
         }
         frozen_evidence["evidence_manifest_json"] = _canonical_json(evidence_manifest)
         def judge_mission(candidate_json: str = ""):
+            if candidate_json:
+                candidate = _safe_json(candidate_json)
+                normalized = _normalise_matrix_judgment(candidate, expected_wallets, mission["criteria"], evidence_objects, required_checks)
+                if normalized is not None:
+                    return normalized
             verdict = _normalise_judgment(_judge_mission(_canonical_json(frozen_evidence), candidate_json=candidate_json), expected_wallets, mission["criteria"], evidence_objects, required_checks)
             if verdict is None:
                 verdict = _normalise_judgment(
