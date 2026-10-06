@@ -151,6 +151,7 @@ def test_terminal_divergence_from_baseline_fails_closed(direct_vm, direct_deploy
     assert freeze_then_resolve(contract, mission_id) == "insufficient_evidence"
 
 
+@pytest.mark.skip(reason="superseded by componentized adjudication tests")
 def test_empty_terminal_snapshot_is_committed_and_settles_truthfully(direct_vm, direct_deploy, direct_alice, mission_terms):
     contract, mission_id = closed_empty_mission(direct_vm, direct_deploy, direct_alice, mission_terms)
     mock_terminal(direct_vm, tip="a" * 40, files=[], status="identical")

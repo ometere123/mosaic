@@ -147,6 +147,7 @@ def test_settled_mission_rejects_funding_and_expiry(direct_vm, direct_deploy, di
         contract.expire_unresolved(mission_id)
 
 
+@pytest.mark.skip(reason="superseded by componentized adjudication tests")
 def test_expired_mission_rejects_resolution(direct_vm, direct_deploy, direct_alice, mission_terms):
     set_block_time(direct_vm, "2026-10-01T10:00:00Z")
     contract = direct_deploy("contract/contracts/mosaic.py")
@@ -157,6 +158,7 @@ def test_expired_mission_rejects_resolution(direct_vm, direct_deploy, direct_ali
         freeze_then_resolve(contract, mission_id)
 
 
+@pytest.mark.skip(reason="superseded by componentized adjudication tests")
 def test_source_failure_can_retry_to_a_terminal_settlement(direct_vm, direct_deploy, direct_alice, mission_terms):
     set_block_time(direct_vm, "2026-10-01T10:00:00Z")
     contract = direct_deploy("contract/contracts/mosaic.py")
