@@ -45,6 +45,7 @@ MAX_TERMINAL_FILES = 30
 MAX_TERMINAL_PATCH_CHARS = 24000
 MAX_TERMINAL_TOTAL_CHANGES = 2500
 LEGACY_MOSAIC_ADDRESS = "0x97c9ab9afd4dcc03caef693cc5c8e93a7db0395e"
+V2_MOSAIC_ADDRESS = "0xd9e634650011989b9587537f051b265d2b7fe493"
 LEGACY_MISSION_ID = 0
 LEGACY_TERMINAL_SHA = "82bee53969172af1fcfa575fe4605fb18c974017"
 LEGACY_POOL_WEI = 10 * MIN_FUND_WEI
@@ -875,12 +876,12 @@ class Mosaic(gl.Contract):
             raise gl.vm.UserError("legacy_import_not_available")
         if int(gl.message.value) != 0:
             raise gl.vm.UserError("legacy_import_funding_mismatch")
-        legacy = gl.get_contract_at(Address(LEGACY_MOSAIC_ADDRESS))
+        legacy = gl.get_contract_at(Address(V2_MOSAIC_ADDRESS))
         raw = legacy.view().get_mission(source_mission_id)
         source = _safe_json(raw)
         if not isinstance(source, dict) or int(source.get("id", -1)) != LEGACY_MISSION_ID:
             raise gl.vm.UserError("legacy_mission_missing")
-        if source.get("status") != "TERMINAL_FROZEN" or source.get("settlement") not in (None, "") or source.get("settlement_digest", ""):
+        if source.get("status") != "TERMINAL_FROZEN" or source.get("settlement") not in (None, "") or source.get("settlement_digest", "") or source.get("migration_status") != "FROZEN_BY_LEGACY_MOSAIC" or str(source.get("legacy_source_contract", "")).lower() != LEGACY_MOSAIC_ADDRESS:
             raise gl.vm.UserError("legacy_mission_not_unsettled")
         frozen = source.get("frozen_evidence")
         if not isinstance(frozen, dict) or _canonical_digest(frozen) != source.get("frozen_evidence_digest"):
