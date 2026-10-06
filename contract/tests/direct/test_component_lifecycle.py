@@ -26,6 +26,9 @@ def test_componentized_source_criteria_finalize_without_monolithic_resolver(
     assert checkpoint_then_freeze(contract, mission_id) == "terminal_frozen"
     frozen = json.loads(contract.get_mission(mission_id))
     source_ref = json.loads(frozen["frozen_evidence"]["terminal_state_json"])["evidence_objects"][0]["id"]
+    assert frozen["terminal_verification_receipt"]["terminal_source_digest"] == frozen["terminal_source_digest"]
+    assert frozen["terminal_verification_receipt"]["mission_terms_digest"] == frozen["mission_terms_digest"]
+    assert frozen["terminal_verification_receipt"]["terminal_lineage_root"] == frozen["terminal_lineage_root"]
     response = json.dumps({
         "terminal_status": "SATISFIED",
         "claimant_status": "NOT_SATISFIED",
@@ -47,3 +50,7 @@ def test_componentized_source_criteria_finalize_without_monolithic_resolver(
     settled = json.loads(contract.get_mission(mission_id))
     assert settled["status"] == "SETTLED"
     assert settled["pool_wei"] == "0"
+    assert settled["settlement"]["resolution_evidence_root"] == settled["resolution_evidence_root"]
+    assert settled["settlement"]["contributor_allocations"] == {}
+    with direct_vm.expect_revert("mission_not_resolvable"):
+        contract.resolve_mission(mission_id)
