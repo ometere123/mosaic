@@ -1289,6 +1289,9 @@ class Mosaic(gl.Contract):
 
         now = _now_unix()
         freeze_not_before = int(freeze_not_before)
+        # V5 derives a hard close deadline from the frozen launch term while
+        # retaining the historical ABI.  The deadline is immutable thereafter.
+        close_at = freeze_not_before + MIN_MISSION_SECONDS
         duration = freeze_not_before - now
         if duration < MIN_MISSION_SECONDS or duration > MAX_MISSION_SECONDS:
             raise gl.vm.UserError("invalid_mission_duration")
@@ -1322,6 +1325,9 @@ class Mosaic(gl.Contract):
             "objective": objective,
             "criteria": cleaned_criteria,
             "created_at": now,
+            "close_at": int(close_at),
+            "last_contribution_sealed_at": 0,
+            "terminal_checkpoint": None,
             "freeze_not_before": freeze_not_before,
             "closed_at": 0,
             "freeze_attempts": 0,
@@ -1368,6 +1374,8 @@ class Mosaic(gl.Contract):
     def add_funding(self, mission_id: u256) -> str:
         mission = self._mission(mission_id)
         self._require_open(mission)
+        if _now_unix() >= int(mission.get("close_at", 0)):
+            raise gl.vm.UserError("mission_closed")
         amount = int(gl.message.value)
         if amount < MIN_FUND_WEI:
             raise gl.vm.UserError("funding_below_minimum")
@@ -1390,6 +1398,8 @@ class Mosaic(gl.Contract):
     def seal_contribution(self, mission_id: u256, pr_number: int, proof_comment_id: int) -> str:
         mission = self._mission(mission_id)
         self._require_open(mission)
+        if _now_unix() >= int(mission.get("close_at", 0)):
+            raise gl.vm.UserError("mission_closed")
         pr_number = int(pr_number)
         proof_comment_id = int(proof_comment_id)
         if pr_number <= 0 or proof_comment_id <= 0:
@@ -1610,8 +1620,37 @@ class Mosaic(gl.Contract):
         mission["contributor_wallets"] = contributors
         mission["last_evidence_status"] = "SEALED"
         mission["contribution_count"] = index + 1
+        mission["last_contribution_sealed_at"] = int(record["sealed_at"])
         self._save_mission(mission_id, mission)
         return f"sealed_{index}"
+
+    @gl.public.write
+    def checkpoint_terminal(self, mission_id: u256) -> str:
+        mission = self._mission(mission_id)
+        now = _now_unix()
+        if mission["status"] != "OPEN":
+            raise gl.vm.UserError("mission_not_checkpointable")
+        if now >= int(mission.get("close_at", 0)):
+            raise gl.vm.UserError("mission_closed")
+        terminal_context = _canonical_json({"repo": mission["repo"], "target_ref": mission["target_ref"], "baseline": mission["baseline_sha"], "criteria": mission["criteria"]})
+        def fetch_terminal_state():
+            return _fetch_terminal_state(terminal_context)
+        terminal = json.loads(gl.eq_principle.strict_eq(fetch_terminal_state))
+        if terminal.get("status") == "SOURCE_UNAVAILABLE":
+            return "source_unavailable"
+        if terminal.get("status") != "OK" or not _sha_ok(str(terminal.get("terminal_tip_sha") or "")):
+            return "insufficient_evidence"
+        candidate = {
+            "checkpoint_tip_sha": str(terminal["terminal_tip_sha"]).lower(),
+            "checkpointed_at": now,
+            "baseline_sha": mission["baseline_sha"],
+            "target_ref": mission["target_ref"],
+            "terminal": terminal,
+            "checkpoint_digest": _canonical_digest({"checkpoint_tip_sha": str(terminal["terminal_tip_sha"]).lower(), "checkpointed_at": now, "baseline_sha": mission["baseline_sha"], "target_ref": mission["target_ref"], "terminal": terminal}),
+        }
+        mission["terminal_checkpoint"] = candidate
+        self._save_mission(mission_id, mission)
+        return "checkpointed"
 
     @gl.public.write
     def freeze_terminal(self, mission_id: u256) -> str:
@@ -1623,10 +1662,16 @@ class Mosaic(gl.Contract):
         if _now_unix() > int(mission["freeze_not_before"]) + UNRESOLVED_GRACE_SECONDS:
             raise gl.vm.UserError("mission_expiry_due")
 
-        terminal_context = _canonical_json({"repo": mission["repo"], "target_ref": mission["target_ref"], "baseline": mission["baseline_sha"], "criteria": mission["criteria"]})
-        def fetch_terminal_state():
-            return _fetch_terminal_state(terminal_context)
-        terminal = json.loads(gl.eq_principle.strict_eq(fetch_terminal_state))
+        checkpoint = mission.get("terminal_checkpoint")
+        if not isinstance(checkpoint, dict):
+            raise gl.vm.UserError("no_valid_terminal_checkpoint")
+        if int(checkpoint.get("checkpointed_at", 0)) > int(mission.get("close_at", 0)):
+            raise gl.vm.UserError("checkpoint_after_close")
+        if int(checkpoint.get("checkpointed_at", 0)) < int(mission.get("last_contribution_sealed_at", 0)):
+            raise gl.vm.UserError("checkpoint_predates_contribution")
+        if _canonical_digest({"checkpoint_tip_sha": checkpoint.get("checkpoint_tip_sha"), "checkpointed_at": checkpoint.get("checkpointed_at"), "baseline_sha": checkpoint.get("baseline_sha"), "target_ref": checkpoint.get("target_ref"), "terminal": checkpoint.get("terminal")}) != checkpoint.get("checkpoint_digest"):
+            raise gl.vm.UserError("invalid_terminal_checkpoint")
+        terminal = checkpoint.get("terminal")
         if terminal.get("status") == "SOURCE_UNAVAILABLE":
             mission["freeze_attempts"] = int(mission["freeze_attempts"]) + 1
             mission["last_freeze"] = "SOURCE_UNAVAILABLE"
