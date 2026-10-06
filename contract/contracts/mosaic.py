@@ -1523,8 +1523,10 @@ class Mosaic(gl.Contract):
                     leader["terminal_objective_status"] == validator["terminal_objective_status"]
                     and leader["claimant_outcome"] == validator["claimant_outcome"]
                     and leader["roles"] == validator["roles"]
-                    and leader.get("criterion_matrix") == validator.get("criterion_matrix")
-                    and leader.get("role_evidence") == validator.get("role_evidence")
+                    and [(row["criterion_index"], row["terminal_status"], row["claimant_status"])
+                         for row in leader.get("criterion_matrix", [])]
+                    == [(row["criterion_index"], row["terminal_status"], row["claimant_status"])
+                        for row in validator.get("criterion_matrix", [])]
                 )
             except Exception:
                 return False
