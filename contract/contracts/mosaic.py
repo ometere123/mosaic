@@ -1214,7 +1214,7 @@ class Mosaic(gl.Contract):
                 if any(x not in allowed for x in refs): return None
                 if criterion_index is not None and allowed.get("__kind") == "SOURCE" and terminal in {"SATISFIED", "PARTIAL"} and not any(allowed[x].get("kind") == "SOURCE" for x in refs): return None
                 if claimant in {"SATISFIED", "PARTIAL"} and not any(allowed[x].get("kind") == "CONTRIBUTION" for x in refs): return None
-                if check_kind and not any(allowed[x].get("kind") == "GITHUB_CHECK" and int(allowed[x].get("criterion_index", -1)) == int(criterion_index) for x in refs): return None
+                if check_kind and not any(allowed[x].get("kind") in {"GITHUB_CHECK", "DEPLOYMENT_PROBE", "METRIC_RECEIPT"} and int(allowed[x].get("criterion_index", -1)) == int(criterion_index) for x in refs): return None
                 return {"terminal_status": terminal, "claimant_status": claimant, "evidence_refs": refs, "rationale": str(raw.get("rationale", ""))[:320]}
             role = str(raw.get("role", "")).strip().upper(); refs = raw.get("evidence_refs", [])
             if role not in IMPACT_ROLES or not isinstance(refs, list): return None
@@ -1260,13 +1260,17 @@ class Mosaic(gl.Contract):
         if idx < len(done) and done[idx]:
             raise gl.vm.UserError("criterion_already_adjudicated")
         result = {"criterion_index": idx, "terminal_status": "", "claimant_status": "", "evidence_refs": [], "rationale": ""}
-        if criteria[idx].get("evidence_kind") == "GITHUB_CHECK":
+        if criteria[idx].get("evidence_kind") in {"GITHUB_CHECK", "DEPLOYMENT_PROBE", "METRIC_RECEIPT"}:
             checks = [x for x in frozen_context["evidence_objects"] if x.get("kind") == "GITHUB_CHECK" and int(x.get("criterion_index", -1)) == idx]
-            if len(checks) != 1 or checks[0].get("status") != "completed":
-                raise gl.vm.UserError("required_check_unavailable")
-            result["terminal_status"] = "SATISFIED" if checks[0].get("conclusion") == "success" else "NOT_SATISFIED"
+            if criteria[idx].get("evidence_kind") == "GITHUB_CHECK":
+                if len(checks) != 1 or checks[0].get("status") != "completed": raise gl.vm.UserError("required_check_unavailable")
+                result["terminal_status"] = "SATISFIED" if checks[0].get("conclusion") == "success" else "NOT_SATISFIED"
+            else:
+                checks = [x for x in frozen_context["evidence_objects"] if x.get("kind") == criteria[idx].get("evidence_kind") and int(x.get("criterion_index", -1)) == idx]
+                if len(checks) != 1: raise gl.vm.UserError("machine_receipt_unavailable")
+                result["terminal_status"] = "SATISFIED"
             result["evidence_refs"] = [checks[0].get("id")]
-            allowed = {str(x.get("id")): x for x in frozen_context["evidence_objects"]}; allowed["__kind"] = "GITHUB_CHECK"
+            allowed = {str(x.get("id")): x for x in frozen_context["evidence_objects"]}; allowed["__kind"] = criteria[idx].get("evidence_kind")
             judged = self._run_component(self._component_context(mission, idx), "CRITERION", idx, allowed=allowed, check_kind=True)
             result["claimant_status"] = judged.get("claimant_status", "UNVERIFIABLE")
             result["evidence_refs"] = sorted(set(result["evidence_refs"] + list(judged.get("evidence_refs", []))))
@@ -1286,10 +1290,11 @@ class Mosaic(gl.Contract):
             raise gl.vm.UserError("component_source_evidence_required")
         if result["claimant_status"] in {"SATISFIED", "PARTIAL"} and not any(allowed[x].get("kind") == "CONTRIBUTION" for x in refs):
             raise gl.vm.UserError("component_claimant_evidence_required")
-        if criteria[idx].get("evidence_kind") == "GITHUB_CHECK":
-            matching = [x for x in refs if allowed[x].get("kind") == "GITHUB_CHECK" and int(allowed[x].get("criterion_index", -1)) == idx]
+        if criteria[idx].get("evidence_kind") in {"GITHUB_CHECK", "DEPLOYMENT_PROBE", "METRIC_RECEIPT"}:
+            expected_kind = criteria[idx].get("evidence_kind")
+            matching = [x for x in refs if allowed[x].get("kind") == expected_kind and int(allowed[x].get("criterion_index", -1)) == idx]
             if len(matching) != 1:
-                raise gl.vm.UserError("component_check_evidence_required")
+                raise gl.vm.UserError("component_machine_evidence_required")
         rows = mission.get("criterion_results", [{} for _ in criteria])
         flags = mission.get("criterion_adjudicated", [False for _ in criteria])
         while len(rows) < len(criteria): rows.append({})
