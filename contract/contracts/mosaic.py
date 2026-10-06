@@ -1081,6 +1081,7 @@ class Mosaic(gl.Contract):
             result["evidence_refs"] = [checks[0].get("id")]
             judged = self._run_component(self._component_context(mission, idx), "CRITERION", idx)
             result["claimant_status"] = judged.get("claimant_status", "UNVERIFIABLE")
+            result["evidence_refs"] = sorted(set(result["evidence_refs"] + list(judged.get("evidence_refs", []))))
             result["rationale"] = judged.get("rationale", "")
         else:
             judged = self._run_component(self._component_context(mission, idx), "CRITERION", idx)
@@ -1088,6 +1089,18 @@ class Mosaic(gl.Contract):
             result.update(judged)
         if result["terminal_status"] not in COMPONENT_STATUSES or result["claimant_status"] not in COMPONENT_STATUSES:
             raise gl.vm.UserError("component_invalid_status")
+        allowed = {str(x.get("id")): x for x in mission.get("evidence_objects", [])}
+        refs = [str(x) for x in result.get("evidence_refs", [])]
+        if any(x not in allowed for x in refs):
+            raise gl.vm.UserError("component_unknown_evidence")
+        if criteria[idx].get("evidence_kind") == "SOURCE" and result["terminal_status"] in {"SATISFIED", "PARTIAL"} and not any(allowed[x].get("kind") == "SOURCE" for x in refs):
+            raise gl.vm.UserError("component_source_evidence_required")
+        if result["claimant_status"] in {"SATISFIED", "PARTIAL"} and not any(allowed[x].get("kind") == "CONTRIBUTION" for x in refs):
+            raise gl.vm.UserError("component_claimant_evidence_required")
+        if criteria[idx].get("evidence_kind") == "GITHUB_CHECK":
+            matching = [x for x in refs if allowed[x].get("kind") == "GITHUB_CHECK" and int(allowed[x].get("criterion_index", -1)) == idx]
+            if len(matching) != 1:
+                raise gl.vm.UserError("component_check_evidence_required")
         rows = mission.get("criterion_results", [{} for _ in criteria])
         flags = mission.get("criterion_adjudicated", [False for _ in criteria])
         while len(rows) < len(criteria): rows.append({})
@@ -1116,8 +1129,13 @@ class Mosaic(gl.Contract):
         if result.get("role") not in IMPACT_ROLES:
             raise gl.vm.UserError("role_invalid")
         refs = result.get("evidence_refs", [])
+        allowed = {str(x.get("id")): x for x in mission.get("evidence_objects", [])}
+        if any(str(x) not in allowed for x in refs):
+            raise gl.vm.UserError("role_unknown_evidence")
         if ROLE_WEIGHT[result["role"]] > 0 and not any(str(x).startswith("contribution:") for x in refs):
             raise gl.vm.UserError("role_evidence_required")
+        if ROLE_WEIGHT[result["role"]] > 0 and not any(allowed[str(x)].get("kind") == "CONTRIBUTION" and _wallet(allowed[str(x)].get("wallet", "")) == wallet for x in refs):
+            raise gl.vm.UserError("role_wallet_evidence_mismatch")
         roles = mission.get("role_results", {})
         evidence = mission.get("role_evidence_components", {})
         roles[wallet] = result["role"]
