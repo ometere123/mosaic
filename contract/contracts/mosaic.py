@@ -19,6 +19,7 @@ MIN_FUND_WEI = 10**18
 MIN_MISSION_SECONDS = 60 * 60
 MAX_MISSION_SECONDS = 90 * 24 * 60 * 60
 UNRESOLVED_GRACE_SECONDS = 30 * 24 * 60 * 60
+MAX_CHECKPOINT_AGE_SECONDS = 2 * 60 * 60
 MAX_SPONSORS = 16
 MAX_CONTRIBUTORS = 8
 MAX_CONTRIBUTIONS = 12
@@ -1669,6 +1670,8 @@ class Mosaic(gl.Contract):
             raise gl.vm.UserError("checkpoint_after_close")
         if int(checkpoint.get("checkpointed_at", 0)) < int(mission.get("last_contribution_sealed_at", 0)):
             raise gl.vm.UserError("checkpoint_predates_contribution")
+        if int(mission.get("close_at", 0)) - int(checkpoint.get("checkpointed_at", 0)) > MAX_CHECKPOINT_AGE_SECONDS:
+            raise gl.vm.UserError("checkpoint_too_old")
         if _canonical_digest({"checkpoint_tip_sha": checkpoint.get("checkpoint_tip_sha"), "checkpointed_at": checkpoint.get("checkpointed_at"), "baseline_sha": checkpoint.get("baseline_sha"), "target_ref": checkpoint.get("target_ref"), "terminal": checkpoint.get("terminal")}) != checkpoint.get("checkpoint_digest"):
             raise gl.vm.UserError("invalid_terminal_checkpoint")
         terminal = checkpoint.get("terminal")
