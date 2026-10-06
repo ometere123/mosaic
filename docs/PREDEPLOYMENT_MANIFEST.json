@@ -1,8 +1,8 @@
 {
   "status": "HARDENING_DEVELOPMENT",
   "evidence_snapshot": "Updated closeout evidence for the frozen source; filename retained for historical predeployment-manifest compatibility.",
-  "frozen_source_commit": "d6f4dd4e04c4b40b8b3796662eb25228c0f92081",
-  "frozen_source_tree": "4b3b96ae53b4f5e95942d9247b802ffa30689b23",
+  "frozen_source_commit": "bab7c29d2b3575a2bf5913525858e60514d7eaa4",
+  "frozen_source_tree": "5973e6acbc81ed8dce9876d77da84bf4be10aaff",
   "contract": {
     "path": "contract/contracts/mosaic.py",
     "canonical_sha256": "cffdb15e77eacc42b9a50a0a41b8d724d7c192f460b4b62af8aae8bbb2ae258a",
