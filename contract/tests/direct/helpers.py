@@ -9,6 +9,12 @@ def freeze_then_resolve(contract, mission_id):
     """
     mission = json.loads(contract.get_mission(mission_id))
     if mission["status"] == "OPEN":
+        # Normal lifecycle tests must acquire the immutable terminal checkpoint
+        # before attempting the hard close. Dedicated checkpoint/freeze tests
+        # call the contract methods directly to exercise boundary failures.
+        checkpoint = contract.checkpoint_terminal(mission_id)
+        if checkpoint != "checkpointed":
+            return checkpoint
         result = contract.freeze_terminal(mission_id)
         if result != "terminal_frozen":
             return result
