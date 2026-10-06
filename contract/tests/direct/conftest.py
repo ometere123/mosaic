@@ -67,7 +67,30 @@ def migrate_legacy_test_verdicts(direct_vm):
         claimant_refs = [f"contribution:{index}" for index, (_, role) in enumerate(role_items) if role != "NO_CREDIT"]
         row_refs = ["source:0:src/wallet.ts", *claimant_refs] if claimant_status in {"SATISFIED", "PARTIAL"} or terminal_status in {"SATISFIED", "PARTIAL"} else []
         rows = [{"criterion_index": 0, "terminal_status": terminal_status, "claimant_status": claimant_status, "evidence_refs": row_refs}, {"criterion_index": 1, "terminal_status": terminal_status, "claimant_status": claimant_status, "evidence_refs": row_refs}]
-        original(pattern, json.dumps({"criteria": rows, "roles": roles, "rationale": value["rationale"]}))
+        # Register the same semantic fixture against the component prompts.
+        # This keeps legacy accounting scenarios meaningful while they migrate
+        # to the canonical criterion/role pipeline.
+        original(
+            r'"kind": "CRITERION"',
+            json.dumps({
+                "terminal_status": terminal_status,
+                "claimant_status": claimant_status,
+                "evidence_refs": row_refs,
+                "support_refs": [],
+                "counter_refs": [],
+                "causal_status": "UNSPECIFIED",
+                "reason_code": "IMPLEMENTATION",
+                "rationale": value["rationale"],
+            }),
+        )
+        original(
+            r'"kind": "ROLE"',
+            json.dumps({
+                "role": next(iter(value.get("roles", {}).values()), "NO_CREDIT"),
+                "evidence_refs": claimant_refs,
+                "rationale": value["rationale"],
+            }),
+        )
 
     direct_vm.mock_llm = wrapped
     yield
