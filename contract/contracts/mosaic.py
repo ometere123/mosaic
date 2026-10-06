@@ -65,6 +65,8 @@ ROLE_WEIGHT = {"CORE": 5, "MAJOR": 3, "SUPPORTING": 1, "NO_CREDIT": 0}
 class _Recipient:
     class View:
         pass
+    class Write:
+        pass
 
 
 @gl.contract_interface
@@ -75,9 +77,6 @@ class _LegacyMosaic:
 
         def get_contribution(self, mission_id: u256, index: u256) -> str:
             pass
-
-    class Write:
-        pass
 
     class Write:
         pass
