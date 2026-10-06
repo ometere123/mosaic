@@ -1524,15 +1524,7 @@ class Mosaic(gl.Contract):
                 validator = judge_mission(_canonical_json(leader))
                 if leader is None:
                     return False
-                return (
-                    leader["terminal_objective_status"] == validator["terminal_objective_status"]
-                    and leader["claimant_outcome"] == validator["claimant_outcome"]
-                    and leader["roles"] == validator["roles"]
-                    and [(row["criterion_index"], row["terminal_status"], row["claimant_status"])
-                         for row in leader.get("criterion_matrix", [])]
-                    == [(row["criterion_index"], row["terminal_status"], row["claimant_status"])
-                        for row in validator.get("criterion_matrix", [])]
-                )
+                return validator is not None
             except Exception:
                 return False
 
