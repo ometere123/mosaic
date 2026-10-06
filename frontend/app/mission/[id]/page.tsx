@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useMission } from "@/hooks/use-mission";
 import { useWallet } from "@/hooks/use-wallet";
 import { useTransactions } from "@/hooks/use-transactions";
-import { addFunding, expireMission, freezeTerminal, resolveMission } from "@/lib/contract";
+import { addFunding, adjudicateCriterion, checkpointTerminal, expireMission, freezeTerminal, resolveMission } from "@/lib/contract";
 import { genToWei, shortHex, dateTime, weiToGen } from "@/lib/format";
 import { ensureStudionet } from "@/lib/eip1193";
 import { missionPhase, outcomeTone, StatusStamp } from "@/components/status";
@@ -35,7 +35,7 @@ export default function MissionPage() {
     return () => window.clearInterval(timer);
   }, []);
 
-  const submit = async (action: "fund" | "freeze" | "resolve" | "expire") => {
+  const submit = async (action: "fund" | "checkpoint" | "freeze" | "resolve" | "expire" | `criterion:${number}`) => {
     if (!mission || !wallet.provider || !wallet.address) { await wallet.connect(); return; }
     setActionError(null); setBusy(action);
     try {
@@ -45,10 +45,10 @@ export default function MissionPage() {
         value = genToWei(funding);
         if (value < BigInt(MIN_FUND_GEN) * 10n ** 18n) throw new Error(`Funding must be at least ${MIN_FUND_GEN} GEN.`);
       }
-      const tx = action === "fund" ? await addFunding(wallet.provider, wallet.address, mission.id, value) : action === "freeze" ? await freezeTerminal(wallet.provider, wallet.address, mission.id) : action === "resolve" ? await resolveMission(wallet.provider, wallet.address, mission.id) : await expireMission(wallet.provider, wallet.address, mission.id);
+      const tx = action === "fund" ? await addFunding(wallet.provider, wallet.address, mission.id, value) : action === "checkpoint" ? await checkpointTerminal(wallet.provider, wallet.address, mission.id) : action === "freeze" ? await freezeTerminal(wallet.provider, wallet.address, mission.id) : action === "resolve" ? await resolveMission(wallet.provider, wallet.address, mission.id) : action.startsWith("criterion:") ? await adjudicateCriterion(wallet.provider, wallet.address, mission.id, Number(action.split(":")[1])) : await expireMission(wallet.provider, wallet.address, mission.id);
       const hash = typeof tx === "string" ? tx : String((tx as { hash?: string; transactionHash?: string }).hash ?? (tx as { transactionHash?: string }).transactionHash ?? "");
       if (!hash) throw new Error("No transaction hash returned.");
-      track(hash, action === "fund" ? "Add mission funding" : action === "freeze" ? "Freeze terminal evidence" : action === "resolve" ? "Resolve mission" : "Expire unresolved mission", mission.id);
+      track(hash, action === "fund" ? "Add mission funding" : action === "checkpoint" ? "Checkpoint terminal evidence" : action === "freeze" ? "Freeze terminal evidence" : action === "resolve" ? "Resolve mission" : action.startsWith("criterion:") ? `Adjudicate criterion ${action.split(":")[1]}` : "Expire unresolved mission", mission.id);
       window.setTimeout(() => void refresh(), 2500);
     } catch (e) { setActionError(e instanceof Error ? e.message : "Transaction submission failed."); }
     finally { setBusy(null); }
@@ -92,8 +92,9 @@ export default function MissionPage() {
         <aside className="action-rail">
           <section><span className="eyebrow">Mission state</span><div className="rail-state"><strong>{phase}</strong><p>{mission.status === "OPEN" && now >= freezeAt ? "Freeze is eligible. Funding and merged contribution evidence remain accepted until a successful terminal freeze." : closed ? "This mission is terminal." : "Funding and merged contribution evidence are still accepted."}</p></div></section>
           {!closed && mission.status === "OPEN" && <section><span className="eyebrow">Add funding</span><label className="inline-field">GEN<input value={funding} inputMode="decimal" onChange={(e) => setFunding(e.target.value)} /></label><button className="button full" disabled={busy !== null} onClick={() => void submit("fund")}>{busy === "fund" ? "Awaiting wallet…" : "Add GEN"}</button></section>}
-          {mission.status === "OPEN" && now >= freezeAt && <section><span className="eyebrow">Terminal evidence</span><p className="small-copy">Freeze the terminal target and required checks. This permissionless action ends eligibility and makes evidence immutable.</p><button className="button full" disabled={busy !== null} onClick={() => void submit("freeze")}>{busy === "freeze" ? "Awaiting wallet…" : "Freeze terminal evidence"}</button></section>}
-          {mission.status === "TERMINAL_FROZEN" && <section><span className="eyebrow">Settlement</span><p className="small-copy">Anyone can ask GenLayer validators to resolve the frozen mission from sealed evidence. An inconclusive result moves no GEN.</p><button className="button full" disabled={busy !== null} onClick={() => void submit("resolve")}>{busy === "resolve" ? "Awaiting wallet…" : "Resolve mission"}</button>{graceElapsed && <button className="outline-button full" disabled={busy !== null} onClick={() => void submit("expire")}>Refund after unresolved grace</button>}</section>}
+          {mission.status === "OPEN" && now < (mission.close_at ?? Number.MAX_SAFE_INTEGER) && <section><span className="eyebrow">Terminal checkpoint</span><p className="small-copy">Capture a bounded pre-deadline terminal snapshot before freezing.</p><button className="outline-button full" disabled={busy !== null} onClick={() => void submit("checkpoint")}>{busy === "checkpoint" ? "Awaiting wallet…" : "Checkpoint terminal"}</button></section>}
+          {mission.status === "OPEN" && now >= freezeAt && <section><span className="eyebrow">Terminal evidence</span><p className="small-copy">Freeze the latest valid pre-deadline checkpoint. Post-close branch changes cannot replace it.</p><button className="button full" disabled={busy !== null} onClick={() => void submit("freeze")}>{busy === "freeze" ? "Awaiting wallet…" : "Freeze terminal evidence"}</button></section>}
+          {mission.status === "TERMINAL_FROZEN" && <section><span className="eyebrow">Component adjudication</span><p className="small-copy">Adjudicate each frozen criterion independently; finalization derives settlement deterministically.</p>{mission.criteria.map((_, index) => <button key={index} className="outline-button full" disabled={busy !== null} onClick={() => void submit(`criterion:${index}`)}>{busy === `criterion:${index}` ? "Awaiting validators…" : `Adjudicate criterion ${index + 1}`}</button>)}{graceElapsed && <button className="outline-button full" disabled={busy !== null} onClick={() => void submit("expire")}>Refund after unresolved grace</button>}</section>}
           <section><span className="eyebrow">History</span><dl className="data-list"><div><dt>Evidence failures</dt><dd>{mission.evidence_failures}</dd></div><div><dt>Last evidence</dt><dd>{mission.last_evidence_status || "—"}</dd></div><div><dt>Resolution attempts</dt><dd>{mission.resolution_attempts}</dd></div><div><dt>Last result</dt><dd>{mission.last_resolution || "—"}</dd></div></dl></section>
           {actionError && <div className="notice bad"><strong>Action failed.</strong><span>{actionError}</span></div>}
           {wallet.error && <div className="notice warn"><strong>Wallet.</strong><span>{wallet.error}</span></div>}
