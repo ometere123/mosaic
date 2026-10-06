@@ -1223,20 +1223,29 @@ class Mosaic(gl.Contract):
                 refs = raw.get("evidence_refs", [])
                 if terminal not in COMPONENT_STATUSES or claimant not in COMPONENT_STATUSES or not isinstance(refs, list): return None
                 refs = sorted(set(str(x) for x in refs))
+                support_refs = raw.get("support_refs", [])
+                counter_refs = raw.get("counter_refs", [])
+                causal_status = str(raw.get("causal_status", "UNSPECIFIED")).strip().upper()
+                reason_code = str(raw.get("reason_code", "UNSPECIFIED")).strip().upper()
+                if not isinstance(support_refs, list) or not isinstance(counter_refs, list): return None
+                support_refs = sorted(set(str(x) for x in support_refs)); counter_refs = sorted(set(str(x) for x in counter_refs))
+                if any(x not in allowed for x in support_refs + counter_refs): return None
+                if causal_status not in {"UNSPECIFIED", "CAUSAL", "NON_CAUSAL", "PARTIAL_CAUSAL"}: return None
+                if reason_code not in {"UNSPECIFIED", "IMPLEMENTATION", "REGRESSION", "CHECK", "INSUFFICIENT", "CONTRIBUTION_SCOPE"}: return None
                 if any(x not in allowed for x in refs): return None
                 if criterion_index is not None and allowed.get("__kind") == "SOURCE" and terminal in {"SATISFIED", "PARTIAL"} and not any(allowed[x].get("kind") == "SOURCE" for x in refs): return None
                 if claimant in {"SATISFIED", "PARTIAL"} and not any(allowed[x].get("kind") == "CONTRIBUTION" for x in refs): return None
                 if check_kind and not any(allowed[x].get("kind") in {"GITHUB_CHECK", "DEPLOYMENT_PROBE", "METRIC_RECEIPT"} and int(allowed[x].get("criterion_index", -1)) == int(criterion_index) for x in refs): return None
-                return {"terminal_status": terminal, "claimant_status": claimant, "evidence_refs": refs, "rationale": str(raw.get("rationale", ""))[:320]}
+                return {"terminal_status": terminal, "claimant_status": claimant, "evidence_refs": refs, "support_refs": support_refs, "counter_refs": counter_refs, "causal_status": causal_status, "reason_code": reason_code, "rationale": str(raw.get("rationale", ""))[:320]}
             role = str(raw.get("role", "")).strip().upper(); refs = raw.get("evidence_refs", [])
             if role not in IMPACT_ROLES or not isinstance(refs, list): return None
             refs = sorted(set(str(x) for x in refs))
             if any(x not in allowed for x in refs): return None
             if ROLE_WEIGHT[role] > 0 and not any(allowed[x].get("kind") == "CONTRIBUTION" and _wallet(allowed[x].get("wallet", "")) == wallet for x in refs): return None
             return {"role": role, "evidence_refs": refs, "rationale": str(raw.get("rationale", ""))[:320]}
-        correction = "\nThe prior response was invalid. Use ONLY these exact status values: SATISFIED, PARTIAL, NOT_SATISFIED, UNVERIFIABLE. Use only evidence IDs listed below. Positive terminal SOURCE status requires a SOURCE ref. Positive claimant status requires a CONTRIBUTION ref. Return only the required JSON."
+        correction = "\nThe prior response was invalid. Use ONLY these exact status values: SATISFIED, PARTIAL, NOT_SATISFIED, UNVERIFIABLE. Use only evidence IDs listed below. Positive terminal SOURCE status requires a SOURCE ref. Positive claimant status requires a CONTRIBUTION ref. Include support_refs, counter_refs, causal_status (UNSPECIFIED|CAUSAL|NON_CAUSAL|PARTIAL_CAUSAL), and reason_code (UNSPECIFIED|IMPLEMENTATION|REGRESSION|CHECK|INSUFFICIENT|CONTRIBUTION_SCOPE). Return only the required JSON."
         def leader_fn():
-            suffix = "\nReturn ONLY JSON: {\"terminal_status\":\"SATISFIED|PARTIAL|NOT_SATISFIED|UNVERIFIABLE\",\"claimant_status\":\"SATISFIED|PARTIAL|NOT_SATISFIED|UNVERIFIABLE\",\"evidence_refs\":[],\"rationale\":\"...\"}" if kind == "CRITERION" else "\nReturn ONLY JSON: {\"role\":\"CORE|MAJOR|SUPPORTING|NO_CREDIT\",\"evidence_refs\":[],\"rationale\":\"...\"}"
+            suffix = "\nReturn ONLY JSON: {\"terminal_status\":\"SATISFIED|PARTIAL|NOT_SATISFIED|UNVERIFIABLE\",\"claimant_status\":\"SATISFIED|PARTIAL|NOT_SATISFIED|UNVERIFIABLE\",\"evidence_refs\":[],\"support_refs\":[],\"counter_refs\":[],\"causal_status\":\"UNSPECIFIED|CAUSAL|NON_CAUSAL|PARTIAL_CAUSAL\",\"reason_code\":\"UNSPECIFIED|IMPLEMENTATION|REGRESSION|CHECK|INSUFFICIENT|CONTRIBUTION_SCOPE\",\"rationale\":\"...\"}" if kind == "CRITERION" else "\nReturn ONLY JSON: {\"role\":\"CORE|MAJOR|SUPPORTING|NO_CREDIT\",\"evidence_refs\":[],\"rationale\":\"...\"}"
             raw = gl.nondet.exec_prompt(prompt + suffix, response_format="json")
             result = normalize(raw)
             if result is None:
@@ -1254,6 +1263,10 @@ class Mosaic(gl.Contract):
                     leader.get("terminal_status") == other.get("terminal_status")
                     and leader.get("claimant_status") == other.get("claimant_status")
                     and sorted(leader.get("evidence_refs", [])) == sorted(other.get("evidence_refs", []))
+                    and sorted(leader.get("support_refs", [])) == sorted(other.get("support_refs", []))
+                    and sorted(leader.get("counter_refs", [])) == sorted(other.get("counter_refs", []))
+                    and leader.get("causal_status", "UNSPECIFIED") == other.get("causal_status", "UNSPECIFIED")
+                    and leader.get("reason_code", "UNSPECIFIED") == other.get("reason_code", "UNSPECIFIED")
                 )
             return leader.get("role") == other.get("role") and sorted(leader.get("evidence_refs", [])) == sorted(other.get("evidence_refs", []))
         return gl.vm.run_nondet_unsafe(leader_fn, validator_fn)
@@ -1271,7 +1284,7 @@ class Mosaic(gl.Contract):
         done = mission.get("criterion_adjudicated", [])
         if idx < len(done) and done[idx]:
             raise gl.vm.UserError("criterion_already_adjudicated")
-        result = {"criterion_index": idx, "terminal_status": "", "claimant_status": "", "evidence_refs": [], "rationale": ""}
+        result = {"criterion_index": idx, "terminal_status": "", "claimant_status": "", "evidence_refs": [], "support_refs": [], "counter_refs": [], "causal_status": "UNSPECIFIED", "reason_code": "UNSPECIFIED", "rationale": ""}
         if criteria[idx].get("evidence_kind") in {"GITHUB_CHECK", "DEPLOYMENT_PROBE", "METRIC_RECEIPT"}:
             checks = [x for x in frozen_context["evidence_objects"] if x.get("kind") == "GITHUB_CHECK" and int(x.get("criterion_index", -1)) == idx]
             if criteria[idx].get("evidence_kind") == "GITHUB_CHECK":
@@ -1286,6 +1299,8 @@ class Mosaic(gl.Contract):
             judged = self._run_component(self._component_context(mission, idx), "CRITERION", idx, allowed=allowed, check_kind=True)
             result["claimant_status"] = judged.get("claimant_status", "UNVERIFIABLE")
             result["evidence_refs"] = sorted(set(result["evidence_refs"] + list(judged.get("evidence_refs", []))))
+            result["support_refs"] = list(judged.get("support_refs", [])); result["counter_refs"] = list(judged.get("counter_refs", []))
+            result["causal_status"] = judged.get("causal_status", "UNSPECIFIED"); result["reason_code"] = judged.get("reason_code", "UNSPECIFIED")
             result["rationale"] = judged.get("rationale", "")
         else:
             allowed = {str(x.get("id")): x for x in frozen_context["evidence_objects"]}; allowed["__kind"] = criteria[idx].get("evidence_kind")
@@ -1311,7 +1326,7 @@ class Mosaic(gl.Contract):
         flags = mission.get("criterion_adjudicated", [False for _ in criteria])
         while len(rows) < len(criteria): rows.append({})
         while len(flags) < len(criteria): flags.append(False)
-        rows[idx] = {k: result[k] for k in ("criterion_index", "terminal_status", "claimant_status", "evidence_refs", "rationale")}
+        rows[idx] = {k: result[k] for k in ("criterion_index", "terminal_status", "claimant_status", "evidence_refs", "support_refs", "counter_refs", "causal_status", "reason_code", "rationale")}
         flags[idx] = True
         mission["criterion_results"] = rows
         mission["criterion_adjudicated"] = flags
