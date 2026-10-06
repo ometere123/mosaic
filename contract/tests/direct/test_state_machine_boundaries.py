@@ -108,7 +108,7 @@ def test_seal_contribution_rejects_after_close(direct_vm, direct_deploy, direct_
     set_block_time(direct_vm, "2026-10-06T10:00:00Z"); direct_vm.sender = direct_bob; direct_vm.value = 0
     direct_vm.clear_mocks()
     mock_terminal(direct_vm)
-    assert contract.freeze_terminal(mission_id) == "terminal_frozen"
+    assert checkpoint_then_freeze(contract, mission_id) == "terminal_frozen"
     with direct_vm.expect_revert("mission_not_open"):
         contract.seal_contribution(mission_id, 7, 99)
 
