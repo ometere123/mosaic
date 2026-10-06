@@ -789,7 +789,7 @@ Return ONLY JSON with exactly these fields:
     return gl.nondet.exec_prompt(prompt, response_format="json")
 
 
-def _judge_mission(context_json: str, repair_reason: str = "") -> str:
+def _judge_mission(context_json: str, repair_reason: str = "", candidate_json: str = "") -> str:
     context = json.loads(context_json)
     prompt = f"""You are allocating a funded open-source engineering mission from immutable, consensus-sealed contribution capsules.
 
@@ -816,6 +816,9 @@ EXACT MACHINE-READABLE EVIDENCE MANIFEST:
 
 REPAIR NOTICE (do not repeat the prior error):
 {repair_reason or 'none'}
+
+LEADER CANDIDATE (if present, independently verify and reproduce exactly when valid):
+{candidate_json or 'none'}
 
 The question is NOT who worked hardest and NOT who wrote the most code.
 First judge what the settlement-state target product achieved. Separately judge how much of that surviving result was materially and causally produced by the registered, sealed claimant portfolios. Work by unregistered people may explain terminal success, but it never receives a role or payment and must not turn claimant work into ACHIEVED. A historical PR that was reverted, superseded, or made ineffective in the target snapshot is not automatically creditable.
@@ -1497,11 +1500,11 @@ class Mosaic(gl.Contract):
             "required_checks": required_checks,
         }
         frozen_evidence["evidence_manifest_json"] = _canonical_json(evidence_manifest)
-        def judge_mission():
-            verdict = _normalise_judgment(_judge_mission(_canonical_json(frozen_evidence)), expected_wallets, mission["criteria"], evidence_objects, required_checks)
+        def judge_mission(candidate_json: str = ""):
+            verdict = _normalise_judgment(_judge_mission(_canonical_json(frozen_evidence), candidate_json=candidate_json), expected_wallets, mission["criteria"], evidence_objects, required_checks)
             if verdict is None:
                 verdict = _normalise_judgment(
-                    _judge_mission(_canonical_json(frozen_evidence), "The prior response failed deterministic evidence-membership or wallet-ownership validation. Emit all required refs exactly as listed in the manifest."),
+                    _judge_mission(_canonical_json(frozen_evidence), "The prior response failed deterministic evidence-membership or wallet-ownership validation. Emit all required refs exactly as listed in the manifest.", candidate_json),
                     expected_wallets, mission["criteria"], evidence_objects, required_checks,
                 )
             if verdict is None:
@@ -1513,7 +1516,7 @@ class Mosaic(gl.Contract):
                 if not isinstance(leaders_res, gl.vm.Return):
                     return False
                 leader = _normalise_judgment(leaders_res.calldata, expected_wallets, mission["criteria"], evidence_objects, required_checks)
-                validator = judge_mission()
+                validator = judge_mission(_canonical_json(leader))
                 if leader is None:
                     return False
                 return (
