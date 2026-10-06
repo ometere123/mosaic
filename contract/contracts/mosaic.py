@@ -44,6 +44,11 @@ MAX_RESOLUTION_RATIONALE_CHARS = 1200
 MAX_TERMINAL_FILES = 30
 MAX_TERMINAL_PATCH_CHARS = 24000
 MAX_TERMINAL_TOTAL_CHANGES = 2500
+LEGACY_MOSAIC_ADDRESS = "0x97c9ab9afd4dcc03caef693cc5c8e93a7db0395e"
+V2_MOSAIC_ADDRESS = "0xd9e634650011989b9587537f051b265d2b7fe493"
+LEGACY_MISSION_ID = 0
+LEGACY_TERMINAL_SHA = "82bee53969172af1fcfa575fe4605fb18c974017"
+LEGACY_POOL_WEI = 10 * MIN_FUND_WEI
 
 MISSION_OUTCOMES = {
     "ACHIEVED",
@@ -60,6 +65,18 @@ ROLE_WEIGHT = {"CORE": 5, "MAJOR": 3, "SUPPORTING": 1, "NO_CREDIT": 0}
 class _Recipient:
     class View:
         pass
+    class Write:
+        pass
+
+
+@gl.contract_interface
+class _LegacyMosaic:
+    class View:
+        def get_mission(self, mission_id: u256) -> str:
+            pass
+
+        def get_contribution(self, mission_id: u256, index: u256) -> str:
+            pass
 
     class Write:
         pass
@@ -785,7 +802,7 @@ Return ONLY JSON with exactly these fields:
     return gl.nondet.exec_prompt(prompt, response_format="json")
 
 
-def _judge_mission(context_json: str) -> str:
+def _judge_mission(context_json: str, repair_reason: str = "", candidate_json: str = "") -> str:
     context = json.loads(context_json)
     prompt = f"""You are allocating a funded open-source engineering mission from immutable, consensus-sealed contribution capsules.
 
@@ -806,6 +823,15 @@ SETTLEMENT-STATE TARGET SNAPSHOT:
 
 CONTRIBUTOR PORTFOLIOS:
 {context['portfolios_json']}
+
+EXACT MACHINE-READABLE EVIDENCE MANIFEST:
+{context.get('evidence_manifest_json', '{}')}
+
+REPAIR NOTICE (do not repeat the prior error):
+{repair_reason or 'none'}
+
+LEADER CANDIDATE (if present, independently verify and reproduce exactly when valid):
+{candidate_json or 'none'}
 
 The question is NOT who worked hardest and NOT who wrote the most code.
 First judge what the settlement-state target product achieved. Separately judge how much of that surviving result was materially and causally produced by the registered, sealed claimant portfolios. Work by unregistered people may explain terminal success, but it never receives a role or payment and must not turn claimant work into ACHIEVED. A historical PR that was reverted, superseded, or made ineffective in the target snapshot is not automatically creditable.
@@ -836,9 +862,33 @@ Return ONLY JSON with a criterion matrix. Do not choose top-level economic label
   "roles": {{"<wallet>": {{"role": "CORE|MAJOR|SUPPORTING|NO_CREDIT", "evidence_refs": ["contribution:..."]}}}},
   "rationale": "concise non-economic explanation"
 }}
-Every frozen criterion must appear exactly once, with only committed evidence IDs. Every wallet present in CONTRIBUTOR PORTFOLIOS must appear exactly once in roles. No other wallet may appear. A required failed, pending or missing check cannot be SATISFIED. If there are no registered claimant portfolios, claimant statuses and roles cannot create positive claimant outcome. Deterministic contract code derives both top-level outcomes from this matrix.
+Every frozen criterion must appear exactly once. Use only IDs from the manifest. For SOURCE criteria, positive terminal status requires a SOURCE ref and positive claimant status requires a CONTRIBUTION ref; a row often contains both. For GITHUB_CHECK criteria, the exact matching check ref is mandatory and positive claimant status additionally requires a CONTRIBUTION ref. Roles must be exactly {{"<wallet>": {{"role": "CORE|MAJOR|SUPPORTING|NO_CREDIT", "evidence_refs": ["contribution:<index>"]}}}}. Every expected wallet appears exactly once, positive roles cite a contribution owned by that wallet, and no unknown wallet or evidence ID is allowed. A required failed, pending or missing check cannot be SATISFIED. Deterministic contract code derives both top-level outcomes from this matrix.
 """
     return gl.nondet.exec_prompt(prompt, response_format="json")
+
+
+COMPONENT_STATUSES = {"SATISFIED", "PARTIAL", "NOT_SATISFIED", "UNVERIFIABLE"}
+
+
+def _derive_component_outcome(statuses):
+    vals = list(statuses)
+    if any(v == "UNVERIFIABLE" for v in vals):
+        return "INSUFFICIENT_EVIDENCE"
+    if vals and all(v == "SATISFIED" for v in vals):
+        return "ACHIEVED"
+    if any(v in {"SATISFIED", "PARTIAL"} for v in vals):
+        return "MATERIAL_PROGRESS"
+    return "NOT_ACHIEVED"
+
+
+def _component_prompt(mission, criterion_index, wallet=""):
+    criteria = mission.get("criteria", [])
+    criterion = criteria[criterion_index]
+    evidence = mission.get("evidence_objects", [])
+    contributions = [mission.get("contributor_wallets", [])[i] for i in range(len(mission.get("contributor_wallets", [])))]
+    if wallet:
+        return json.dumps({"kind": "ROLE", "wallet": wallet, "objective": mission.get("objective", ""), "criterion_matrix": mission.get("criterion_results", []), "portfolio": [x for x in evidence if x.get("kind") == "CONTRIBUTION" and _wallet(x.get("wallet", "")) == wallet]}, sort_keys=True)
+    return json.dumps({"kind": "CRITERION", "criterion_index": criterion_index, "criterion": criterion, "terminal_state": mission.get("frozen_evidence", {}).get("terminal_state_json", ""), "evidence": evidence, "claimant_wallets": contributions}, sort_keys=True)
 
 
 class Mosaic(gl.Contract):
@@ -854,6 +904,288 @@ class Mosaic(gl.Contract):
 
     def __init__(self):
         self.next_mission_id = u256(0)
+
+    def _legacy_preview(self, source_mission_id: u256):
+        fail = lambda stage, reason, stored="", recomputed="": {"ok": False, "stage": stage, "reason": reason, "stored": str(stored)[:160], "recomputed": str(recomputed)[:160]}
+        if int(source_mission_id) != 0:
+            return fail("MISSION_ID", "unsupported_source_mission")
+        try:
+            source = _safe_json(_LegacyMosaic(Address(V2_MOSAIC_ADDRESS)).view().get_mission(source_mission_id))
+        except Exception:
+            return fail("MISSION_READ", "v2_view_failed")
+        if not isinstance(source, dict): return fail("MISSION_JSON", "malformed")
+        if int(source.get("id", -1)) != 0: return fail("MISSION_ID", "mismatch", source.get("id"), 0)
+        if source.get("status") != "TERMINAL_FROZEN": return fail("MISSION_STATUS", "not_frozen", source.get("status"), "TERMINAL_FROZEN")
+        if source.get("migration_status") != "FROZEN_BY_LEGACY_MOSAIC": return fail("MIGRATION_STATUS", "mismatch", source.get("migration_status"), "FROZEN_BY_LEGACY_MOSAIC")
+        if str(source.get("legacy_source_contract", "")).lower() != LEGACY_MOSAIC_ADDRESS: return fail("LEGACY_V1_SOURCE", "mismatch", source.get("legacy_source_contract"), LEGACY_MOSAIC_ADDRESS)
+        if source.get("settlement") not in (None, "") or source.get("settlement_digest", ""): return fail("SETTLEMENT_STATE", "already_settled")
+        if str(source.get("terminal_tip_sha", "")).lower() != LEGACY_TERMINAL_SHA: return fail("TERMINAL_TIP", "mismatch", source.get("terminal_tip_sha"), LEGACY_TERMINAL_SHA)
+        frozen = source.get("frozen_evidence")
+        if not isinstance(frozen, dict): return fail("FROZEN_EVIDENCE", "missing")
+        if _canonical_digest(frozen) != source.get("frozen_evidence_digest"): return fail("FROZEN_EVIDENCE_DIGEST", "mismatch", source.get("frozen_evidence_digest"), _canonical_digest(frozen))
+        count = int(source.get("contribution_count", 0))
+        if count != 2: return fail("CONTRIBUTION_COUNT", "unexpected", count, 2)
+        records = []
+        for i in range(count):
+            try: item = _safe_json(_LegacyMosaic(Address(V2_MOSAIC_ADDRESS)).view().get_contribution(source_mission_id, u256(i)))
+            except Exception: return fail(f"CONTRIBUTION_{i}_READ", "v2_view_failed")
+            if not isinstance(item, dict): return fail(f"CONTRIBUTION_{i}_READ", "malformed")
+            if item.get("status") != "SEALED": return fail(f"CONTRIBUTION_{i}_STATUS", "not_sealed", item.get("status"), "SEALED")
+            records.append(item)
+        wallets = [_wallet(item.get("wallet", "")) for item in records]
+        expected = ["0xca13851553cb7522a8eebfa19938314a6eb2f661", "0xd896103417d3605aea085c0192dcb1cd305da56e"]
+        if wallets != expected: return fail("CONTRIBUTOR_WALLETS", "mismatch", wallets, expected)
+        return {"ok": True, "stage": "READY", "source_contract": V2_MOSAIC_ADDRESS, "source_mission_id": 0, "terminal_tip_sha": source.get("terminal_tip_sha"), "contribution_count": count, "source_pool_wei": source.get("total_funded_wei"), "frozen_evidence_digest": source.get("frozen_evidence_digest"), "mission_evidence_root": source.get("mission_evidence_root"), "resolution_evidence_root": source.get("resolution_evidence_root"), "ordered_contribution_root": source.get("ordered_contribution_root"), "terminal_lineage_root": source.get("terminal_lineage_root"), "terminal_source_digest": source.get("terminal_source_digest"), "import_digest": source.get("legacy_import_digest")}
+
+    @gl.public.view
+    def preview_legacy_import(self, source_mission_id: u256) -> str:
+        return _canonical_json(self._legacy_preview(source_mission_id))
+
+    @gl.public.write.payable
+    def import_legacy_frozen_mission(self, source_mission_id: u256) -> u256:
+        """One-time trustless import of the canonical unresolved V1 mission."""
+        if int(source_mission_id) != LEGACY_MISSION_ID or int(self.next_mission_id) != 0:
+            raise gl.vm.UserError("legacy_import_not_available")
+        if int(gl.message.value) != 0:
+            raise gl.vm.UserError("legacy_import_funding_mismatch")
+        preview = self._legacy_preview(source_mission_id)
+        if not preview.get("ok"):
+            raise gl.vm.UserError("legacy_preview_" + str(preview.get("stage", "invalid")).lower())
+        legacy = _LegacyMosaic(Address(V2_MOSAIC_ADDRESS))
+        raw = legacy.view().get_mission(source_mission_id)
+        source = _safe_json(raw)
+        if not isinstance(source, dict) or int(source.get("id", -1)) != LEGACY_MISSION_ID:
+            raise gl.vm.UserError("legacy_mission_missing")
+        if source.get("status") != "TERMINAL_FROZEN" or source.get("settlement") not in (None, "") or source.get("settlement_digest", "") or source.get("migration_status") != "FROZEN_BY_LEGACY_MOSAIC" or str(source.get("legacy_source_contract", "")).lower() != LEGACY_MOSAIC_ADDRESS:
+            raise gl.vm.UserError("legacy_mission_not_unsettled")
+        frozen = source.get("frozen_evidence")
+        if not isinstance(frozen, dict) or _canonical_digest(frozen) != source.get("frozen_evidence_digest"):
+            raise gl.vm.UserError("legacy_frozen_evidence_invalid")
+        terminal_sha = str(source.get("terminal_tip_sha") or "").lower()
+        terminal = _safe_json(frozen.get("terminal_state_json", ""))
+        if terminal_sha != LEGACY_TERMINAL_SHA or not isinstance(terminal, dict) or terminal.get("terminal_tip_sha") != terminal_sha:
+            raise gl.vm.UserError("legacy_terminal_sha_mismatch")
+        roots = ("mission_evidence_root", "resolution_evidence_root", "ordered_contribution_root", "terminal_lineage_root")
+        if any(not _digest_ok(str(source.get(key) or "")) for key in roots):
+            raise gl.vm.UserError("legacy_root_invalid")
+        count = int(source.get("contribution_count", 0))
+        if count < 1 or count > MAX_CONTRIBUTIONS:
+            raise gl.vm.UserError("legacy_contribution_count_invalid")
+        records = []
+        contributors = []
+        for index in range(count):
+            item = _safe_json(legacy.view().get_contribution(source_mission_id, u256(index)))
+            if not isinstance(item, dict) or item.get("status") != "SEALED" or not _digest_ok(str(item.get("record_commitment") or "")):
+                raise gl.vm.UserError("legacy_contribution_invalid")
+            wallet = _wallet(item.get("wallet", ""))
+            if not re.fullmatch(r"0x[0-9a-f]{40}", wallet):
+                raise gl.vm.UserError("legacy_wallet_invalid")
+            if wallet not in contributors:
+                contributors.append(wallet)
+            records.append(item)
+            self.contributions[f"0:{index}"] = json.dumps(item, sort_keys=True)
+        if not contributors or len(contributors) != len(source.get("contributor_wallets", [])):
+            raise gl.vm.UserError("legacy_contributor_set_mismatch")
+        imported = dict(source)
+        imported["id"] = 0
+        imported["creator"] = _wallet(source.get("creator", ""))
+        imported["pool_wei"] = "0"
+        imported["total_funded_wei"] = str(LEGACY_POOL_WEI)
+        imported["source_pool_wei"] = str(LEGACY_POOL_WEI)
+        imported["settlement_pool_wei"] = "0"
+        imported["required_settlement_pool_wei"] = str(LEGACY_POOL_WEI)
+        imported["status"] = "TERMINAL_FROZEN"
+        imported["settlement"] = None
+        imported["settlement_digest"] = ""
+        imported["migration_status"] = "FROZEN_BY_LEGACY_MOSAIC"
+        imported["legacy_source_contract"] = LEGACY_MOSAIC_ADDRESS
+        imported["legacy_source_mission_id"] = LEGACY_MISSION_ID
+        imported["legacy_frozen_evidence_digest"] = source.get("frozen_evidence_digest", "")
+        imported["legacy_mission_evidence_root"] = source.get("mission_evidence_root", "")
+        imported["legacy_resolution_evidence_root"] = source.get("resolution_evidence_root", "")
+        imported["legacy_ordered_contribution_root"] = source.get("ordered_contribution_root", "")
+        imported["legacy_terminal_lineage_root"] = source.get("terminal_lineage_root", "")
+        imported["legacy_terminal_tip_sha"] = terminal_sha
+        imported["legacy_terminal_source_digest"] = source.get("terminal_source_digest", "")
+        imported["legacy_import_digest"] = _canonical_digest({"contract": LEGACY_MOSAIC_ADDRESS, "mission_id": 0, "frozen_evidence_digest": source.get("frozen_evidence_digest", ""), "mission_evidence_root": source.get("mission_evidence_root", ""), "resolution_evidence_root": source.get("resolution_evidence_root", ""), "ordered_contribution_root": source.get("ordered_contribution_root", ""), "terminal_lineage_root": source.get("terminal_lineage_root", ""), "terminal_tip_sha": terminal_sha})
+        imported["contributor_wallets"] = contributors
+        imported["criterion_adjudicated"] = [False for _ in imported.get("criteria", [])]
+        imported["criterion_results"] = [{} for _ in imported.get("criteria", [])]
+        imported["role_adjudicated"] = {w: False for w in contributors}
+        imported["role_results"] = {}
+        imported["role_evidence_components"] = {}
+        imported["adjudication_complete"] = False
+        imported["adjudication_digest"] = ""
+        self.missions[0] = json.dumps(imported, sort_keys=True)
+        self.next_mission_id = u256(1)
+        sponsor = imported["creator"]
+        self.sponsor_totals[f"0:{sponsor}"] = "0"
+        return u256(0)
+
+    @gl.public.write
+    def adjudicate_resolution(self, mission_id: u256) -> str:
+        raise gl.vm.UserError("componentized_adjudication_required")
+
+    def _component_context(self, mission, index, wallet=""):
+        return _component_prompt(mission, index, wallet)
+
+    def _run_component(self, prompt, kind, criterion_index=None, wallet=""):
+        def leader_fn():
+            raw = gl.nondet.exec_prompt(
+                prompt + ("\nReturn ONLY JSON: {\"terminal_status\":\"...\",\"claimant_status\":\"...\",\"evidence_refs\":[],\"rationale\":\"...\"}" if kind == "CRITERION" else "\nReturn ONLY JSON: {\"role\":\"CORE|MAJOR|SUPPORTING|NO_CREDIT\",\"evidence_refs\":[],\"rationale\":\"...\"}"),
+                response_format="json",
+            )
+            if not isinstance(raw, dict):
+                raise gl.vm.UserError("component_malformed")
+            if kind == "CRITERION":
+                terminal = str(raw.get("terminal_status", ""))
+                claimant = str(raw.get("claimant_status", ""))
+                refs = raw.get("evidence_refs", [])
+                if terminal not in COMPONENT_STATUSES or claimant not in COMPONENT_STATUSES or not isinstance(refs, list):
+                    raise gl.vm.UserError("component_invalid_status")
+                return {"terminal_status": terminal, "claimant_status": claimant, "evidence_refs": sorted(set(str(x) for x in refs)), "rationale": str(raw.get("rationale", ""))[:320]}
+            role = str(raw.get("role", ""))
+            refs = raw.get("evidence_refs", [])
+            if role not in IMPACT_ROLES or not isinstance(refs, list):
+                raise gl.vm.UserError("role_invalid")
+            return {"role": role, "evidence_refs": sorted(set(str(x) for x in refs)), "rationale": str(raw.get("rationale", ""))[:320]}
+
+        def validator_fn(leaders_res):
+            if not isinstance(leaders_res, gl.vm.Return):
+                return False
+            other = leader_fn()
+            leader = leaders_res.calldata
+            if kind == "CRITERION":
+                return leader.get("terminal_status") == other.get("terminal_status") and leader.get("claimant_status") == other.get("claimant_status")
+            return leader.get("role") == other.get("role")
+        return gl.vm.run_nondet_unsafe(leader_fn, validator_fn)
+
+    @gl.public.write
+    def adjudicate_criterion(self, mission_id: u256, criterion_index: u256) -> str:
+        mission = self._mission(mission_id)
+        if mission.get("status") != "TERMINAL_FROZEN":
+            raise gl.vm.UserError("mission_not_frozen")
+        idx = int(criterion_index)
+        criteria = mission.get("criteria", [])
+        if idx < 0 or idx >= len(criteria):
+            raise gl.vm.UserError("criterion_not_found")
+        done = mission.get("criterion_adjudicated", [])
+        if idx < len(done) and done[idx]:
+            raise gl.vm.UserError("criterion_already_adjudicated")
+        result = {"criterion_index": idx, "terminal_status": "", "claimant_status": "", "evidence_refs": [], "rationale": ""}
+        if criteria[idx].get("evidence_kind") == "GITHUB_CHECK":
+            checks = [x for x in mission.get("evidence_objects", []) if x.get("kind") == "GITHUB_CHECK" and int(x.get("criterion_index", -1)) == idx]
+            if len(checks) != 1 or checks[0].get("status") != "completed":
+                raise gl.vm.UserError("required_check_unavailable")
+            result["terminal_status"] = "SATISFIED" if checks[0].get("conclusion") == "success" else "NOT_SATISFIED"
+            result["evidence_refs"] = [checks[0].get("id")]
+            judged = self._run_component(self._component_context(mission, idx), "CRITERION", idx)
+            result["claimant_status"] = judged.get("claimant_status", "UNVERIFIABLE")
+            result["evidence_refs"] = sorted(set(result["evidence_refs"] + list(judged.get("evidence_refs", []))))
+            result["rationale"] = judged.get("rationale", "")
+        else:
+            judged = self._run_component(self._component_context(mission, idx), "CRITERION", idx)
+            if not isinstance(judged, dict): raise gl.vm.UserError("component_disagreement")
+            result.update(judged)
+        if result["terminal_status"] not in COMPONENT_STATUSES or result["claimant_status"] not in COMPONENT_STATUSES:
+            raise gl.vm.UserError("component_invalid_status")
+        allowed = {str(x.get("id")): x for x in mission.get("evidence_objects", [])}
+        refs = [str(x) for x in result.get("evidence_refs", [])]
+        if any(x not in allowed for x in refs):
+            raise gl.vm.UserError("component_unknown_evidence")
+        if criteria[idx].get("evidence_kind") == "SOURCE" and result["terminal_status"] in {"SATISFIED", "PARTIAL"} and not any(allowed[x].get("kind") == "SOURCE" for x in refs):
+            raise gl.vm.UserError("component_source_evidence_required")
+        if result["claimant_status"] in {"SATISFIED", "PARTIAL"} and not any(allowed[x].get("kind") == "CONTRIBUTION" for x in refs):
+            raise gl.vm.UserError("component_claimant_evidence_required")
+        if criteria[idx].get("evidence_kind") == "GITHUB_CHECK":
+            matching = [x for x in refs if allowed[x].get("kind") == "GITHUB_CHECK" and int(allowed[x].get("criterion_index", -1)) == idx]
+            if len(matching) != 1:
+                raise gl.vm.UserError("component_check_evidence_required")
+        rows = mission.get("criterion_results", [{} for _ in criteria])
+        flags = mission.get("criterion_adjudicated", [False for _ in criteria])
+        while len(rows) < len(criteria): rows.append({})
+        while len(flags) < len(criteria): flags.append(False)
+        rows[idx] = {k: result[k] for k in ("criterion_index", "terminal_status", "claimant_status", "evidence_refs", "rationale")}
+        flags[idx] = True
+        mission["criterion_results"] = rows
+        mission["criterion_adjudicated"] = flags
+        self._save_mission(mission_id, mission)
+        return "criterion_adjudicated"
+
+    @gl.public.write
+    def adjudicate_role(self, mission_id: u256, wallet: str) -> str:
+        mission = self._mission(mission_id)
+        wallet = _wallet(wallet)
+        if wallet not in [_wallet(x) for x in mission.get("contributor_wallets", [])]:
+            raise gl.vm.UserError("unregistered_wallet")
+        if mission.get("status") != "TERMINAL_FROZEN":
+            raise gl.vm.UserError("mission_not_frozen")
+        done = mission.get("role_adjudicated", {})
+        if done.get(wallet):
+            raise gl.vm.UserError("role_already_adjudicated")
+        raw = self._run_component(self._component_context(mission, 0, wallet), "ROLE", wallet=wallet)
+        if not isinstance(raw, dict): raise gl.vm.UserError("role_disagreement")
+        result = raw
+        if result.get("role") not in IMPACT_ROLES:
+            raise gl.vm.UserError("role_invalid")
+        refs = result.get("evidence_refs", [])
+        allowed = {str(x.get("id")): x for x in mission.get("evidence_objects", [])}
+        if any(str(x) not in allowed for x in refs):
+            raise gl.vm.UserError("role_unknown_evidence")
+        if ROLE_WEIGHT[result["role"]] > 0 and not any(str(x).startswith("contribution:") for x in refs):
+            raise gl.vm.UserError("role_evidence_required")
+        if ROLE_WEIGHT[result["role"]] > 0 and not any(allowed[str(x)].get("kind") == "CONTRIBUTION" and _wallet(allowed[str(x)].get("wallet", "")) == wallet for x in refs):
+            raise gl.vm.UserError("role_wallet_evidence_mismatch")
+        roles = mission.get("role_results", {})
+        evidence = mission.get("role_evidence_components", {})
+        roles[wallet] = result["role"]
+        evidence[wallet] = refs
+        done[wallet] = True
+        mission["role_results"] = roles
+        mission["role_evidence_components"] = evidence
+        mission["role_adjudicated"] = done
+        self._save_mission(mission_id, mission)
+        return "role_adjudicated"
+
+    @gl.public.write
+    def finalize_adjudication(self, mission_id: u256) -> str:
+        mission = self._mission(mission_id)
+        criteria = mission.get("criteria", [])
+        if not all(mission.get("criterion_adjudicated", [])) or len(mission.get("criterion_results", [])) < len(criteria):
+            raise gl.vm.UserError("criteria_incomplete")
+        wallets = [_wallet(x) for x in mission.get("contributor_wallets", [])]
+        if any(not mission.get("role_adjudicated", {}).get(w) for w in wallets):
+            raise gl.vm.UserError("roles_incomplete")
+        rows = mission.get("criterion_results", [])
+        terminal = _derive_component_outcome([r.get("terminal_status") for r in rows])
+        claimant = _derive_component_outcome([r.get("claimant_status") for r in rows])
+        roles = {w: mission.get("role_results", {}).get(w, "NO_CREDIT") for w in wallets}
+        if claimant in {"NOT_ACHIEVED", "INSUFFICIENT_EVIDENCE"} and any(ROLE_WEIGHT[r] > 0 for r in roles.values()):
+            raise gl.vm.UserError("incompatible_roles")
+        digest = _canonical_digest({"frozen_evidence_digest": mission.get("frozen_evidence_digest", ""), "criterion_results": rows, "terminal_objective_status": terminal, "claimant_outcome": claimant, "roles": roles, "role_evidence": mission.get("role_evidence_components", {})})
+        mission["derived_terminal_objective_status"] = terminal
+        mission["derived_claimant_outcome"] = claimant
+        mission["adjudication_digest"] = digest
+        mission["adjudication_complete"] = True
+        mission["adjudication"] = {"terminal_objective_status": terminal, "claimant_outcome": claimant, "roles": roles, "criterion_matrix": rows, "role_evidence": mission.get("role_evidence_components", {}), "rationale": "componentized adjudication", "judgment_digest": digest, "adjudicated_at": _now_unix()}
+        self._save_mission(mission_id, mission)
+        return "adjudication_finalized"
+
+    @gl.public.write.payable
+    def fund_and_settle_imported(self, mission_id: u256) -> str:
+        mission = self._mission(mission_id)
+        if mission.get("migration_status") != "FROZEN_BY_LEGACY_MOSAIC" or not mission.get("adjudication_complete") or not mission.get("adjudication"):
+            raise gl.vm.UserError("adjudication_required")
+        if mission.get("status") == "SETTLED":
+            raise gl.vm.UserError("already_settled")
+        required = int(mission.get("required_settlement_pool_wei", LEGACY_POOL_WEI))
+        if int(gl.message.value) != required:
+            raise gl.vm.UserError("settlement_funding_mismatch")
+        mission["pool_wei"] = str(required)
+        self._save_mission(mission_id, mission)
+        adjudication = mission["adjudication"]
+        self._settle(mission_id, mission, adjudication["terminal_objective_status"], adjudication["claimant_outcome"], adjudication["roles"], adjudication["rationale"], adjudication["criterion_matrix"], adjudication["role_evidence"])
+        return "settled_imported"
 
     @gl.public.write.payable
     def open_mission(
@@ -952,6 +1284,13 @@ class Mosaic(gl.Contract):
             "resolution_evidence_root": "",
             "ordered_contribution_root": "",
             "settlement": None,
+            "criterion_adjudicated": [False for _ in cleaned_criteria],
+            "criterion_results": [{} for _ in cleaned_criteria],
+            "role_adjudicated": {},
+            "role_results": {},
+            "role_evidence_components": {},
+            "adjudication_complete": False,
+            "adjudication_digest": "",
         }
         self.missions[mission_id] = json.dumps(mission, sort_keys=True)
         self.sponsor_totals[f"{int(mission_id)}:{sponsor}"] = str(amount)
@@ -1402,9 +1741,36 @@ class Mosaic(gl.Contract):
         judge_context = _canonical_json(frozen_evidence)
         portfolios = json.loads(frozen_evidence["portfolios_json"])["portfolios"]
         expected_wallets = set(portfolios.keys())
-        def judge_mission():
-            terminal_for_refs = json.loads(frozen_evidence["terminal_state_json"])
-            verdict = _normalise_judgment(_judge_mission(judge_context), expected_wallets, mission["criteria"], terminal_for_refs.get("evidence_objects", []), terminal_for_refs.get("required_checks", []))
+        terminal_for_refs = json.loads(frozen_evidence["terminal_state_json"])
+        evidence_objects = terminal_for_refs.get("evidence_objects", [])
+        required_checks = terminal_for_refs.get("required_checks", [])
+        evidence_manifest = {
+            "criteria": [
+                {"criterion_index": i, "evidence_kind": item.get("evidence_kind"),
+                 **({"check_name": item.get("check_name"), "check_app_slug": item.get("check_app_slug")} if item.get("evidence_kind") == "GITHUB_CHECK" else {})}
+                for i, item in enumerate(mission["criteria"])
+            ],
+            "allowed_evidence": [
+                {key: obj.get(key) for key in ("id", "kind", "criterion_index", "contribution_index", "wallet", "path", "terminal_tip_sha", "name", "app_slug", "run_id", "status", "conclusion") if key in obj}
+                for obj in evidence_objects if isinstance(obj, dict)
+            ],
+            "expected_wallets": sorted(expected_wallets),
+            "required_checks": required_checks,
+        }
+        prompt_evidence = dict(frozen_evidence)
+        prompt_evidence["evidence_manifest_json"] = _canonical_json(evidence_manifest)
+        def judge_mission(candidate_json: str = ""):
+            if candidate_json:
+                candidate = _safe_json(candidate_json)
+                normalized = _normalise_matrix_judgment(candidate, expected_wallets, mission["criteria"], evidence_objects, required_checks)
+                if normalized is not None:
+                    return normalized
+            verdict = _normalise_judgment(_judge_mission(_canonical_json(prompt_evidence), candidate_json=candidate_json), expected_wallets, mission["criteria"], evidence_objects, required_checks)
+            if verdict is None:
+                verdict = _normalise_judgment(
+                    _judge_mission(_canonical_json(prompt_evidence), "The prior response failed deterministic evidence-membership or wallet-ownership validation. Emit all required refs exactly as listed in the manifest.", candidate_json),
+                    expected_wallets, mission["criteria"], evidence_objects, required_checks,
+                )
             if verdict is None:
                 raise gl.vm.UserError("invalid_resolution_judgment")
             return verdict
@@ -1413,17 +1779,15 @@ class Mosaic(gl.Contract):
             try:
                 if not isinstance(leaders_res, gl.vm.Return):
                     return False
-                terminal_for_refs = json.loads(frozen_evidence["terminal_state_json"])
-                leader = _normalise_judgment(leaders_res.calldata, expected_wallets, mission["criteria"], terminal_for_refs.get("evidence_objects", []), terminal_for_refs.get("required_checks", []))
-                validator = judge_mission()
+                leader = _normalise_judgment(leaders_res.calldata, expected_wallets, mission["criteria"], evidence_objects, required_checks)
+                validator = judge_mission(leaders_res.calldata)
                 if leader is None:
                     return False
                 return (
-                    leader["terminal_objective_status"] == validator["terminal_objective_status"]
+                    validator is not None
+                    and leader["terminal_objective_status"] == validator["terminal_objective_status"]
                     and leader["claimant_outcome"] == validator["claimant_outcome"]
                     and leader["roles"] == validator["roles"]
-                    and leader.get("criterion_matrix") == validator.get("criterion_matrix")
-                    and leader.get("role_evidence") == validator.get("role_evidence")
                 )
             except Exception:
                 return False
@@ -1443,6 +1807,20 @@ class Mosaic(gl.Contract):
         if claimant_outcome == "INSUFFICIENT_EVIDENCE":
             self._save_mission(mission_id, mission)
             return "insufficient_evidence"
+
+        if mission.get("migration_status") == "FROZEN_BY_LEGACY_MOSAIC" and int(mission.get("pool_wei", "0")) == 0:
+            mission["adjudication"] = {
+                "terminal_objective_status": terminal_objective_status,
+                "claimant_outcome": claimant_outcome,
+                "roles": roles,
+                "criterion_matrix": criterion_matrix,
+                "role_evidence": role_evidence,
+                "rationale": rationale,
+                "judgment_digest": _canonical_digest({"terminal_objective_status": terminal_objective_status, "claimant_outcome": claimant_outcome, "roles": roles, "criterion_matrix": criterion_matrix, "role_evidence": role_evidence}),
+                "adjudicated_at": _now_unix(),
+            }
+            self._save_mission(mission_id, mission)
+            return "adjudicated_" + claimant_outcome.lower()
 
         self._settle(mission_id, mission, terminal_objective_status, claimant_outcome, roles, rationale, criterion_matrix, role_evidence)
         return f"settled_{claimant_outcome.lower()}"
@@ -1506,6 +1884,19 @@ class Mosaic(gl.Contract):
             return "nothing_to_withdraw"
         self.balances[wallet] = "0"
         _Recipient(Address(wallet)).emit_transfer(value=u256(amount))
+        return f"withdrawn_{amount}"
+
+    @gl.public.write
+    def withdraw_for(self, wallet: str) -> str:
+        """Permissionless beneficiary-safe pull for automation and recovery."""
+        beneficiary = _wallet(wallet)
+        if not re.fullmatch(r"0x[0-9a-f]{40}", beneficiary):
+            raise gl.vm.UserError("invalid_withdrawal_wallet")
+        amount = int(self.balances[beneficiary]) if beneficiary in self.balances else 0
+        if amount <= 0:
+            return "nothing_to_withdraw"
+        self.balances[beneficiary] = "0"
+        _Recipient(Address(beneficiary)).emit_transfer(value=u256(amount))
         return f"withdrawn_{amount}"
 
     @gl.public.view
