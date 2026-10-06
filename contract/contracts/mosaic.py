@@ -217,6 +217,36 @@ def _derive_matrix_outcome(statuses, unavailable):
     return "NOT_ACHIEVED"
 
 
+def _metric_matches(value: int, comparator: str, threshold: int) -> bool:
+    if comparator == "EQ": return value == threshold
+    if comparator == "NE": return value != threshold
+    if comparator == "LT": return value < threshold
+    if comparator == "LTE": return value <= threshold
+    if comparator == "GT": return value > threshold
+    if comparator == "GTE": return value >= threshold
+    return False
+
+
+def _profile_predicates_match(payload, predicates) -> bool:
+    if not isinstance(payload, dict) or not isinstance(predicates, list) or len(predicates) > MAX_PROFILE_PREDICATES:
+        return False
+    for predicate in predicates:
+        if not isinstance(predicate, dict) or set(predicate) != {"field", "operator", "value"}:
+            return False
+        field = predicate.get("field")
+        if not isinstance(field, str) or not field or field not in payload:
+            return False
+        actual = payload[field]
+        expected = predicate.get("value")
+        operator = predicate.get("operator")
+        if operator == "EQ" and actual != expected: return False
+        if operator == "NE" and actual == expected: return False
+        if operator in {"LT", "LTE", "GT", "GTE"}:
+            if not isinstance(actual, int) or not isinstance(expected, int) or not _metric_matches(actual, operator, expected):
+                return False
+    return True
+
+
 def _normalise_matrix_judgment(verdict, expected_wallets, criteria, evidence_objects, required_checks):
     if set(verdict.keys()) != {"criteria", "roles", "rationale"}:
         return None
