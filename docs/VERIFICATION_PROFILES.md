@@ -11,3 +11,19 @@ The public check result establishes what the named producer reported; it does no
 Each terminal source object and normalized check object receives a bounded evidence ID and digest. Criterion judgments may cite only IDs in that frozen set. The validator output must contain exactly one row for every frozen criterion and exactly one role entry for every eligible claimant wallet. Deterministic code derives terminal and claimant outcomes from the criterion statuses, applies compatibility rules, then allocates GEN.
 
 Legacy string criteria and legacy free-verdict settlement are not accepted by the hardened contract. Every new mission must freeze explicit typed objects, and every economic judgment must return the criterion matrix plus wallet-owned role evidence.
+# V5 verification profiles
+
+Mission criteria are typed at launch. V5 accepts the bounded profile families
+below; profile configuration is frozen with mission terms.
+
+- `SOURCE`: semantic judgment of bounded frozen source evidence and sealed
+  contribution lineage. It does not claim deployment or runtime behavior.
+- `GITHUB_CHECK`: deterministic check identity, producer, terminal SHA, status,
+  and conclusion.
+- `DEPLOYMENT_PROBE`: bounded public HTTPS GET response with deterministic
+  status/field predicates and optional terminal-SHA binding.
+- `METRIC_RECEIPT`: bounded integer receipt evaluated with `EQ`, `NE`, `LT`,
+  `LTE`, `GT`, or `GTE` and an explicit scale.
+
+Machine profiles are deterministic. Semantic profiles are componentized and
+must remain grounded in the immutable terminal verification receipt.
