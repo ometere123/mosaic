@@ -22,6 +22,7 @@
     "check:release-smoke": "node scripts/release-smoke.mjs",
     "check:public-evidence": "node scripts/public-evidence-integration.mjs",
     "check:manifest": "node scripts/check-manifest.mjs",
+    "check:release": "node scripts/check-release-consistency.mjs",
     "check": "npm run check:network && npm run check:architecture && npm run check:cli && npm run check:integrity && npm run check:comparators && npm run contract:lint && npm run contract:test && npm run frontend:lint && npm run frontend:test && npm run frontend:build"
   },
   "devDependencies": {
