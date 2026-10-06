@@ -23,7 +23,10 @@ describe("wallet network guard", () => {
     const request = vi.fn(async ({ method }: { method: string }) => {
       calls.push(method);
       if (method === "eth_chainId") return calls.length === 1 ? "0x999" : NETWORK.chainIdHex;
-      if (method === "wallet_switchEthereumChain") throw Object.assign(new Error("unknown"), { code: 4902 });
+      if (method === "wallet_switchEthereumChain") {
+        if (calls.filter((item) => item === "wallet_switchEthereumChain").length === 1) throw Object.assign(new Error("unknown"), { code: 4902 });
+        return null;
+      }
       return null;
     });
     await ensureStudionet({ request });

@@ -8,11 +8,24 @@ export type Eip1193Provider = {
 };
 
 declare global {
-  interface Window { ethereum?: Eip1193Provider; }
+  interface Window { ethereum?: Eip1193Provider & { providers?: Eip1193Provider[] }; }
 }
 
 export function injectedProvider(): Eip1193Provider | null {
-  return typeof window === "undefined" ? null : window.ethereum ?? null;
+  if (typeof window === "undefined" || !window.ethereum) return null;
+  const providers = window.ethereum.providers;
+  return providers?.length ? providers[0] : window.ethereum;
+}
+
+function providerCode(error: unknown): number | undefined {
+  if (!error || typeof error !== "object") return undefined;
+  const value = error as { code?: unknown; data?: unknown; cause?: unknown };
+  if (typeof value.code === "number") return value.code;
+  if (value.data && typeof value.data === "object") {
+    const code = (value.data as { code?: unknown }).code;
+    if (typeof code === "number") return code;
+  }
+  return providerCode(value.cause);
 }
 
 export async function currentChainId(provider: Eip1193Provider): Promise<number> {
@@ -25,8 +38,7 @@ export async function ensureStudionet(provider: Eip1193Provider): Promise<void> 
   try {
     await provider.request({ method: "wallet_switchEthereumChain", params: [{ chainId: NETWORK.chainIdHex }] });
   } catch (error) {
-    const code = (error as { code?: number })?.code;
-    if (code !== 4902) throw error;
+    if (providerCode(error) !== 4902) throw error;
     await provider.request({
       method: "wallet_addEthereumChain",
       params: [{
@@ -37,6 +49,7 @@ export async function ensureStudionet(provider: Eip1193Provider): Promise<void> 
         blockExplorerUrls: [NETWORK.explorerUrl],
       }],
     });
+    await provider.request({ method: "wallet_switchEthereumChain", params: [{ chainId: NETWORK.chainIdHex }] });
   }
   const after = await currentChainId(provider);
   if (after !== NETWORK.chainId) throw new Error("Wallet did not switch to Studionet 61999.");

@@ -101,3 +101,8 @@ export async function withdraw(provider: Eip1193Provider, account: `0x${string}`
   const client = writer(provider, account);
   return client.writeContract({ address: requireContractAddress(), functionName: "withdraw", args: [], value: 0n });
 }
+
+export async function withdrawFor(provider: Eip1193Provider, account: `0x${string}`, beneficiary: `0x${string}`) {
+  const client = writer(provider, account);
+  return client.writeContract({ address: requireContractAddress(), functionName: "withdraw_for", args: [beneficiary], value: 0n });
+}
