@@ -66,6 +66,19 @@ class _Recipient:
     class View:
         pass
 
+
+@gl.contract_interface
+class _LegacyMosaic:
+    class View:
+        def get_mission(self, mission_id: u256) -> str:
+            pass
+
+        def get_contribution(self, mission_id: u256, index: u256) -> str:
+            pass
+
+    class Write:
+        pass
+
     class Write:
         pass
 
@@ -876,7 +889,7 @@ class Mosaic(gl.Contract):
             raise gl.vm.UserError("legacy_import_not_available")
         if int(gl.message.value) != 0:
             raise gl.vm.UserError("legacy_import_funding_mismatch")
-        legacy = gl.get_contract_at(Address(V2_MOSAIC_ADDRESS))
+        legacy = _LegacyMosaic(Address(V2_MOSAIC_ADDRESS))
         raw = legacy.view().get_mission(source_mission_id)
         source = _safe_json(raw)
         if not isinstance(source, dict) or int(source.get("id", -1)) != LEGACY_MISSION_ID:
@@ -899,7 +912,7 @@ class Mosaic(gl.Contract):
         records = []
         contributors = []
         for index in range(count):
-            item = _safe_json(legacy.view().get_contribution(source_mission_id, index))
+            item = _safe_json(legacy.view().get_contribution(source_mission_id, u256(index)))
             if not isinstance(item, dict) or item.get("status") != "SEALED" or not _digest_ok(str(item.get("record_commitment") or "")):
                 raise gl.vm.UserError("legacy_contribution_invalid")
             wallet = _wallet(item.get("wallet", ""))
