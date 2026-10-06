@@ -1,14 +1,14 @@
 {
-  "status": "DEPLOYED_RELEASE_CANDIDATE",
+  "status": "HARDENING_DEVELOPMENT",
   "evidence_snapshot": "Updated closeout evidence for the frozen source; filename retained for historical predeployment-manifest compatibility.",
-  "frozen_source_commit": "a78e73daf0ce89cdaaa5fb5fd2eefd8b6b99a91a",
-  "frozen_source_tree": "e89fb2862a8e847e2d175287bf28a696a60cc9ab",
+  "frozen_source_commit": "d568894f3aa143065074729f5646dbc2b8f1a35f",
+  "frozen_source_tree": "d0bb9e738a574cb7f4e4b444f4cc13e9b050fd07",
   "contract": {
     "path": "contract/contracts/mosaic.py",
-    "canonical_sha256": "a9f7ce4fa90ba1299740181c7fbaf5b5a6eb2cea9903a16d93dadecc497028fe",
-    "git_blob_sha256": "a9f7ce4fa90ba1299740181c7fbaf5b5a6eb2cea9903a16d93dadecc497028fe",
+    "canonical_sha256": "5e43739c71e53e079911e7a8802c3a280156054ed77f650f3e7076407b0296e5",
+    "git_blob_sha256": "5e43739c71e53e079911e7a8802c3a280156054ed77f650f3e7076407b0296e5",
     "public_methods": [
-      "open_mission", "add_funding", "seal_contribution", "freeze_terminal", "resolve_mission", "expire_unresolved",
+      "preview_legacy_import", "import_legacy_frozen_mission", "adjudicate_resolution", "adjudicate_criterion", "adjudicate_role", "finalize_adjudication", "fund_and_settle_imported", "open_mission", "add_funding", "seal_contribution", "freeze_terminal", "resolve_mission", "expire_unresolved",
       "withdraw", "get_mission", "get_contribution", "get_sponsor_total", "get_balance",
       "get_author_wallet", "get_wallet_author", "get_next_mission_id"
     ]
