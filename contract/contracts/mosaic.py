@@ -1134,6 +1134,15 @@ class Mosaic(gl.Contract):
         refs = [str(x.get("id")) for x in context["evidence_objects"] if isinstance(x, dict)]
         return _canonical_json({"ok": True, "kind": "ROLE" if wallet else "CRITERION", "criterion_index": idx, "wallet": _wallet(wallet) if wallet else "", "terminal_tip_sha": context["terminal"].get("terminal_tip_sha"), "source_file_count": len(context["source_files"]), "source_files": [{"evidence_id": x["evidence_id"], "filename": x["filename"], "digest": x["digest"], "patch_chars": len(x["patch"])} for x in context["source_files"]], "allowed_evidence_ids": refs, "claimant_evidence_ids": [x.get("id") for x in context["claimant_evidence"]], "claimant_wallets": mission.get("contributor_wallets", []), "portfolio_count": len(context["portfolios"].get(_wallet(wallet), [])) if wallet else 0, "criterion_result_count": len(mission.get("criterion_results", []))})
 
+    @gl.public.view
+    def get_terminal_verification_receipt(self, mission_id: u256) -> str:
+        mission = self._mission(mission_id)
+        receipt = mission.get("terminal_verification_receipt")
+        digest = mission.get("terminal_verification_receipt_digest", "")
+        if not isinstance(receipt, dict) or _canonical_digest(receipt) != digest:
+            raise gl.vm.UserError("terminal_receipt_invalid")
+        return _canonical_json({"receipt": receipt, "digest": digest})
+
     def _run_component(self, prompt, kind, criterion_index=None, wallet="", allowed=None, check_kind=False):
         allowed = allowed or {}
         def normalize(raw, repair=False):
