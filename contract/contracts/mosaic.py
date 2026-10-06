@@ -918,7 +918,8 @@ def _component_prompt(mission, criterion_index, wallet="", frozen_context=None):
     evidence = context.get("evidence_objects", [])
     contributions = [mission.get("contributor_wallets", [])[i] for i in range(len(mission.get("contributor_wallets", [])))]
     if wallet:
-        return json.dumps({"kind": "ROLE", "wallet": wallet, "objective": mission.get("objective", ""), "criterion_matrix": mission.get("criterion_results", []), "portfolio": [x for x in evidence if x.get("kind") == "CONTRIBUTION" and _wallet(x.get("wallet", "")) == wallet]}, sort_keys=True)
+        portfolio_map = context.get("portfolios", {})
+        return json.dumps({"kind": "ROLE", "wallet": wallet, "objective": mission.get("objective", ""), "criterion_matrix": mission.get("criterion_results", []), "portfolio": portfolio_map.get(_wallet(wallet), []), "contribution_evidence": [x for x in evidence if x.get("kind") == "CONTRIBUTION" and _wallet(x.get("wallet", "")) == wallet]}, sort_keys=True)
     manifest = [{"id": x.get("id"), "kind": x.get("kind"), "criterion_index": x.get("criterion_index"), "wallet": x.get("wallet")} for x in evidence if x.get("kind") in {"SOURCE", "GITHUB_CHECK", "CONTRIBUTION"} and (x.get("kind") != "SOURCE" or x.get("criterion_index", criterion_index) == criterion_index)]
     terminal = context.get("terminal", {})
     source_files = context.get("source_files", [])
@@ -1150,8 +1151,12 @@ class Mosaic(gl.Contract):
             other = leader_fn()
             leader = leaders_res.calldata
             if kind == "CRITERION":
-                return leader.get("terminal_status") == other.get("terminal_status") and leader.get("claimant_status") == other.get("claimant_status")
-            return leader.get("role") == other.get("role")
+                return (
+                    leader.get("terminal_status") == other.get("terminal_status")
+                    and leader.get("claimant_status") == other.get("claimant_status")
+                    and sorted(leader.get("evidence_refs", [])) == sorted(other.get("evidence_refs", []))
+                )
+            return leader.get("role") == other.get("role") and sorted(leader.get("evidence_refs", [])) == sorted(other.get("evidence_refs", []))
         return gl.vm.run_nondet_unsafe(leader_fn, validator_fn)
 
     @gl.public.write
@@ -1228,7 +1233,7 @@ class Mosaic(gl.Contract):
         if result.get("role") not in IMPACT_ROLES:
             raise gl.vm.UserError("role_invalid")
         refs = result.get("evidence_refs", [])
-        allowed = {str(x.get("id")): x for x in mission.get("evidence_objects", [])}
+        allowed = {str(x.get("id")): x for x in frozen_context["evidence_objects"]}
         if any(str(x) not in allowed for x in refs):
             raise gl.vm.UserError("role_unknown_evidence")
         if ROLE_WEIGHT[result["role"]] > 0 and not any(str(x).startswith("contribution:") for x in refs):
