@@ -867,6 +867,30 @@ Every frozen criterion must appear exactly once. Use only IDs from the manifest.
     return gl.nondet.exec_prompt(prompt, response_format="json")
 
 
+COMPONENT_STATUSES = {"SATISFIED", "PARTIAL", "NOT_SATISFIED", "UNVERIFIABLE"}
+
+
+def _derive_component_outcome(statuses):
+    vals = list(statuses)
+    if any(v == "UNVERIFIABLE" for v in vals):
+        return "INSUFFICIENT_EVIDENCE"
+    if vals and all(v == "SATISFIED" for v in vals):
+        return "ACHIEVED"
+    if any(v in {"SATISFIED", "PARTIAL"} for v in vals):
+        return "MATERIAL_PROGRESS"
+    return "NOT_ACHIEVED"
+
+
+def _component_prompt(mission, criterion_index, wallet=""):
+    criteria = mission.get("criteria", [])
+    criterion = criteria[criterion_index]
+    evidence = mission.get("evidence_objects", [])
+    contributions = [mission.get("contributor_wallets", [])[i] for i in range(len(mission.get("contributor_wallets", [])))]
+    if wallet:
+        return json.dumps({"kind": "ROLE", "wallet": wallet, "objective": mission.get("objective", ""), "criterion_matrix": mission.get("criterion_results", []), "portfolio": [x for x in evidence if x.get("kind") == "CONTRIBUTION" and _wallet(x.get("wallet", "")) == wallet]}, sort_keys=True)
+    return json.dumps({"kind": "CRITERION", "criterion_index": criterion_index, "criterion": criterion, "terminal_state": mission.get("frozen_evidence", {}).get("terminal_state_json", ""), "evidence": evidence, "claimant_wallets": contributions}, sort_keys=True)
+
+
 class Mosaic(gl.Contract):
     missions: TreeMap[u256, str]
     sponsor_totals: TreeMap[str, str]
@@ -985,6 +1009,13 @@ class Mosaic(gl.Contract):
         imported["legacy_terminal_source_digest"] = source.get("terminal_source_digest", "")
         imported["legacy_import_digest"] = _canonical_digest({"contract": LEGACY_MOSAIC_ADDRESS, "mission_id": 0, "frozen_evidence_digest": source.get("frozen_evidence_digest", ""), "mission_evidence_root": source.get("mission_evidence_root", ""), "resolution_evidence_root": source.get("resolution_evidence_root", ""), "ordered_contribution_root": source.get("ordered_contribution_root", ""), "terminal_lineage_root": source.get("terminal_lineage_root", ""), "terminal_tip_sha": terminal_sha})
         imported["contributor_wallets"] = contributors
+        imported["criterion_adjudicated"] = [False for _ in imported.get("criteria", [])]
+        imported["criterion_results"] = [{} for _ in imported.get("criteria", [])]
+        imported["role_adjudicated"] = {w: False for w in contributors}
+        imported["role_results"] = {}
+        imported["role_evidence_components"] = {}
+        imported["adjudication_complete"] = False
+        imported["adjudication_digest"] = ""
         self.missions[0] = json.dumps(imported, sort_keys=True)
         self.next_mission_id = u256(1)
         sponsor = imported["creator"]
@@ -993,17 +1024,139 @@ class Mosaic(gl.Contract):
 
     @gl.public.write
     def adjudicate_resolution(self, mission_id: u256) -> str:
+        raise gl.vm.UserError("componentized_adjudication_required")
+
+    def _component_context(self, mission, index, wallet=""):
+        return _component_prompt(mission, index, wallet)
+
+    def _run_component(self, prompt, kind, criterion_index=None, wallet=""):
+        def leader_fn():
+            raw = gl.nondet.exec_prompt(
+                prompt + ("\nReturn ONLY JSON: {\"terminal_status\":\"...\",\"claimant_status\":\"...\",\"evidence_refs\":[],\"rationale\":\"...\"}" if kind == "CRITERION" else "\nReturn ONLY JSON: {\"role\":\"CORE|MAJOR|SUPPORTING|NO_CREDIT\",\"evidence_refs\":[],\"rationale\":\"...\"}"),
+                response_format="json",
+            )
+            if not isinstance(raw, dict):
+                raise gl.vm.UserError("component_malformed")
+            if kind == "CRITERION":
+                terminal = str(raw.get("terminal_status", ""))
+                claimant = str(raw.get("claimant_status", ""))
+                refs = raw.get("evidence_refs", [])
+                if terminal not in COMPONENT_STATUSES or claimant not in COMPONENT_STATUSES or not isinstance(refs, list):
+                    raise gl.vm.UserError("component_invalid_status")
+                return {"terminal_status": terminal, "claimant_status": claimant, "evidence_refs": sorted(set(str(x) for x in refs)), "rationale": str(raw.get("rationale", ""))[:320]}
+            role = str(raw.get("role", ""))
+            refs = raw.get("evidence_refs", [])
+            if role not in IMPACT_ROLES or not isinstance(refs, list):
+                raise gl.vm.UserError("role_invalid")
+            return {"role": role, "evidence_refs": sorted(set(str(x) for x in refs)), "rationale": str(raw.get("rationale", ""))[:320]}
+
+        def validator_fn(leaders_res):
+            if not isinstance(leaders_res, gl.vm.Return):
+                return False
+            other = leader_fn()
+            leader = leaders_res.calldata
+            if kind == "CRITERION":
+                return leader.get("terminal_status") == other.get("terminal_status") and leader.get("claimant_status") == other.get("claimant_status")
+            return leader.get("role") == other.get("role")
+        return gl.vm.run_nondet_unsafe(leader_fn, validator_fn)
+
+    @gl.public.write
+    def adjudicate_criterion(self, mission_id: u256, criterion_index: u256) -> str:
         mission = self._mission(mission_id)
-        if mission.get("migration_status") != "FROZEN_BY_LEGACY_MOSAIC":
-            raise gl.vm.UserError("adjudication_not_required")
-        if mission.get("adjudication"):
-            raise gl.vm.UserError("already_adjudicated")
-        return self.resolve_mission(mission_id)
+        if mission.get("status") != "TERMINAL_FROZEN":
+            raise gl.vm.UserError("mission_not_frozen")
+        idx = int(criterion_index)
+        criteria = mission.get("criteria", [])
+        if idx < 0 or idx >= len(criteria):
+            raise gl.vm.UserError("criterion_not_found")
+        done = mission.get("criterion_adjudicated", [])
+        if idx < len(done) and done[idx]:
+            raise gl.vm.UserError("criterion_already_adjudicated")
+        result = {"criterion_index": idx, "terminal_status": "", "claimant_status": "", "evidence_refs": [], "rationale": ""}
+        if criteria[idx].get("evidence_kind") == "GITHUB_CHECK":
+            checks = [x for x in mission.get("evidence_objects", []) if x.get("kind") == "GITHUB_CHECK" and int(x.get("criterion_index", -1)) == idx]
+            if len(checks) != 1 or checks[0].get("status") != "completed":
+                raise gl.vm.UserError("required_check_unavailable")
+            result["terminal_status"] = "SATISFIED" if checks[0].get("conclusion") == "success" else "NOT_SATISFIED"
+            result["evidence_refs"] = [checks[0].get("id")]
+            judged = self._run_component(self._component_context(mission, idx), "CRITERION", idx)
+            result["claimant_status"] = judged.get("claimant_status", "UNVERIFIABLE")
+            result["rationale"] = judged.get("rationale", "")
+        else:
+            judged = self._run_component(self._component_context(mission, idx), "CRITERION", idx)
+            if not isinstance(judged, dict): raise gl.vm.UserError("component_disagreement")
+            result.update(judged)
+        if result["terminal_status"] not in COMPONENT_STATUSES or result["claimant_status"] not in COMPONENT_STATUSES:
+            raise gl.vm.UserError("component_invalid_status")
+        rows = mission.get("criterion_results", [{} for _ in criteria])
+        flags = mission.get("criterion_adjudicated", [False for _ in criteria])
+        while len(rows) < len(criteria): rows.append({})
+        while len(flags) < len(criteria): flags.append(False)
+        rows[idx] = {k: result[k] for k in ("criterion_index", "terminal_status", "claimant_status", "evidence_refs", "rationale")}
+        flags[idx] = True
+        mission["criterion_results"] = rows
+        mission["criterion_adjudicated"] = flags
+        self._save_mission(mission_id, mission)
+        return "criterion_adjudicated"
+
+    @gl.public.write
+    def adjudicate_role(self, mission_id: u256, wallet: str) -> str:
+        mission = self._mission(mission_id)
+        wallet = _wallet(wallet)
+        if wallet not in [_wallet(x) for x in mission.get("contributor_wallets", [])]:
+            raise gl.vm.UserError("unregistered_wallet")
+        if mission.get("status") != "TERMINAL_FROZEN":
+            raise gl.vm.UserError("mission_not_frozen")
+        done = mission.get("role_adjudicated", {})
+        if done.get(wallet):
+            raise gl.vm.UserError("role_already_adjudicated")
+        raw = self._run_component(self._component_context(mission, 0, wallet), "ROLE", wallet=wallet)
+        if not isinstance(raw, dict): raise gl.vm.UserError("role_disagreement")
+        result = raw
+        if result.get("role") not in IMPACT_ROLES:
+            raise gl.vm.UserError("role_invalid")
+        refs = result.get("evidence_refs", [])
+        if ROLE_WEIGHT[result["role"]] > 0 and not any(str(x).startswith("contribution:") for x in refs):
+            raise gl.vm.UserError("role_evidence_required")
+        roles = mission.get("role_results", {})
+        evidence = mission.get("role_evidence_components", {})
+        roles[wallet] = result["role"]
+        evidence[wallet] = refs
+        done[wallet] = True
+        mission["role_results"] = roles
+        mission["role_evidence_components"] = evidence
+        mission["role_adjudicated"] = done
+        self._save_mission(mission_id, mission)
+        return "role_adjudicated"
+
+    @gl.public.write
+    def finalize_adjudication(self, mission_id: u256) -> str:
+        mission = self._mission(mission_id)
+        criteria = mission.get("criteria", [])
+        if not all(mission.get("criterion_adjudicated", [])) or len(mission.get("criterion_results", [])) < len(criteria):
+            raise gl.vm.UserError("criteria_incomplete")
+        wallets = [_wallet(x) for x in mission.get("contributor_wallets", [])]
+        if any(not mission.get("role_adjudicated", {}).get(w) for w in wallets):
+            raise gl.vm.UserError("roles_incomplete")
+        rows = mission.get("criterion_results", [])
+        terminal = _derive_component_outcome([r.get("terminal_status") for r in rows])
+        claimant = _derive_component_outcome([r.get("claimant_status") for r in rows])
+        roles = {w: mission.get("role_results", {}).get(w, "NO_CREDIT") for w in wallets}
+        if claimant in {"NOT_ACHIEVED", "INSUFFICIENT_EVIDENCE"} and any(ROLE_WEIGHT[r] > 0 for r in roles.values()):
+            raise gl.vm.UserError("incompatible_roles")
+        digest = _canonical_digest({"frozen_evidence_digest": mission.get("frozen_evidence_digest", ""), "criterion_results": rows, "terminal_objective_status": terminal, "claimant_outcome": claimant, "roles": roles, "role_evidence": mission.get("role_evidence_components", {})})
+        mission["derived_terminal_objective_status"] = terminal
+        mission["derived_claimant_outcome"] = claimant
+        mission["adjudication_digest"] = digest
+        mission["adjudication_complete"] = True
+        mission["adjudication"] = {"terminal_objective_status": terminal, "claimant_outcome": claimant, "roles": roles, "criterion_matrix": rows, "role_evidence": mission.get("role_evidence_components", {}), "rationale": "componentized adjudication", "judgment_digest": digest, "adjudicated_at": _now_unix()}
+        self._save_mission(mission_id, mission)
+        return "adjudication_finalized"
 
     @gl.public.write.payable
     def fund_and_settle_imported(self, mission_id: u256) -> str:
         mission = self._mission(mission_id)
-        if mission.get("migration_status") != "FROZEN_BY_LEGACY_MOSAIC" or not mission.get("adjudication"):
+        if mission.get("migration_status") != "FROZEN_BY_LEGACY_MOSAIC" or not mission.get("adjudication_complete") or not mission.get("adjudication"):
             raise gl.vm.UserError("adjudication_required")
         if mission.get("status") == "SETTLED":
             raise gl.vm.UserError("already_settled")
@@ -1113,6 +1266,13 @@ class Mosaic(gl.Contract):
             "resolution_evidence_root": "",
             "ordered_contribution_root": "",
             "settlement": None,
+            "criterion_adjudicated": [False for _ in cleaned_criteria],
+            "criterion_results": [{} for _ in cleaned_criteria],
+            "role_adjudicated": {},
+            "role_results": {},
+            "role_evidence_components": {},
+            "adjudication_complete": False,
+            "adjudication_digest": "",
         }
         self.missions[mission_id] = json.dumps(mission, sort_keys=True)
         self.sponsor_totals[f"{int(mission_id)}:{sponsor}"] = str(amount)
