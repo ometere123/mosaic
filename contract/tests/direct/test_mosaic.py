@@ -30,7 +30,7 @@ def open_mission(contract, vm, sender, mission_terms, funding=100 * WEI):
         mission_terms["title"],
         mission_terms["objective"],
         json.dumps(mission_terms["criteria"]),
-        1791201600,  # 2026-10-05T00:00:00Z
+        1791280800,  # 2026-10-06T10:00:00Z
     )
 
 
