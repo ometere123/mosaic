@@ -4,7 +4,9 @@ import pytest
 from helpers import checkpoint_then_freeze, mock_baseline, mock_pr, mock_terminal, set_block_time
 
 WEI = 10**18
-EARLIEST = 1791201600
+# Keep the fixture deadline close to the existing freeze-time assertions while
+# still leaving the required one-hour checkpoint window.
+EARLIEST = 1791280800
 
 
 def address(account):
