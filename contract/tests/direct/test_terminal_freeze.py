@@ -28,7 +28,7 @@ def test_freeze_is_permissionless_atomic_and_ends_eligibility(direct_vm, direct_
     contract, mission_id = create(direct_vm, direct_deploy, direct_alice, mission_terms)
     with direct_vm.expect_revert("freeze_not_yet_allowed"):
         contract.freeze_terminal(mission_id)
-    set_block_time(direct_vm, "2026-10-06T00:00:00Z")
+    set_block_time(direct_vm, "2026-10-06T10:00:00Z")
     direct_vm.sender = direct_bob
     direct_vm.clear_mocks()
     mock_terminal(direct_vm)
@@ -123,7 +123,7 @@ def test_typed_check_plan_is_frozen_and_missing_check_cannot_pass(direct_vm, dir
     direct_vm.clear_mocks()
     mock_terminal(direct_vm)
     direct_vm.mock_web(r".*check-runs.*", {"status": 200, "body": json.dumps({"total_count": 0, "check_runs": []})})
-    assert contract.checkpoint_terminal(mission_id) == "checkpointed"
+    assert contract.checkpoint_terminal(mission_id) == "source_unavailable"
     assert contract.freeze_terminal(mission_id) == "insufficient_evidence"
     assert json.loads(contract.get_mission(mission_id))["status"] == "OPEN"
 
@@ -139,7 +139,7 @@ def test_duplicate_named_check_matches_fail_closed(direct_vm, direct_deploy, dir
         {"id": 42, "name": "verify", "app": {"slug": "github-actions"}, "head_sha": "d" * 40, "status": "completed", "conclusion": "success"},
         {"id": 43, "name": "verify", "app": {"slug": "github-actions"}, "head_sha": "d" * 40, "status": "completed", "conclusion": "success"},
     ]})})
-    assert contract.checkpoint_terminal(mission_id) == "checkpointed"
+    assert contract.checkpoint_terminal(mission_id) == "insufficient_evidence"
     assert contract.freeze_terminal(mission_id) == "insufficient_evidence"
 
 
