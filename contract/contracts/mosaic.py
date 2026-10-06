@@ -1521,7 +1521,7 @@ class Mosaic(gl.Contract):
                 if not isinstance(leaders_res, gl.vm.Return):
                     return False
                 leader = _normalise_judgment(leaders_res.calldata, expected_wallets, mission["criteria"], evidence_objects, required_checks)
-                validator = judge_mission(_canonical_json(leader))
+                validator = judge_mission(leaders_res.calldata)
                 if leader is None:
                     return False
                 return validator is not None
