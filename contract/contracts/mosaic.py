@@ -1757,17 +1757,18 @@ class Mosaic(gl.Contract):
             "expected_wallets": sorted(expected_wallets),
             "required_checks": required_checks,
         }
-        frozen_evidence["evidence_manifest_json"] = _canonical_json(evidence_manifest)
+        prompt_evidence = dict(frozen_evidence)
+        prompt_evidence["evidence_manifest_json"] = _canonical_json(evidence_manifest)
         def judge_mission(candidate_json: str = ""):
             if candidate_json:
                 candidate = _safe_json(candidate_json)
                 normalized = _normalise_matrix_judgment(candidate, expected_wallets, mission["criteria"], evidence_objects, required_checks)
                 if normalized is not None:
                     return normalized
-            verdict = _normalise_judgment(_judge_mission(_canonical_json(frozen_evidence), candidate_json=candidate_json), expected_wallets, mission["criteria"], evidence_objects, required_checks)
+            verdict = _normalise_judgment(_judge_mission(_canonical_json(prompt_evidence), candidate_json=candidate_json), expected_wallets, mission["criteria"], evidence_objects, required_checks)
             if verdict is None:
                 verdict = _normalise_judgment(
-                    _judge_mission(_canonical_json(frozen_evidence), "The prior response failed deterministic evidence-membership or wallet-ownership validation. Emit all required refs exactly as listed in the manifest.", candidate_json),
+                    _judge_mission(_canonical_json(prompt_evidence), "The prior response failed deterministic evidence-membership or wallet-ownership validation. Emit all required refs exactly as listed in the manifest.", candidate_json),
                     expected_wallets, mission["criteria"], evidence_objects, required_checks,
                 )
             if verdict is None:

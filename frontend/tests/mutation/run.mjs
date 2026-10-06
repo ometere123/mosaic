@@ -28,7 +28,7 @@ const mutants = [
   ["timeout_treated_as_success", "transaction", '|| exec.includes("TIMEOUT")', '|| false', "tests/transaction.test.ts"],
   ["correct_chain_guard_removed", "network", "=== NETWORK.chainId", "!== NETWORK.chainId", "tests/network.test.ts"],
   ["post_switch_verification_removed", "network", "if (after !== NETWORK.chainId)", "if (false)", "tests/network.test.ts"],
-  ["unknown_chain_add_bypassed", "network", "if (code !== 4902) throw error;", "if (false) throw error;", "tests/network.test.ts"],
+  ["unknown_chain_add_bypassed", "network", "if (providerCode(error) !== 4902) throw error;", "if (false) throw error;", "tests/network.test.ts"],
   ["wrong_switch_chain", "network", "params: [{ chainId: NETWORK.chainIdHex }]", 'params: [{ chainId: "0x1" }]', "tests/network.test.ts"],
   ["chain_id_radix_wrong", "network", "Number.parseInt(String(hex), 16)", "Number.parseInt(String(hex), 10)", "tests/network.test.ts"],
   ["proof_partial_match", "github", "body !== marker", "false", "tests/github.test.ts"],
