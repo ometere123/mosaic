@@ -43,3 +43,7 @@ def test_componentized_source_criteria_finalize_without_monolithic_resolver(
     result = json.loads(contract.get_mission(mission_id))
     assert result["adjudication_complete"] is True
     assert result["derived_terminal_objective_status"] == "ACHIEVED"
+    assert contract.settle_finalized(mission_id) == "settled_finalized"
+    settled = json.loads(contract.get_mission(mission_id))
+    assert settled["status"] == "SETTLED"
+    assert settled["pool_wei"] == "0"
