@@ -1524,7 +1524,12 @@ class Mosaic(gl.Contract):
                 validator = judge_mission(leaders_res.calldata)
                 if leader is None:
                     return False
-                return validator is not None
+                return (
+                    validator is not None
+                    and leader["terminal_objective_status"] == validator["terminal_objective_status"]
+                    and leader["claimant_outcome"] == validator["claimant_outcome"]
+                    and leader["roles"] == validator["roles"]
+                )
             except Exception:
                 return False
 
