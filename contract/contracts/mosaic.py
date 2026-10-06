@@ -1358,6 +1358,8 @@ class Mosaic(gl.Contract):
             "close_at": int(close_at),
             "last_contribution_sealed_at": 0,
             "terminal_checkpoint": None,
+            "checkpoint_digest": "",
+            "checkpointed_at": 0,
             "freeze_not_before": freeze_not_before,
             "closed_at": 0,
             "freeze_attempts": 0,
@@ -1865,6 +1867,8 @@ class Mosaic(gl.Contract):
         mission["mission_evidence_root"] = mission_evidence_root
         mission["terminal_source_digest"] = terminal["terminal_source_digest"]
         mission["terminal_tip_sha"] = terminal["terminal_tip_sha"]
+        mission["checkpoint_digest"] = checkpoint["checkpoint_digest"]
+        mission["checkpointed_at"] = int(checkpoint["checkpointed_at"])
         mission["terminal_lineage_root"] = terminal_lineage_root
         mission["terminal_lineage_records"] = lineage_records
         mission["resolution_evidence_root"] = resolution_evidence_root
