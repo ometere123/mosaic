@@ -13,7 +13,7 @@ def wallet(addr):
 
 
 def valid_args(terms):
-    return [terms["repo"], terms["target_ref"], terms["baseline"], terms["title"], terms["objective"], json.dumps(terms["criteria"]), 1791201600]
+    return [terms["repo"], terms["target_ref"], terms["baseline"], terms["title"], terms["objective"], json.dumps(terms["criteria"]), 1791280800]
 
 
 def open_mission(contract, vm, sender, terms, amount=10 * WEI):
@@ -91,10 +91,10 @@ def test_checkpoint_is_required_and_freezes_latest_preclose_candidate(direct_vm,
     contract = direct_deploy("contract/contracts/mosaic.py")
     mission_id = open_mission(contract, direct_vm, direct_alice, mission_terms)
     direct_vm.value = 0
-    set_block_time(direct_vm, "2026-10-05T11:00:00Z")
+    set_block_time(direct_vm, "2026-10-06T10:30:00Z")
     direct_vm.clear_mocks(); mock_terminal(direct_vm)
     assert contract.checkpoint_terminal(mission_id) == "checkpointed"
-    set_block_time(direct_vm, "2026-10-05T12:30:00Z")
+    set_block_time(direct_vm, "2026-10-06T10:45:00Z")
     assert checkpoint_then_freeze(contract, mission_id) == "terminal_frozen"
     mission = json.loads(contract.get_mission(mission_id))
     assert mission["terminal_tip_sha"] == "d" * 40
