@@ -794,7 +794,35 @@ def _fetch_terminal_state(context_json: str) -> str:
             return _canonical_json({"status": "INVALID", "reason": "check_status_invalid"})
         checks.append({"criterion_index": index, "name": check_name, "app_slug": app_slug, "run_id": int(run.get("id") or 0), "head_sha": head_sha, "status": status, "conclusion": conclusion})
     state["required_checks"] = checks
-    state["evidence_objects"] = [{"id": f"source:{index}:{item['filename']}", "kind": "SOURCE", "terminal_tip_sha": tip, "path": item["filename"], "digest": _canonical_digest(item)} for index, item in enumerate(normalized)] + [{"id": f"check:{item['criterion_index']}:{item['run_id']}", "kind": "GITHUB_CHECK", "criterion_index": item["criterion_index"], "repository": repo, "terminal_tip_sha": tip, "name": item["name"], "app_slug": item["app_slug"], "run_id": item["run_id"], "status": item["status"], "conclusion": item["conclusion"], "digest": _canonical_digest(item)} for item in checks]
+    machine_receipts = []
+    for index, criterion in enumerate(criteria):
+        if not isinstance(criterion, dict) or criterion.get("evidence_kind") not in {"DEPLOYMENT_PROBE", "METRIC_RECEIPT"}:
+            continue
+        path = criterion.get("url") if criterion.get("evidence_kind") == "DEPLOYMENT_PROBE" else criterion.get("path_or_url")
+        payload, reason = _read_json_url(str(path))
+        if payload is None:
+            return _canonical_json({"status": "SOURCE_UNAVAILABLE", "reason": f"machine_profile:{reason}"})
+        if criterion.get("evidence_kind") == "DEPLOYMENT_PROBE":
+            if not isinstance(payload, dict) or not _profile_predicates_match(payload, criterion.get("predicates", [])):
+                return _canonical_json({"status": "INSUFFICIENT_EVIDENCE", "reason": "deployment_probe_predicate_failed"})
+            field = str(criterion.get("terminal_sha_field") or "")
+            if field and str(payload.get(field) or "").lower() != tip:
+                return _canonical_json({"status": "INVALID", "reason": "deployment_probe_terminal_sha_mismatch"})
+            receipt = {"criterion_index": index, "kind": "DEPLOYMENT_PROBE", "url": str(path), "terminal_tip_sha": tip, "payload_digest": _canonical_digest(payload), "status": int(criterion.get("expected_status"))}
+        else:
+            if not isinstance(payload, dict):
+                return _canonical_json({"status": "INVALID", "reason": "metric_receipt_malformed"})
+            value = payload.get(str(criterion.get("metric_name")))
+            if not isinstance(value, int) or not _metric_matches(value, str(criterion.get("comparator")), int(criterion.get("threshold"))):
+                return _canonical_json({"status": "INSUFFICIENT_EVIDENCE", "reason": "metric_receipt_threshold_failed"})
+            if str(payload.get("terminal_sha") or "").lower() != tip:
+                return _canonical_json({"status": "INVALID", "reason": "metric_receipt_terminal_sha_mismatch"})
+            receipt = {"criterion_index": index, "kind": "METRIC_RECEIPT", "path_or_url": str(path), "terminal_tip_sha": tip, "metric_name": str(criterion.get("metric_name")), "value": value, "digest": _canonical_digest(payload)}
+        receipt["id"] = f"machine:{index}:{receipt.get('payload_digest', receipt.get('digest'))}"
+        receipt["receipt_digest"] = _canonical_digest(receipt)
+        machine_receipts.append(receipt)
+    state["machine_receipts"] = machine_receipts
+    state["evidence_objects"] = [{"id": f"source:{index}:{item['filename']}", "kind": "SOURCE", "terminal_tip_sha": tip, "path": item["filename"], "digest": _canonical_digest(item)} for index, item in enumerate(normalized)] + [{"id": f"check:{item['criterion_index']}:{item['run_id']}", "kind": "GITHUB_CHECK", "criterion_index": item["criterion_index"], "repository": repo, "terminal_tip_sha": tip, "name": item["name"], "app_slug": item["app_slug"], "run_id": item["run_id"], "status": item["status"], "conclusion": item["conclusion"], "digest": _canonical_digest(item)} for item in checks] + machine_receipts
     state["terminal_source_digest"] = _canonical_digest(state)
     state["status"] = "OK"
     return _canonical_json(state)
