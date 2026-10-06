@@ -1235,6 +1235,8 @@ class Mosaic(gl.Contract):
         mission["adjudication"] = {"terminal_objective_status": terminal, "claimant_outcome": claimant, "roles": roles, "criterion_matrix": rows, "role_evidence": mission.get("role_evidence_components", {}), "rationale": "componentized adjudication", "judgment_digest": digest, "adjudicated_at": _now_unix()}
         self._save_mission(mission_id, mission)
         return "adjudication_finalized"
+
+    @gl.public.write
     def settle_finalized(self, mission_id: u256) -> str:
         """Deterministically settle a normally funded V5 mission.
 
