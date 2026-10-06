@@ -889,7 +889,19 @@ def _component_prompt(mission, criterion_index, wallet=""):
     if wallet:
         return json.dumps({"kind": "ROLE", "wallet": wallet, "objective": mission.get("objective", ""), "criterion_matrix": mission.get("criterion_results", []), "portfolio": [x for x in evidence if x.get("kind") == "CONTRIBUTION" and _wallet(x.get("wallet", "")) == wallet]}, sort_keys=True)
     manifest = [{"id": x.get("id"), "kind": x.get("kind"), "criterion_index": x.get("criterion_index"), "wallet": x.get("wallet")} for x in evidence if x.get("kind") in {"SOURCE", "GITHUB_CHECK", "CONTRIBUTION"} and (x.get("kind") != "SOURCE" or x.get("criterion_index", criterion_index) == criterion_index)]
-    return json.dumps({"kind": "CRITERION", "criterion_index": criterion_index, "criterion": criterion, "terminal_state": mission.get("frozen_evidence", {}).get("terminal_state_json", ""), "allowed_evidence": manifest, "claimant_wallets": contributions, "status_enum":["SATISFIED","PARTIAL","NOT_SATISFIED","UNVERIFIABLE"], "rules":"Use exact uppercase status enum only. SATISFIED/PARTIAL terminal SOURCE requires a SOURCE ref; positive claimant status requires a CONTRIBUTION ref; use only allowed evidence IDs. Do not emit ACHIEVED, PASS, FAILED, TRUE, FALSE or synonyms."}, sort_keys=True)
+    frozen = mission.get("frozen_evidence", {})
+    terminal = _safe_json(frozen.get("terminal_state_json", "")) or {}
+    files = terminal.get("files", []) if isinstance(terminal, dict) else []
+    source_files = []
+    for item in evidence:
+        if item.get("kind") != "SOURCE": continue
+        matches = [f for f in files if isinstance(f, dict) and f.get("filename") == item.get("path")]
+        if len(matches) != 1 or _canonical_digest(matches[0]) != item.get("digest"): continue
+        source_files.append({"evidence_id": item.get("id"), "filename": item.get("path"), "patch": matches[0].get("patch", "")})
+    portfolios = _safe_json(mission.get("portfolios_json", "")) or {}
+    claimant_evidence = [{"evidence_id": x.get("id"), "contribution_index": x.get("contribution_index"), "wallet": x.get("wallet"), "capsule": portfolios.get("portfolios", {}).get(_wallet(x.get("wallet", "")), [])} for x in evidence if x.get("kind") == "CONTRIBUTION"]
+    rules = "Use exact uppercase status enum only. For SOURCE, terminal_status evaluates the frozen implementation and tests, not whether a live payout occurred; a live event is required only if the criterion explicitly says so. SATISFIED/PARTIAL terminal SOURCE requires a SOURCE ref; positive claimant status asks whether sealed claimant portfolios caused the implementation and requires a CONTRIBUTION ref. Do not emit ACHIEVED, PASS, FAILED, TRUE, FALSE or synonyms."
+    return json.dumps({"kind": "CRITERION", "criterion_index": criterion_index, "criterion": criterion, "terminal_tip_sha": terminal.get("terminal_tip_sha"), "source_files": source_files, "claimant_evidence": claimant_evidence, "allowed_evidence": manifest, "claimant_wallets": contributions, "status_enum":["SATISFIED","PARTIAL","NOT_SATISFIED","UNVERIFIABLE"], "rules": rules}, sort_keys=True)
 
 
 class Mosaic(gl.Contract):
