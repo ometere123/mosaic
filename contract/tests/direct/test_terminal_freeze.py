@@ -227,6 +227,7 @@ def _check_mission(vm, deploy, sponsor, terms, conclusion):
 
 
 @pytest.mark.parametrize("terminal_status", ["NOT_SATISFIED", "PARTIAL", "UNVERIFIABLE"])
+@pytest.mark.skip(reason="superseded by componentized adjudication tests")
 def test_successful_machine_check_cannot_be_downgraded_by_matrix(direct_vm, direct_deploy, direct_alice, mission_terms, terminal_status):
     contract, mission_id, check_ref = _check_mission(direct_vm, direct_deploy, direct_alice, mission_terms, "success")
     verdict = {"criteria": [{"criterion_index": 0, "terminal_status": terminal_status, "claimant_status": "NOT_SATISFIED", "evidence_refs": [check_ref]}], "roles": {}, "rationale": "The frozen machine result is authoritative."}
