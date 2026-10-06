@@ -873,7 +873,7 @@ class Mosaic(gl.Contract):
         """One-time trustless import of the canonical unresolved V1 mission."""
         if int(source_mission_id) != LEGACY_MISSION_ID or int(self.next_mission_id) != 0:
             raise gl.vm.UserError("legacy_import_not_available")
-        if int(gl.message.value) != LEGACY_POOL_WEI:
+        if int(gl.message.value) != 0:
             raise gl.vm.UserError("legacy_import_funding_mismatch")
         legacy = gl.get_contract_at(Address(LEGACY_MOSAIC_ADDRESS))
         raw = legacy.view().get_mission(source_mission_id)
@@ -913,8 +913,11 @@ class Mosaic(gl.Contract):
         imported = dict(source)
         imported["id"] = 0
         imported["creator"] = _wallet(source.get("creator", ""))
-        imported["pool_wei"] = str(LEGACY_POOL_WEI)
+        imported["pool_wei"] = "0"
         imported["total_funded_wei"] = str(LEGACY_POOL_WEI)
+        imported["source_pool_wei"] = str(LEGACY_POOL_WEI)
+        imported["settlement_pool_wei"] = "0"
+        imported["required_settlement_pool_wei"] = str(LEGACY_POOL_WEI)
         imported["status"] = "TERMINAL_FROZEN"
         imported["settlement"] = None
         imported["settlement_digest"] = ""
@@ -933,8 +936,33 @@ class Mosaic(gl.Contract):
         self.missions[0] = json.dumps(imported, sort_keys=True)
         self.next_mission_id = u256(1)
         sponsor = imported["creator"]
-        self.sponsor_totals[f"0:{sponsor}"] = str(LEGACY_POOL_WEI)
+        self.sponsor_totals[f"0:{sponsor}"] = "0"
         return u256(0)
+
+    @gl.public.write
+    def adjudicate_resolution(self, mission_id: u256) -> str:
+        mission = self._mission(mission_id)
+        if mission.get("migration_status") != "FROZEN_BY_LEGACY_MOSAIC":
+            raise gl.vm.UserError("adjudication_not_required")
+        if mission.get("adjudication"):
+            raise gl.vm.UserError("already_adjudicated")
+        return self.resolve_mission(mission_id)
+
+    @gl.public.write.payable
+    def fund_and_settle_imported(self, mission_id: u256) -> str:
+        mission = self._mission(mission_id)
+        if mission.get("migration_status") != "FROZEN_BY_LEGACY_MOSAIC" or not mission.get("adjudication"):
+            raise gl.vm.UserError("adjudication_required")
+        if mission.get("status") == "SETTLED":
+            raise gl.vm.UserError("already_settled")
+        required = int(mission.get("required_settlement_pool_wei", LEGACY_POOL_WEI))
+        if int(gl.message.value) != required:
+            raise gl.vm.UserError("settlement_funding_mismatch")
+        mission["pool_wei"] = str(required)
+        self._save_mission(mission_id, mission)
+        adjudication = mission["adjudication"]
+        self._settle(mission_id, mission, adjudication["terminal_objective_status"], adjudication["claimant_outcome"], adjudication["roles"], adjudication["rationale"], adjudication["criterion_matrix"], adjudication["role_evidence"])
+        return "settled_imported"
 
     @gl.public.write.payable
     def open_mission(
@@ -1548,6 +1576,20 @@ class Mosaic(gl.Contract):
         if claimant_outcome == "INSUFFICIENT_EVIDENCE":
             self._save_mission(mission_id, mission)
             return "insufficient_evidence"
+
+        if mission.get("migration_status") == "FROZEN_BY_LEGACY_MOSAIC" and int(mission.get("pool_wei", "0")) == 0:
+            mission["adjudication"] = {
+                "terminal_objective_status": terminal_objective_status,
+                "claimant_outcome": claimant_outcome,
+                "roles": roles,
+                "criterion_matrix": criterion_matrix,
+                "role_evidence": role_evidence,
+                "rationale": rationale,
+                "judgment_digest": _canonical_digest({"terminal_objective_status": terminal_objective_status, "claimant_outcome": claimant_outcome, "roles": roles, "criterion_matrix": criterion_matrix, "role_evidence": role_evidence}),
+                "adjudicated_at": _now_unix(),
+            }
+            self._save_mission(mission_id, mission)
+            return "adjudicated_" + claimant_outcome.lower()
 
         self._settle(mission_id, mission, terminal_objective_status, claimant_outcome, roles, rationale, criterion_matrix, role_evidence)
         return f"settled_{claimant_outcome.lower()}"
