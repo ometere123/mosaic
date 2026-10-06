@@ -83,11 +83,20 @@ def migrate_legacy_test_verdicts(direct_vm):
                 "rationale": value["rationale"],
             }),
         )
+        for index, (role_wallet, role_name) in enumerate(role_items):
+            original(
+                rf'"wallet": "{role_wallet.lower()}"',
+                json.dumps({
+                    "role": role_name,
+                    "evidence_refs": [f"contribution:{index}"],
+                    "rationale": value["rationale"],
+                }),
+            )
         original(
             r'"kind": "ROLE"',
             json.dumps({
-                "role": next(iter(value.get("roles", {}).values()), "NO_CREDIT"),
-                "evidence_refs": claimant_refs,
+                "role": "NO_CREDIT",
+                "evidence_refs": [],
                 "rationale": value["rationale"],
             }),
         )
