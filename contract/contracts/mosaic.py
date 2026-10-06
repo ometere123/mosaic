@@ -386,6 +386,18 @@ def _read_json_url(url: str):
     return parsed, ""
 
 
+def _read_machine_json_url(url: str):
+    try:
+        response = gl.nondet.web.get(url)
+    except Exception as exc:
+        return None, 0, f"request_failed:{type(exc).__name__}"
+    status = _status_code(response)
+    parsed = _safe_json(_response_text(response)) if 200 <= status < 300 else None
+    if parsed is None:
+        return None, status, f"http_{status}" if status else "malformed_json"
+    return parsed, status, ""
+
+
 def _fetch_baseline(context_json: str) -> str:
     context = json.loads(context_json)
     repo = context["repo"]
@@ -799,11 +811,11 @@ def _fetch_terminal_state(context_json: str) -> str:
         if not isinstance(criterion, dict) or criterion.get("evidence_kind") not in {"DEPLOYMENT_PROBE", "METRIC_RECEIPT"}:
             continue
         path = criterion.get("url") if criterion.get("evidence_kind") == "DEPLOYMENT_PROBE" else criterion.get("path_or_url")
-        payload, reason = _read_json_url(str(path))
+        payload, http_status, reason = _read_machine_json_url(str(path))
         if payload is None:
             return _canonical_json({"status": "SOURCE_UNAVAILABLE", "reason": f"machine_profile:{reason}"})
         if criterion.get("evidence_kind") == "DEPLOYMENT_PROBE":
-            if not isinstance(payload, dict) or not _profile_predicates_match(payload, criterion.get("predicates", [])):
+            if http_status != int(criterion.get("expected_status")) or not isinstance(payload, dict) or not _profile_predicates_match(payload, criterion.get("predicates", [])):
                 return _canonical_json({"status": "INSUFFICIENT_EVIDENCE", "reason": "deployment_probe_predicate_failed"})
             field = str(criterion.get("terminal_sha_field") or "")
             if field and str(payload.get(field) or "").lower() != tip:
