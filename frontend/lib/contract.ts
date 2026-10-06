@@ -102,6 +102,11 @@ export async function previewComponentContext(missionId: number, criterionIndex:
   return parse<Record<string, unknown>>(raw);
 }
 
+export async function getTerminalVerificationReceipt(missionId: number) {
+  const raw = await authoritativeRead("get_terminal_verification_receipt", [BigInt(missionId)]);
+  return parse<{ receipt: Record<string, unknown>; digest: string }>(raw);
+}
+
 export async function adjudicateCriterion(provider: Eip1193Provider, account: `0x${string}`, missionId: number, criterionIndex: number) {
   const client = writer(provider, account);
   return client.writeContract({ address: requireContractAddress(), functionName: "adjudicate_criterion", args: [BigInt(missionId), BigInt(criterionIndex)], value: 0n });
