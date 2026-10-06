@@ -1410,6 +1410,38 @@ class Mosaic(gl.Contract):
         self._settle(mission_id, mission, adjudication["terminal_objective_status"], adjudication["claimant_outcome"], adjudication["roles"], adjudication["rationale"], adjudication["criterion_matrix"], adjudication["role_evidence"])
         return "settled_imported"
 
+    @gl.public.write
+    def settle_finalized(self, mission_id: u256) -> str:
+        """Deterministically settle a normally funded V5 mission.
+
+        Component adjudication is the only judgment path.  This entry point
+        consumes the immutable finalized judgment and never invokes an LLM.
+        Imported missions continue to use the payable funding gate above.
+        """
+        mission = self._mission(mission_id)
+        if mission.get("migration_status") == "FROZEN_BY_LEGACY_MOSAIC":
+            raise gl.vm.UserError("use_imported_settlement_path")
+        if mission.get("status") != "TERMINAL_FROZEN":
+            raise gl.vm.UserError("mission_not_frozen")
+        if mission.get("status") == "SETTLED" or mission.get("settlement"):
+            raise gl.vm.UserError("already_settled")
+        if not mission.get("adjudication_complete") or not isinstance(mission.get("adjudication"), dict):
+            raise gl.vm.UserError("adjudication_required")
+        if int(mission.get("pool_wei", 0)) <= 0:
+            raise gl.vm.UserError("empty_settlement_pool")
+        adjudication = mission["adjudication"]
+        self._settle(
+            mission_id,
+            mission,
+            adjudication["terminal_objective_status"],
+            adjudication["claimant_outcome"],
+            adjudication["roles"],
+            adjudication.get("rationale", "componentized adjudication"),
+            adjudication["criterion_matrix"],
+            adjudication["role_evidence"],
+        )
+        return "settled_finalized"
+
     @gl.public.write.payable
     def open_mission(
         self,
