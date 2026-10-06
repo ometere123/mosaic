@@ -2065,12 +2065,20 @@ class Mosaic(gl.Contract):
             # settlement; it never performs a monolithic judgment.
             if mission.get("status") != "TERMINAL_FROZEN":
                 raise gl.vm.UserError("mission_not_resolvable")
-            for index, _criterion in enumerate(mission.get("criteria", [])):
-                self.adjudicate_criterion(mission_id, index)
-            for wallet in mission.get("contributor_wallets", []):
-                self.adjudicate_role(mission_id, wallet)
-            self.finalize_adjudication(mission_id)
-            self.settle_finalized(mission_id)
+            try:
+                for index, _criterion in enumerate(mission.get("criteria", [])):
+                    self.adjudicate_criterion(mission_id, index)
+                for wallet in mission.get("contributor_wallets", []):
+                    self.adjudicate_role(mission_id, wallet)
+                self.finalize_adjudication(mission_id)
+                self.settle_finalized(mission_id)
+            except gl.vm.UserError as error:
+                # Preserve the historical ABI's bounded error category while
+                # keeping all semantic validation in the component methods.
+                detail = str(error)
+                if any(token in detail for token in ("component_", "incompatible_roles", "role_", "criteria_", "roles_")):
+                    raise gl.vm.UserError("invalid_resolution_judgment")
+                raise
             return "settled_" + str(self._mission(mission_id).get("last_resolution", "")).lower()
         if mission["status"] != "TERMINAL_FROZEN":
             raise gl.vm.UserError("mission_not_resolvable")
