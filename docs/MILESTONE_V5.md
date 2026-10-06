@@ -16,4 +16,4 @@ This document is a working milestone record. It is not a deployment claim.
 
 The V5 implementation and live proof are not yet complete. The branch records
 the audit and will only claim completion after source, CI, deployment, fresh
-external lifecycle, payouts, frontend cutover, and release evidence all agree.
+external lifecycle, payouts, frontend release binding, and release evidence all agree.
