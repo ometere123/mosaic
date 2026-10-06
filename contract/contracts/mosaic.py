@@ -2059,7 +2059,19 @@ class Mosaic(gl.Contract):
     def resolve_mission(self, mission_id: u256) -> str:
         mission = self._mission(mission_id)
         if int(mission.get("protocol_version", 1)) >= 5:
-            raise gl.vm.UserError("monolithic_resolver_disabled")
+            # Compatibility façade for callers using the historical ABI.  V5
+            # still has exactly one adjudication architecture: this method
+            # delegates to the immutable component workflow and deterministic
+            # settlement; it never performs a monolithic judgment.
+            if mission.get("status") != "TERMINAL_FROZEN":
+                raise gl.vm.UserError("mission_not_resolvable")
+            for index, _criterion in enumerate(mission.get("criteria", [])):
+                self.adjudicate_criterion(mission_id, index)
+            for wallet in mission.get("contributor_wallets", []):
+                self.adjudicate_role(mission_id, wallet)
+            self.finalize_adjudication(mission_id)
+            self.settle_finalized(mission_id)
+            return "settled_" + str(self._mission(mission_id).get("last_resolution", "")).lower()
         if mission["status"] != "TERMINAL_FROZEN":
             raise gl.vm.UserError("mission_not_resolvable")
         frozen_evidence = mission.get("frozen_evidence")
