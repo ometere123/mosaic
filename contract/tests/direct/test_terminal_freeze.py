@@ -1,7 +1,7 @@
 import json
 import pytest
 
-from helpers import mock_baseline, mock_pr, mock_terminal, set_block_time
+from helpers import checkpoint_then_freeze, mock_baseline, mock_pr, mock_terminal, set_block_time
 
 WEI = 10**18
 EARLIEST = 1791201600
@@ -33,7 +33,7 @@ def test_freeze_is_permissionless_atomic_and_ends_eligibility(direct_vm, direct_
     direct_vm.value = WEI
     assert contract.add_funding(mission_id) == f"funded_{WEI}"
     direct_vm.value = 0
-    assert contract.freeze_terminal(mission_id) == "terminal_frozen"
+    assert checkpoint_then_freeze(contract, mission_id) == "terminal_frozen"
     mission = json.loads(contract.get_mission(mission_id))
     assert mission["status"] == "TERMINAL_FROZEN"
     assert mission["freeze_not_before"] == EARLIEST
@@ -71,7 +71,7 @@ def test_freeze_outage_keeps_eligibility_open_without_partial_snapshot(direct_vm
     mock_pr(direct_vm, int(mission_id), address(direct_bob), merged_at="2026-10-06T09:00:00Z")
     assert contract.seal_contribution(mission_id, 7, 99) == "sealed_0"
     # The immutable revalidation has the same real merge timestamp on retry.
-    assert contract.freeze_terminal(mission_id) == "terminal_frozen"
+    assert checkpoint_then_freeze(contract, mission_id) == "terminal_frozen"
     assert json.loads(contract.get_mission(mission_id))["closed_at"] > EARLIEST
 
 
@@ -80,7 +80,7 @@ def test_delayed_resolution_uses_frozen_prompt_despite_branch_change(direct_vm, 
     set_block_time(direct_vm, "2026-10-06T10:00:00Z")
     direct_vm.clear_mocks()
     mock_terminal(direct_vm, terminal_sha="d" * 40)
-    assert contract.freeze_terminal(mission_id) == "terminal_frozen"
+    assert checkpoint_then_freeze(contract, mission_id) == "terminal_frozen"
     before = json.loads(contract.get_mission(mission_id))
     set_block_time(direct_vm, "2026-10-25T10:00:00Z")
     direct_vm.clear_mocks()
@@ -151,7 +151,7 @@ def test_failed_named_check_is_committed_as_negative_evidence(direct_vm, direct_
     direct_vm.clear_mocks()
     mock_terminal(direct_vm)
     direct_vm.mock_web(r".*check-runs.*", {"status": 200, "body": json.dumps({"total_count": 1, "check_runs": [{"id": 42, "name": "verify", "app": {"slug": "github-actions"}, "head_sha": "d" * 40, "status": "completed", "conclusion": "failure"}]})})
-    assert contract.freeze_terminal(mission_id) == "terminal_frozen"
+    assert checkpoint_then_freeze(contract, mission_id) == "terminal_frozen"
     evidence = json.loads(json.loads(contract.get_mission(mission_id))["frozen_evidence"]["terminal_state_json"])
     assert evidence["required_checks"][0]["conclusion"] == "failure"
 
@@ -160,7 +160,7 @@ def test_schema_valid_matrix_cannot_cite_fabricated_evidence(direct_vm, direct_d
     contract, mission_id = create(direct_vm, direct_deploy, direct_alice, mission_terms)
     set_block_time(direct_vm, "2026-10-06T10:00:00Z")
     direct_vm.clear_mocks(); mock_terminal(direct_vm)
-    assert contract.freeze_terminal(mission_id) == "terminal_frozen"
+    assert checkpoint_then_freeze(contract, mission_id) == "terminal_frozen"
     mission = json.loads(contract.get_mission(mission_id))
     criteria = mission["criteria"]
     forged = {
@@ -177,7 +177,7 @@ def test_schema_valid_matrix_must_cover_every_frozen_criterion(direct_vm, direct
     contract, mission_id = create(direct_vm, direct_deploy, direct_alice, mission_terms)
     set_block_time(direct_vm, "2026-10-06T10:00:00Z")
     direct_vm.clear_mocks(); mock_terminal(direct_vm)
-    assert contract.freeze_terminal(mission_id) == "terminal_frozen"
+    assert checkpoint_then_freeze(contract, mission_id) == "terminal_frozen"
     forged = {"criteria": [], "roles": {}, "rationale": "Missing criterion rows cannot establish the objective."}
     direct_vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps(forged))
     with direct_vm.expect_revert("invalid_resolution_judgment"):
@@ -192,7 +192,7 @@ def test_failed_required_check_cannot_be_overridden_by_valid_matrix(direct_vm, d
     mission_id = contract.open_mission(mission_terms["repo"], mission_terms["target_ref"], mission_terms["baseline"], mission_terms["title"], mission_terms["objective"], json.dumps(criteria), EARLIEST)
     set_block_time(direct_vm, "2026-10-06T10:00:00Z"); direct_vm.clear_mocks(); mock_terminal(direct_vm)
     direct_vm.mock_web(r".*check-runs.*", {"status": 200, "body": json.dumps({"total_count": 1, "check_runs": [{"id": 42, "name": "verify", "app": {"slug": "github-actions"}, "head_sha": "d" * 40, "status": "completed", "conclusion": "failure"}]})})
-    assert contract.freeze_terminal(mission_id) == "terminal_frozen"
+    assert checkpoint_then_freeze(contract, mission_id) == "terminal_frozen"
     mission = json.loads(contract.get_mission(mission_id))
     evidence = json.loads(mission["frozen_evidence"]["terminal_state_json"])
     check_ref = next(item["id"] for item in evidence["evidence_objects"] if item.get("id", "").startswith("check:"))
@@ -209,7 +209,7 @@ def _check_mission(vm, deploy, sponsor, terms, conclusion):
     set_block_time(vm, "2026-10-06T10:00:00Z")
     vm.clear_mocks(); mock_terminal(vm)
     vm.mock_web(r".*check-runs.*", {"status": 200, "body": json.dumps({"total_count": 1, "check_runs": [{"id": 42, "name": "verify", "app": {"slug": "github-actions"}, "head_sha": "d" * 40, "status": "completed", "conclusion": conclusion}]})})
-    assert contract.freeze_terminal(mission_id) == "terminal_frozen"
+    assert checkpoint_then_freeze(contract, mission_id) == "terminal_frozen"
     mission = json.loads(contract.get_mission(mission_id))
     check_ref = next(item["id"] for item in json.loads(mission["frozen_evidence"]["terminal_state_json"])["evidence_objects"] if item["kind"] == "GITHUB_CHECK")
     return contract, mission_id, check_ref
@@ -257,7 +257,7 @@ def test_check_evidence_from_another_criterion_is_rejected(direct_vm, direct_dep
     direct_vm.mock_web(r".*check-runs.*", {"status": 200, "body": json.dumps({"total_count": 1, "check_runs": [
         {"id": 42, "name": "verify", "app": {"slug": "github-actions"}, "head_sha": "d" * 40, "status": "completed", "conclusion": "success"},
     ]})})
-    assert contract.freeze_terminal(mission_id) == "terminal_frozen"
+    assert checkpoint_then_freeze(contract, mission_id) == "terminal_frozen"
     mission = json.loads(contract.get_mission(mission_id)); evidence = json.loads(mission["frozen_evidence"]["terminal_state_json"])
     verify_ref = next(item["id"] for item in evidence["evidence_objects"] if item.get("run_id") == 42)
     verdict = {"criteria": [{"criterion_index": 0, "terminal_status": "SATISFIED", "claimant_status": "NOT_SATISFIED", "evidence_refs": [verify_ref]}, {"criterion_index": 1, "terminal_status": "SATISFIED", "claimant_status": "NOT_SATISFIED", "evidence_refs": [verify_ref]}], "roles": {}, "rationale": "Each machine criterion must cite its own frozen check."}

@@ -1,4 +1,4 @@
-from helpers import freeze_then_resolve
+from helpers import checkpoint_then_freeze, freeze_then_resolve
 import json
 
 import pytest
@@ -80,7 +80,7 @@ def test_add_funding_rejects_after_close(direct_vm, direct_deploy, direct_alice,
     direct_vm.value = 0
     direct_vm.clear_mocks()
     mock_terminal(direct_vm)
-    assert contract.freeze_terminal(mission_id) == "terminal_frozen"
+    assert checkpoint_then_freeze(contract, mission_id) == "terminal_frozen"
     direct_vm.value = WEI
     with direct_vm.expect_revert("mission_not_open"):
         contract.add_funding(mission_id)
@@ -95,7 +95,7 @@ def test_checkpoint_is_required_and_freezes_latest_preclose_candidate(direct_vm,
     direct_vm.clear_mocks(); mock_terminal(direct_vm)
     assert contract.checkpoint_terminal(mission_id) == "checkpointed"
     set_block_time(direct_vm, "2026-10-05T12:30:00Z")
-    assert contract.freeze_terminal(mission_id) == "terminal_frozen"
+    assert checkpoint_then_freeze(contract, mission_id) == "terminal_frozen"
     mission = json.loads(contract.get_mission(mission_id))
     assert mission["terminal_tip_sha"] == "d" * 40
     assert mission["checkpoint_digest"]

@@ -21,6 +21,12 @@ def freeze_then_resolve(contract, mission_id):
     return contract.resolve_mission(mission_id)
 
 
+def checkpoint_then_freeze(contract, mission_id):
+    """Acquire the immutable pre-close snapshot, then hard-close it."""
+    assert contract.checkpoint_terminal(mission_id) == "checkpointed"
+    return contract.freeze_terminal(mission_id)
+
+
 def set_block_time(vm, iso: str):
     vm.warp(iso)
     try:
