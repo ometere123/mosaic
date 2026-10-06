@@ -58,6 +58,20 @@ def test_open_mission_rejects_funding_below_protocol_minimum(direct_vm, direct_d
         contract.open_mission(*valid_args(mission_terms))
 
 
+@pytest.mark.parametrize("criterion", [
+    {"text": "probe", "evidence_kind": "DEPLOYMENT_PROBE", "url": "http://insecure.example", "expected_status": 200},
+    {"text": "metric", "evidence_kind": "METRIC_RECEIPT", "path_or_url": "https://example.test/r.json", "metric_name": "coverage", "comparator": "BAD", "threshold": 90},
+])
+def test_typed_machine_profiles_reject_unsafe_or_unknown_configuration(direct_vm, direct_deploy, direct_alice, mission_terms, criterion):
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/mosaic.py")
+    direct_vm.sender = direct_alice; direct_vm.value = 10 * WEI
+    args = valid_args(mission_terms)
+    args[5] = json.dumps([criterion])
+    with direct_vm.expect_revert():
+        contract.open_mission(*args)
+
+
 def test_add_funding_rejects_after_close(direct_vm, direct_deploy, direct_alice, direct_bob, mission_terms):
     set_block_time(direct_vm, "2026-10-01T10:00:00Z")
     contract = direct_deploy("contract/contracts/mosaic.py")
