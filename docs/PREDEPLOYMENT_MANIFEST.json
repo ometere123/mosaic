@@ -1,14 +1,14 @@
 {
-  "status": "HARDENING_DEVELOPMENT",
-  "evidence_snapshot": "V5 development checkpoint; deployment is intentionally not yet performed.",
-  "frozen_source_commit": "2cddae59521c0dd865db9e15bc21c5857fc7023e",
-  "frozen_source_tree": "e8354554ae62217b927be510367f29babcc59772",
+  "status": "DEPLOYED_RELEASE_CANDIDATE",
+  "evidence_snapshot": "V5 source and finalized Studionet deployment; canonical lifecycle has not yet started.",
+  "frozen_source_commit": "707c8fd8350c5cb1657057203d9f706913ca1f71",
+  "frozen_source_tree": "05130a97b0ab4f7f78d4c5780bce27e0b37ac238",
   "contract": {
     "path": "contract/contracts/mosaic.py",
-    "canonical_sha256": "1b0dd730f5c7bbbc7e95526cc171ee71cc4194fc7b271f6ea1d54ce01ba3e20f",
-    "git_blob_sha256": "1b0dd730f5c7bbbc7e95526cc171ee71cc4194fc7b271f6ea1d54ce01ba3e20f",
+    "canonical_sha256": "a44c95fe98b397549ff1fcaaaff30eb9b5d07d7016db63eb70f6a0fd2c20f664",
+    "git_blob_sha256": "a44c95fe98b397549ff1fcaaaff30eb9b5d07d7016db63eb70f6a0fd2c20f664",
     "public_methods": [
-      "preview_legacy_import", "preview_component_context", "get_terminal_verification_receipt", "import_legacy_frozen_mission", "adjudicate_resolution", "adjudicate_criterion", "adjudicate_role", "finalize_adjudication", "fund_and_settle_imported", "open_mission", "add_funding", "seal_contribution", "checkpoint_terminal", "freeze_terminal", "resolve_mission", "expire_unresolved",
+      "preview_component_context", "get_terminal_verification_receipt", "adjudicate_resolution", "adjudicate_criterion", "adjudicate_role", "finalize_adjudication", "open_mission", "add_funding", "seal_contribution", "checkpoint_terminal", "freeze_terminal", "resolve_mission", "expire_unresolved",
       "withdraw", "get_mission", "get_contribution", "get_sponsor_total", "get_balance",
       "get_author_wallet", "get_wallet_author", "get_next_mission_id"
     ]
@@ -69,14 +69,14 @@
   },
   "deployment": {
     "performed": true,
-    "contract_address": "0x97C9AB9afd4dCC03cAeF693cc5c8E93A7Db0395e",
+    "contract_address": "0xeeb7eD7e0684514e71973f221Fce271D190FA637",
     "transaction": {
-      "hash": "0x3a5c8a6a305469d56d183af7c35e116189ea85cb6dc36e347080ec0be8b23668",
+      "hash": "0xd5e7868bc37d981f39e873166f0c97fd0cdc5167fe507b2f44d371c33fb68af2",
       "status": "FINALIZED",
       "execution": "SUCCESS",
       "consensus": "MAJORITY_AGREE"
     },
-    "deployed_source_sha256": "a9f7ce4fa90ba1299740181c7fbaf5b5a6eb2cea9903a16d93dadecc497028fe",
+    "deployed_source_sha256": "a44c95fe98b397549ff1fcaaaff30eb9b5d07d7016db63eb70f6a0fd2c20f664",
     "note": "Corrected hardened source deployed and retrieved source hash matches the frozen source.",
     "superseded_hardened_contract_address": "0x9F8d9eA8366948A91ADf34cBf5250a54f85f1eD5",
     "superseded_hardened_deployment_transaction": "0x6df6965d208fd126dfabd8f978eaa21b72d4812e02813ef3933722bde580221f",

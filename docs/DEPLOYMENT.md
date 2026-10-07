@@ -6,12 +6,12 @@
 - RPC: https://studio.genlayer.com/api
 - Explorer: https://explorer-studio.genlayer.com
 - Repository-local CLI: `0.39.1`
-- Frozen source commit: `a78e73daf0ce89cdaaa5fb5fd2eefd8b6b99a91a`
-- Frozen source tree: `e89fb2862a8e847e2d175287bf28a696a60cc9ab`
+- Frozen source commit: `707c8fd8350c5cb1657057203d9f706913ca1f71`
+- Frozen source tree: `05130a97b0ab4f7f78d4c5780bce27e0b37ac238`
 - Contract source: `contract/contracts/mosaic.py`
-- Canonical source SHA-256: `a9f7ce4fa90ba1299740181c7fbaf5b5a6eb2cea9903a16d93dadecc497028fe`
-- Final hardened release candidate: `0x97C9AB9afd4dCC03cAeF693cc5c8E93A7Db0395e`
-- Deployment transaction: [`0x3a5c8a6a305469d56d183af7c35e116189ea85cb6dc36e347080ec0be8b23668`](https://explorer-studio.genlayer.com/tx/0x3a5c8a6a305469d56d183af7c35e116189ea85cb6dc36e347080ec0be8b23668) (`FINALIZED`, `SUCCESS`, `MAJORITY_AGREE`)
+- Canonical source SHA-256: `a44c95fe98b397549ff1fcaaaff30eb9b5d07d7016db63eb70f6a0fd2c20f664`
+- Final V5 release candidate: `0xeeb7eD7e0684514e71973f221Fce271D190FA637`
+- Deployment transaction: [`0xd5e7868bc37d981f39e873166f0c97fd0cdc5167fe507b2f44d371c33fb68af2`](https://explorer-studio.genlayer.com/tx/0xd5e7868bc37d981f39e873166f0c97fd0cdc5167fe507b2f44d371c33fb68af2) (`FINALIZED`, `SUCCESS`, `MAJORITY_AGREE`)
 - Receipt: `FINALIZED`, consensus `MAJORITY_AGREE`, leader execution `SUCCESS`
 - Created on 2026-10-03 (Studionet receipt timestamp `1791025599`).
 - Retrieved deployed source, canonicalized to LF, matches the frozen repository bytes and exact SHA-256.
@@ -33,6 +33,6 @@
 - `0x05fd77aB1f916e36C718E6b55CBdf5F726216d4a`: **SUPERSEDED** after live withdrawal delivery exposed an EOA transfer-interface defect.
 - `0xCd019C05232F6b67BB9d75FEB8D96f48AAe57921`: **SUPERSEDED** prior release-candidate deployment; a stale already-open browser bundle submitted one launch there before the final browser was hard-reloaded.
 
-The corrected deployment is source-verified and ready for the gated lifecycle. The earlier Backfill mission evidence and payout proof belong to superseded deployments and are historical only. Full deployment and lifecycle provenance is in `LIVE_VALIDATION.md` and `RELEASE_MANIFEST.json`.
+The V5 deployment is source-verified and ready for a fresh gated lifecycle. No mission has been created or funded on V5 yet. Earlier Backfill mission evidence and payout proof belong to superseded deployments and are historical only. Full deployment and lifecycle provenance is in `LIVE_VALIDATION.md` and `RELEASE_MANIFEST.json`.
 
 The deployment above is the fresh hardened release candidate. The earlier `0x418180Bf909C50c8710C4B378E9113264d484eDF` and `0x9F8d9eA8366948A91ADf34cBf5250a54f85f1eD5` deployments are **SUPERSEDED** and their lifecycle evidence is historical only; the new canonical lifecycle remains gated pending the required manual multi-contributor plan.
