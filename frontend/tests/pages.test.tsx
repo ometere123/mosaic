@@ -29,7 +29,7 @@ describe("release information architecture", () => {
     expect(screen.getByText(/settlement-state semantics with an atomic terminal freeze/i)).toBeInTheDocument();
     expect(screen.getByText(/one public contribution can receive value from multiple independently funded missions/i)).toBeInTheDocument();
     expect(screen.getByText(/protocol policy, not claims of mathematical optimality/i)).toBeInTheDocument();
-    expect(screen.getByText(/0xeeb7eD7e0684514e71973f221Fce271D190FA637/i)).toBeInTheDocument();
+    expect(screen.getByText(/0xFc94b79754bFb57Ff72fD5Ce86c55050Aa615E46/i)).toBeInTheDocument();
     expect(screen.getByText(/MOSAIC V5 is deployed on GenLayer Studionet/i)).toBeInTheDocument();
   });
 

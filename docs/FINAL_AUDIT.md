@@ -18,7 +18,7 @@ Three distinct live fail-closed behaviours have been observed: duplicate PR exec
 ## Superseded canonical release audit
 
 - Repository source and retrieved source for the earlier `0xE8CB904b47e97C0a09bF679525C5BF8b722fF1bD` release match SHA-256 `1563468f5616bf91f910282bf939d254ae1ff6e72052108dee3ee99a7be7cbde` under the documented LF canonicalization; that release is **HISTORICAL/SUPERSEDED**.
-- The V5 release candidate is `0xeeb7eD7e0684514e71973f221Fce271D190FA637` on Studionet `61999`; production remains on the prior frontend binding until the fresh lifecycle settles. Earlier lifecycle evidence is historical/superseded and the V5 canonical lifecycle has not started.
+- The final V5 causal-matrix deployment is `0xFc94b79754bFb57Ff72fD5Ce86c55050Aa615E46` on Studionet `61999`; production remains on the prior frontend binding until the fresh lifecycle settles. Earlier lifecycle evidence is historical/superseded and the V5 canonical lifecycle has not started.
 - The historical Backfill mission `0` (baseline `987fca62be4eaba1741195910e4d2079402e419d`, PR #4, merge `73ad12c5534d713c8fa01efc8c3bdce2f06f2e1c`, proof comment `5970233201`) is superseded evidence and is not the canonical lifecycle for the corrected release candidate.
 - The seal and resolution both finalized with `MAJORITY_AGREE` and successful leader execution. The settlement was terminal `ACHIEVED`, claimant `ACHIEVED`, and the complete registered role map assigned the sole claimant `CORE`.
 - Accounting was verified as `1000000000000000000 = 1000000000000000000 + 0` wei. The parent withdrawal finalized successfully, zeroed `get_balance`, and emitted a finalized EOA transfer to the claimant for 1 GEN with `value_credited: true`.
@@ -27,6 +27,6 @@ Three distinct live fail-closed behaviours have been observed: duplicate PR exec
 
 ## Audit close-out for the corrected release candidate
 
-The V5 source/deployment evidence is finalized at commit `707c8fd8350c5cb1657057203d9f706913ca1f71` with source SHA-256 `a44c95fe98b397549ff1fcaaaff30eb9b5d07d7016db63eb70f6a0fd2c20f664`; release evidence anchor CI run `37308050595` is historical and current branch CI is authoritative. Canonical source correspondence is verified for `0xeeb7eD7e0684514e71973f221Fce271D190FA637`; the V5 lifecycle has not started.
+The V5 source/deployment evidence is finalized at main commit `63f8f920348f0f0831b68e777e634a8f4ae38a53` with source SHA-256 `2d62cc8b9de7bc4a94bd4bb79081d9013eae338afbc347a5ce132b495dee8537`; release evidence anchor CI run `37308050595` is historical and current branch CI is authoritative. Canonical source correspondence is verified for `0xFc94b79754bFb57Ff72fD5Ce86c55050Aa615E46`; the V5 lifecycle has not started.
 
 At this release checkpoint, no remaining material blocker was identified in the source, deployment, or automated evidence audit. The remaining intentional gate is the manual multi-contributor plan before any new funded lifecycle. `RELEASE_MANIFEST.json` contains the exact deployment and verification anchors.

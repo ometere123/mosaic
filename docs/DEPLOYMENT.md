@@ -6,11 +6,11 @@
 - RPC: https://studio.genlayer.com/api
 - Explorer: https://explorer-studio.genlayer.com
 - Repository-local CLI: `0.39.1`
-- Frozen source commit: `707c8fd8350c5cb1657057203d9f706913ca1f71`
+- Frozen source commit: `63f8f920348f0f0831b68e777e634a8f4ae38a53`
 - Frozen source tree: `05130a97b0ab4f7f78d4c5780bce27e0b37ac238`
 - Contract source: `contract/contracts/mosaic.py`
-- Canonical source SHA-256: `a44c95fe98b397549ff1fcaaaff30eb9b5d07d7016db63eb70f6a0fd2c20f664`
-- Final V5 release candidate: `0xeeb7eD7e0684514e71973f221Fce271D190FA637`
+- Canonical source SHA-256: `2d62cc8b9de7bc4a94bd4bb79081d9013eae338afbc347a5ce132b495dee8537`
+- Final V5 release candidate: `0xFc94b79754bFb57Ff72fD5Ce86c55050Aa615E46`
 - Deployment transaction: [`0xd5e7868bc37d981f39e873166f0c97fd0cdc5167fe507b2f44d371c33fb68af2`](https://explorer-studio.genlayer.com/tx/0xd5e7868bc37d981f39e873166f0c97fd0cdc5167fe507b2f44d371c33fb68af2) (`FINALIZED`, `SUCCESS`, `MAJORITY_AGREE`)
 - Receipt: `FINALIZED`, consensus `MAJORITY_AGREE`, leader execution `SUCCESS`
 - Created on 2026-10-03 (Studionet receipt timestamp `1791025599`).
