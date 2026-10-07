@@ -140,7 +140,7 @@ def test_github_check_terminal_status_is_bound(direct_vm, direct_deploy, direct_
     frozen = json.loads(contract.get_mission(mission_id))
     terminal = json.loads(frozen["frozen_evidence"]["terminal_state_json"])
     check_ref = next(item["id"] for item in terminal["evidence_objects"] if item["kind"] == "GITHUB_CHECK")
-    direct_vm.mock_llm(r'"kind":"CRITERION"', json.dumps({
+    direct_vm.mock_llm(r'CRITERION', json.dumps({
         "terminal_status": "NOT_SATISFIED",
         "claimant_status": "NOT_SATISFIED",
         "evidence_refs": [check_ref],
@@ -184,5 +184,8 @@ def test_github_check_evidence_is_bound_to_criterion(direct_vm, direct_deploy, d
         "check:0:51": {"kind": "GITHUB_CHECK", "criterion_index": 0},
         "check:1:52": {"kind": "GITHUB_CHECK", "criterion_index": 1},
     }
-    with direct_vm.expect_revert("component_invalid_status"):
-        contract._run_component("{\"kind\":\"CRITERION\"}", "CRITERION", 1, allowed=allowed, check_kind=True)
+    try:
+        with direct_vm.expect_revert("component_invalid_status"):
+            contract._run_component("{\"kind\":\"CRITERION\"}", "CRITERION", 1, allowed=allowed, check_kind=True)
+    finally:
+        direct_vm.clear_mocks()
