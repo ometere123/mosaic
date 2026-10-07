@@ -131,7 +131,7 @@ def test_github_check_terminal_status_is_bound(direct_vm, direct_deploy, direct_
     }))
     assert contract.adjudicate_criterion(mission_id, 0) == "criterion_adjudicated"
     result = json.loads(contract.get_mission(mission_id))
-    row = result["criterion_matrix"][0]
+    row = result["criterion_results"][0]
     assert row["criterion_index"] == 0
     assert row["terminal_status"] == "SATISFIED"
     assert check_ref in row["evidence_refs"]
@@ -149,5 +149,6 @@ def test_github_check_failure_cannot_be_positive(direct_vm, direct_deploy, direc
     frozen = json.loads(contract.get_mission(mission_id)); terminal = json.loads(frozen["frozen_evidence"]["terminal_state_json"])
     check_ref = next(item["id"] for item in terminal["evidence_objects"] if item["kind"] == "GITHUB_CHECK")
     direct_vm.mock_llm(r'"kind": "CRITERION"', json.dumps({"terminal_status": "SATISFIED", "claimant_status": "NOT_SATISFIED", "evidence_refs": [check_ref], "support_refs": [], "counter_refs": [], "causal_status": "UNSPECIFIED", "reason_code": "CHECK", "rationale": "A failed check cannot be positive."}))
-    with direct_vm.expect_revert("component_invalid_status"):
-        contract.adjudicate_criterion(mission_id, 0)
+    assert contract.adjudicate_criterion(mission_id, 0) == "criterion_adjudicated"
+    result = json.loads(contract.get_mission(mission_id))
+    assert result["criterion_results"][0]["terminal_status"] == "NOT_SATISFIED"
