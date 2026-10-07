@@ -118,4 +118,6 @@ jobs:
       - name: Install repository dependencies
         run: npm ci
       - name: Verify pinned public GitHub evidence
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
         run: npm run check:public-evidence

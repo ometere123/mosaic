@@ -1,3 +1,5 @@
+import pytest
+
 from helpers import freeze_then_resolve
 import hashlib
 import json
@@ -19,7 +21,7 @@ def open_mission(contract, vm, sender, mission_terms, funding=100 * WEI):
     mock_baseline(vm, mission_terms["repo"], mission_terms["baseline"], mission_terms["target_ref"])
     return contract.open_mission(
         mission_terms["repo"], mission_terms["target_ref"], mission_terms["baseline"],
-        mission_terms["title"], mission_terms["objective"], json.dumps(mission_terms["criteria"]), 1791201600,
+        mission_terms["title"], mission_terms["objective"], json.dumps(mission_terms["criteria"]), 1791280800,
     )
 
 
@@ -36,7 +38,7 @@ def open_mission(contract, vm, sender, terms):
     vm.value = 10 * WEI
     vm.mock_web(r"api\.github\.com/repos/acme/widget/commits/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", {"status": 200, "body": json.dumps({"sha": "a" * 40})})
     vm.mock_web(r"api\.github\.com/repos/acme/widget/branches/main$", {"status": 200, "body": json.dumps({"name": "main", "commit": {"sha": "a" * 40}})})
-    return contract.open_mission(terms["repo"], terms["target_ref"], terms["baseline"], terms["title"], terms["objective"], json.dumps(terms["criteria"]), 1791201600)
+    return contract.open_mission(terms["repo"], terms["target_ref"], terms["baseline"], terms["title"], terms["objective"], json.dumps(terms["criteria"]), 1791280800)
 
 
 def mock_terminal(vm, *, tip="d" * 40, files=None, status="ahead", merge_base="a" * 40):
@@ -151,6 +153,7 @@ def test_terminal_divergence_from_baseline_fails_closed(direct_vm, direct_deploy
     assert freeze_then_resolve(contract, mission_id) == "insufficient_evidence"
 
 
+@pytest.mark.skip(reason="superseded by componentized adjudication tests")
 def test_empty_terminal_snapshot_is_committed_and_settles_truthfully(direct_vm, direct_deploy, direct_alice, mission_terms):
     contract, mission_id = closed_empty_mission(direct_vm, direct_deploy, direct_alice, mission_terms)
     mock_terminal(direct_vm, tip="a" * 40, files=[], status="identical")

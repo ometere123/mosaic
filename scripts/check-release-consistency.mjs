@@ -1,0 +1,20 @@
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const root = fileURLToPath(new URL("..", import.meta.url));
+const read = (p) => readFileSync(join(root, p), "utf8");
+const fail = (message) => { throw new Error(`Release consistency failed: ${message}`); };
+const manifest = JSON.parse(read("docs/PREDEPLOYMENT_MANIFEST.json"));
+const release = JSON.parse(read("docs/RELEASE_MANIFEST.json"));
+const source = read("contract/contracts/mosaic.py").replace(/\r\n/g, "\n");
+const sourceSha = createHash("sha256").update(Buffer.from(source, "utf8")).digest("hex");
+if (manifest.contract?.canonical_sha256 !== sourceSha) fail("predeployment source hash does not match current contract");
+if (manifest.contract?.git_blob_sha256 !== sourceSha) fail("predeployment blob hash does not match current contract");
+if (release.contract_source?.sha256 && release.contract_source.sha256 !== sourceSha) fail("release source hash disagrees with current contract");
+if (manifest.network?.chain_id !== 61999 || release.network?.chain_id !== 61999) fail("network is not Studionet 61999");
+if (manifest.network?.rpc !== "https://studio.genlayer.com/api" || release.network?.rpc !== "https://studio.genlayer.com/api") fail("RPC mismatch");
+const deployment = release.deployment?.contract;
+if (deployment && !/^0x[0-9a-fA-F]{40}$/.test(deployment)) fail("release deployment address is malformed");
+console.log(`Release consistency passed for source SHA-256 ${sourceSha}.`);

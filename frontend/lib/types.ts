@@ -8,7 +8,21 @@ export type MissionOutcome =
   | "EXPIRED"
   | "";
 export type ImpactRole = "CORE" | "MAJOR" | "SUPPORTING" | "NO_CREDIT";
-export type Criterion = { text: string; evidence_kind: "SOURCE" | "GITHUB_CHECK"; check_name?: string; check_app_slug?: string };
+export type Criterion = {
+  text: string;
+  evidence_kind: "SOURCE" | "GITHUB_CHECK" | "DEPLOYMENT_PROBE" | "METRIC_RECEIPT";
+  check_name?: string;
+  check_app_slug?: string;
+  url?: string;
+  expected_status?: number;
+  terminal_sha_field?: string;
+  predicates?: Array<{ field: string; operator: "EQ" | "NE" | "LT" | "LTE" | "GT" | "GTE"; value: string | number | boolean }>;
+  path_or_url?: string;
+  metric_name?: string;
+  comparator?: "EQ" | "NE" | "LT" | "LTE" | "GT" | "GTE";
+  threshold?: number;
+  scale?: number;
+};
 
 export type Settlement = {
   settlement_type: "RESOLVED" | "EXPIRED";
@@ -27,6 +41,7 @@ export type Settlement = {
 
 export type Mission = {
   id: number;
+  protocol_version?: number;
   creator: string;
   repo: string;
   target_ref: string;
@@ -44,6 +59,11 @@ export type Mission = {
   ordered_contribution_root?: string;
   /** legacy read compatibility for historical fixtures only */
   close_at?: number;
+  checkpointed_at?: number;
+  checkpoint_digest?: string;
+  terminal_checkpoint?: Record<string, unknown> | null;
+  terminal_verification_receipt?: Record<string, unknown> | null;
+  terminal_verification_receipt_digest?: string;
   status: MissionStatus;
   pool_wei: string;
   total_funded_wei: string;

@@ -63,7 +63,7 @@ function writer(provider: Eip1193Provider, account: `0x${string}`) {
 }
 
 export async function openMission(provider: Eip1193Provider, account: `0x${string}`, input: {
-  repo: string; targetRef: string; baseline: string; title: string; objective: string; criteria: Array<{ text: string; evidence_kind: "SOURCE" | "GITHUB_CHECK"; check_name?: string; check_app_slug?: string }>; closeAt: number; value: bigint;
+  repo: string; targetRef: string; baseline: string; title: string; objective: string; criteria: Array<{ text: string; evidence_kind: "SOURCE" | "GITHUB_CHECK" | "DEPLOYMENT_PROBE" | "METRIC_RECEIPT"; check_name?: string; check_app_slug?: string; url?: string; expected_status?: number; terminal_sha_field?: string; predicates?: unknown[]; path_or_url?: string; metric_name?: string; comparator?: "EQ" | "NE" | "LT" | "LTE" | "GT" | "GTE"; threshold?: number; scale?: number }>; closeAt: number; value: bigint;
 }) {
   const client = writer(provider, account);
   return client.writeContract({
@@ -90,6 +90,36 @@ export async function resolveMission(provider: Eip1193Provider, account: `0x${st
 export async function freezeTerminal(provider: Eip1193Provider, account: `0x${string}`, missionId: number) {
   const client = writer(provider, account);
   return client.writeContract({ address: requireContractAddress(), functionName: "freeze_terminal", args: [BigInt(missionId)], value: 0n });
+}
+
+export async function checkpointTerminal(provider: Eip1193Provider, account: `0x${string}`, missionId: number) {
+  const client = writer(provider, account);
+  return client.writeContract({ address: requireContractAddress(), functionName: "checkpoint_terminal", args: [BigInt(missionId)], value: 0n });
+}
+
+export async function previewComponentContext(missionId: number, criterionIndex: number, wallet = "") {
+  const raw = await authoritativeRead("preview_component_context", [BigInt(missionId), BigInt(criterionIndex), wallet]);
+  return parse<Record<string, unknown>>(raw);
+}
+
+export async function getTerminalVerificationReceipt(missionId: number) {
+  const raw = await authoritativeRead("get_terminal_verification_receipt", [BigInt(missionId)]);
+  return parse<{ receipt: Record<string, unknown>; digest: string }>(raw);
+}
+
+export async function adjudicateCriterion(provider: Eip1193Provider, account: `0x${string}`, missionId: number, criterionIndex: number) {
+  const client = writer(provider, account);
+  return client.writeContract({ address: requireContractAddress(), functionName: "adjudicate_criterion", args: [BigInt(missionId), BigInt(criterionIndex)], value: 0n });
+}
+
+export async function adjudicateRole(provider: Eip1193Provider, account: `0x${string}`, missionId: number, wallet: `0x${string}`) {
+  const client = writer(provider, account);
+  return client.writeContract({ address: requireContractAddress(), functionName: "adjudicate_role", args: [BigInt(missionId), wallet], value: 0n });
+}
+
+export async function finalizeAdjudication(provider: Eip1193Provider, account: `0x${string}`, missionId: number) {
+  const client = writer(provider, account);
+  return client.writeContract({ address: requireContractAddress(), functionName: "finalize_adjudication", args: [BigInt(missionId)], value: 0n });
 }
 
 export async function expireMission(provider: Eip1193Provider, account: `0x${string}`, missionId: number) {

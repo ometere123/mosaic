@@ -9,7 +9,10 @@ const expected = {
   proofMarker: "mosaic:0:0xfcef676044658b5402f590dabe9e04a0f640522f",
 };
 const get = async (path) => {
-  const response = await fetch(`${API}${path}`, { headers: { accept: "application/vnd.github+json", "user-agent": "mosaic-public-evidence" } });
+  const token = process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
+  const headers = { accept: "application/vnd.github+json", "user-agent": "mosaic-public-evidence" };
+  if (token) headers.authorization = `Bearer ${token}`;
+  const response = await fetch(`${API}${path}`, { headers });
   if (!response.ok) throw new Error(`GitHub ${path} returned HTTP ${response.status}`);
   return response.json();
 };

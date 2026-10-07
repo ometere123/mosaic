@@ -14,7 +14,7 @@ def wallet(addr):
 def open_mission(contract, vm, sender, terms):
     vm.sender = sender; vm.value = 10 * WEI
     mock_baseline(vm, terms["repo"], terms["baseline"], terms["target_ref"])
-    return contract.open_mission(terms["repo"], terms["target_ref"], terms["baseline"], terms["title"], terms["objective"], json.dumps(terms["criteria"]), 1791201600)
+    return contract.open_mission(terms["repo"], terms["target_ref"], terms["baseline"], terms["title"], terms["objective"], json.dumps(terms["criteria"]), 1791280800)
 
 
 @pytest.mark.parametrize("pr_number,comment_id", [(0, 99), (7, 0), (-1, 99), (7, -1)])
@@ -78,4 +78,3 @@ def test_contributor_collection_cap_is_enforced_at_eight(direct_vm, direct_deplo
     mock_pr(direct_vm, int(mission_id), wallet(ninth), pr_number=15, comment_id=107, author="contributor8")
     with direct_vm.expect_revert("contributor_limit_reached"):
         contract.seal_contribution(mission_id, 15, 107)
-

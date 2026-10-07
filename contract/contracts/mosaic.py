@@ -19,6 +19,7 @@ MIN_FUND_WEI = 10**18
 MIN_MISSION_SECONDS = 60 * 60
 MAX_MISSION_SECONDS = 90 * 24 * 60 * 60
 UNRESOLVED_GRACE_SECONDS = 30 * 24 * 60 * 60
+MAX_CHECKPOINT_AGE_SECONDS = 2 * 60 * 60
 MAX_SPONSORS = 16
 MAX_CONTRIBUTORS = 8
 MAX_CONTRIBUTIONS = 12
@@ -28,6 +29,9 @@ MAX_OBJECTIVE_CHARS = 1200
 MAX_CRITERION_CHARS = 320
 MAX_CHECK_NAME_CHARS = 120
 MAX_CHECK_APP_SLUG_CHARS = 80
+MAX_PROFILE_URL_CHARS = 240
+MAX_METRIC_NAME_CHARS = 80
+MAX_PROFILE_PREDICATES = 8
 MAX_TARGET_REF_CHARS = 120
 MAX_CHANGED_FILES = 30
 MAX_PATCH_CHARS = 24000
@@ -44,12 +48,6 @@ MAX_RESOLUTION_RATIONALE_CHARS = 1200
 MAX_TERMINAL_FILES = 30
 MAX_TERMINAL_PATCH_CHARS = 24000
 MAX_TERMINAL_TOTAL_CHANGES = 2500
-LEGACY_MOSAIC_ADDRESS = "0x97c9ab9afd4dcc03caef693cc5c8e93a7db0395e"
-V2_MOSAIC_ADDRESS = "0xd9e634650011989b9587537f051b265d2b7fe493"
-LEGACY_MISSION_ID = 0
-LEGACY_TERMINAL_SHA = "82bee53969172af1fcfa575fe4605fb18c974017"
-LEGACY_POOL_WEI = 10 * MIN_FUND_WEI
-
 MISSION_OUTCOMES = {
     "ACHIEVED",
     "MATERIAL_PROGRESS",
@@ -67,20 +65,6 @@ class _Recipient:
         pass
     class Write:
         pass
-
-
-@gl.contract_interface
-class _LegacyMosaic:
-    class View:
-        def get_mission(self, mission_id: u256) -> str:
-            pass
-
-        def get_contribution(self, mission_id: u256, index: u256) -> str:
-            pass
-
-    class Write:
-        pass
-
 
 def _canonical_json(value) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
@@ -154,7 +138,8 @@ def _normalise_criteria(value):
     for item in value:
         if not isinstance(item, dict):
             raise gl.vm.UserError("invalid_criterion")
-        if set(item.keys()) - {"text", "evidence_kind", "check_name", "check_app_slug"}:
+        allowed_keys = {"text", "evidence_kind", "check_name", "check_app_slug", "url", "expected_status", "terminal_sha_field", "predicates", "path_or_url", "metric_name", "comparator", "threshold", "scale"}
+        if set(item.keys()) - allowed_keys:
             raise gl.vm.UserError("invalid_criterion_schema")
         text = item.get("text")
         kind = item.get("evidence_kind")
@@ -172,6 +157,31 @@ def _normalise_criteria(value):
                     or not isinstance(app, str) or not app.strip() or len(app.strip()) > MAX_CHECK_APP_SLUG_CHARS):
                 raise gl.vm.UserError("invalid_check_requirement")
             result.append({"text": text, "evidence_kind": kind, "check_name": name.strip(), "check_app_slug": app.strip()})
+        elif kind == "DEPLOYMENT_PROBE":
+            url = item.get("url")
+            status = item.get("expected_status")
+            field = item.get("terminal_sha_field", "")
+            predicates = item.get("predicates", [])
+            if (set(item.keys()) - {"text", "evidence_kind", "url", "expected_status", "terminal_sha_field", "predicates"}
+                    or not isinstance(url, str) or not url.startswith("https://") or len(url) > MAX_PROFILE_URL_CHARS
+                    or not isinstance(status, int) or status < 100 or status > 599
+                    or not isinstance(field, str) or len(field) > 80
+                    or not isinstance(predicates, list) or len(predicates) > MAX_PROFILE_PREDICATES):
+                raise gl.vm.UserError("invalid_deployment_probe")
+            result.append({"text": text, "evidence_kind": kind, "url": url, "expected_status": status, "terminal_sha_field": field, "predicates": predicates})
+        elif kind == "METRIC_RECEIPT":
+            path = item.get("path_or_url")
+            metric = item.get("metric_name")
+            comparator = item.get("comparator")
+            threshold = item.get("threshold")
+            scale = item.get("scale", 1)
+            if (set(item.keys()) - {"text", "evidence_kind", "path_or_url", "metric_name", "comparator", "threshold", "scale"}
+                    or not isinstance(path, str) or not path.startswith(("https://", "/")) or len(path) > MAX_PROFILE_URL_CHARS
+                    or not isinstance(metric, str) or not metric.strip() or len(metric) > MAX_METRIC_NAME_CHARS
+                    or comparator not in {"EQ", "NE", "LT", "LTE", "GT", "GTE"}
+                    or not isinstance(threshold, int) or not isinstance(scale, int) or scale <= 0):
+                raise gl.vm.UserError("invalid_metric_receipt")
+            result.append({"text": text, "evidence_kind": kind, "path_or_url": path, "metric_name": metric.strip(), "comparator": comparator, "threshold": threshold, "scale": scale})
         else:
             raise gl.vm.UserError("invalid_evidence_kind")
     return result
@@ -185,6 +195,36 @@ def _derive_matrix_outcome(statuses, unavailable):
     if any(item in {"SATISFIED", "PARTIAL"} for item in statuses):
         return "MATERIAL_PROGRESS"
     return "NOT_ACHIEVED"
+
+
+def _metric_matches(value: int, comparator: str, threshold: int) -> bool:
+    if comparator == "EQ": return value == threshold
+    if comparator == "NE": return value != threshold
+    if comparator == "LT": return value < threshold
+    if comparator == "LTE": return value <= threshold
+    if comparator == "GT": return value > threshold
+    if comparator == "GTE": return value >= threshold
+    return False
+
+
+def _profile_predicates_match(payload, predicates) -> bool:
+    if not isinstance(payload, dict) or not isinstance(predicates, list) or len(predicates) > MAX_PROFILE_PREDICATES:
+        return False
+    for predicate in predicates:
+        if not isinstance(predicate, dict) or set(predicate) != {"field", "operator", "value"}:
+            return False
+        field = predicate.get("field")
+        if not isinstance(field, str) or not field or field not in payload:
+            return False
+        actual = payload[field]
+        expected = predicate.get("value")
+        operator = predicate.get("operator")
+        if operator == "EQ" and actual != expected: return False
+        if operator == "NE" and actual == expected: return False
+        if operator in {"LT", "LTE", "GT", "GTE"}:
+            if not isinstance(actual, int) or not isinstance(expected, int) or not _metric_matches(actual, operator, expected):
+                return False
+    return True
 
 
 def _normalise_matrix_judgment(verdict, expected_wallets, criteria, evidence_objects, required_checks):
@@ -324,6 +364,18 @@ def _read_json_url(url: str):
     if parsed is None:
         return None, "malformed_json"
     return parsed, ""
+
+
+def _read_machine_json_url(url: str):
+    try:
+        response = gl.nondet.web.get(url)
+    except Exception as exc:
+        return None, 0, f"request_failed:{type(exc).__name__}"
+    status = _status_code(response)
+    parsed = _safe_json(_response_text(response)) if 200 <= status < 300 else None
+    if parsed is None:
+        return None, status, f"http_{status}" if status else "malformed_json"
+    return parsed, status, ""
 
 
 def _fetch_baseline(context_json: str) -> str:
@@ -734,7 +786,35 @@ def _fetch_terminal_state(context_json: str) -> str:
             return _canonical_json({"status": "INVALID", "reason": "check_status_invalid"})
         checks.append({"criterion_index": index, "name": check_name, "app_slug": app_slug, "run_id": int(run.get("id") or 0), "head_sha": head_sha, "status": status, "conclusion": conclusion})
     state["required_checks"] = checks
-    state["evidence_objects"] = [{"id": f"source:{index}:{item['filename']}", "kind": "SOURCE", "terminal_tip_sha": tip, "path": item["filename"], "digest": _canonical_digest(item)} for index, item in enumerate(normalized)] + [{"id": f"check:{item['criterion_index']}:{item['run_id']}", "kind": "GITHUB_CHECK", "criterion_index": item["criterion_index"], "repository": repo, "terminal_tip_sha": tip, "name": item["name"], "app_slug": item["app_slug"], "run_id": item["run_id"], "status": item["status"], "conclusion": item["conclusion"], "digest": _canonical_digest(item)} for item in checks]
+    machine_receipts = []
+    for index, criterion in enumerate(criteria):
+        if not isinstance(criterion, dict) or criterion.get("evidence_kind") not in {"DEPLOYMENT_PROBE", "METRIC_RECEIPT"}:
+            continue
+        path = criterion.get("url") if criterion.get("evidence_kind") == "DEPLOYMENT_PROBE" else criterion.get("path_or_url")
+        payload, http_status, reason = _read_machine_json_url(str(path))
+        if payload is None:
+            return _canonical_json({"status": "SOURCE_UNAVAILABLE", "reason": f"machine_profile:{reason}"})
+        if criterion.get("evidence_kind") == "DEPLOYMENT_PROBE":
+            if http_status != int(criterion.get("expected_status")) or not isinstance(payload, dict) or not _profile_predicates_match(payload, criterion.get("predicates", [])):
+                return _canonical_json({"status": "INSUFFICIENT_EVIDENCE", "reason": "deployment_probe_predicate_failed"})
+            field = str(criterion.get("terminal_sha_field") or "")
+            if field and str(payload.get(field) or "").lower() != tip:
+                return _canonical_json({"status": "INVALID", "reason": "deployment_probe_terminal_sha_mismatch"})
+            receipt = {"criterion_index": index, "kind": "DEPLOYMENT_PROBE", "url": str(path), "terminal_tip_sha": tip, "payload_digest": _canonical_digest(payload), "status": int(criterion.get("expected_status"))}
+        else:
+            if not isinstance(payload, dict):
+                return _canonical_json({"status": "INVALID", "reason": "metric_receipt_malformed"})
+            value = payload.get(str(criterion.get("metric_name")))
+            if not isinstance(value, int) or not _metric_matches(value, str(criterion.get("comparator")), int(criterion.get("threshold"))):
+                return _canonical_json({"status": "INSUFFICIENT_EVIDENCE", "reason": "metric_receipt_threshold_failed"})
+            if str(payload.get("terminal_sha") or "").lower() != tip:
+                return _canonical_json({"status": "INVALID", "reason": "metric_receipt_terminal_sha_mismatch"})
+            receipt = {"criterion_index": index, "kind": "METRIC_RECEIPT", "path_or_url": str(path), "terminal_tip_sha": tip, "metric_name": str(criterion.get("metric_name")), "value": value, "digest": _canonical_digest(payload)}
+        receipt["id"] = f"machine:{index}:{receipt.get('payload_digest', receipt.get('digest'))}"
+        receipt["receipt_digest"] = _canonical_digest(receipt)
+        machine_receipts.append(receipt)
+    state["machine_receipts"] = machine_receipts
+    state["evidence_objects"] = [{"id": f"source:{index}:{item['filename']}", "kind": "SOURCE", "terminal_tip_sha": tip, "path": item["filename"], "digest": _canonical_digest(item)} for index, item in enumerate(normalized)] + [{"id": f"check:{item['criterion_index']}:{item['run_id']}", "kind": "GITHUB_CHECK", "criterion_index": item["criterion_index"], "repository": repo, "terminal_tip_sha": tip, "name": item["name"], "app_slug": item["app_slug"], "run_id": item["run_id"], "status": item["status"], "conclusion": item["conclusion"], "digest": _canonical_digest(item)} for item in checks] + machine_receipts
     state["terminal_source_digest"] = _canonical_digest(state)
     state["status"] = "OK"
     return _canonical_json(state)
@@ -888,7 +968,8 @@ def _component_prompt(mission, criterion_index, wallet="", frozen_context=None):
     evidence = context.get("evidence_objects", [])
     contributions = [mission.get("contributor_wallets", [])[i] for i in range(len(mission.get("contributor_wallets", [])))]
     if wallet:
-        return json.dumps({"kind": "ROLE", "wallet": wallet, "objective": mission.get("objective", ""), "criterion_matrix": mission.get("criterion_results", []), "portfolio": [x for x in evidence if x.get("kind") == "CONTRIBUTION" and _wallet(x.get("wallet", "")) == wallet]}, sort_keys=True)
+        portfolio_map = context.get("portfolios", {})
+        return json.dumps({"kind": "ROLE", "wallet": wallet, "objective": mission.get("objective", ""), "criterion_matrix": mission.get("criterion_results", []), "portfolio": portfolio_map.get(_wallet(wallet), []), "contribution_evidence": [x for x in evidence if x.get("kind") == "CONTRIBUTION" and _wallet(x.get("wallet", "")) == wallet]}, sort_keys=True)
     manifest = [{"id": x.get("id"), "kind": x.get("kind"), "criterion_index": x.get("criterion_index"), "wallet": x.get("wallet")} for x in evidence if x.get("kind") in {"SOURCE", "GITHUB_CHECK", "CONTRIBUTION"} and (x.get("kind") != "SOURCE" or x.get("criterion_index", criterion_index) == criterion_index)]
     terminal = context.get("terminal", {})
     source_files = context.get("source_files", [])
@@ -912,131 +993,14 @@ class Mosaic(gl.Contract):
     def __init__(self):
         self.next_mission_id = u256(0)
 
-    def _legacy_preview(self, source_mission_id: u256):
-        fail = lambda stage, reason, stored="", recomputed="": {"ok": False, "stage": stage, "reason": reason, "stored": str(stored)[:160], "recomputed": str(recomputed)[:160]}
-        if int(source_mission_id) != 0:
-            return fail("MISSION_ID", "unsupported_source_mission")
-        try:
-            source = _safe_json(_LegacyMosaic(Address(V2_MOSAIC_ADDRESS)).view().get_mission(source_mission_id))
-        except Exception:
-            return fail("MISSION_READ", "v2_view_failed")
-        if not isinstance(source, dict): return fail("MISSION_JSON", "malformed")
-        if int(source.get("id", -1)) != 0: return fail("MISSION_ID", "mismatch", source.get("id"), 0)
-        if source.get("status") != "TERMINAL_FROZEN": return fail("MISSION_STATUS", "not_frozen", source.get("status"), "TERMINAL_FROZEN")
-        if source.get("migration_status") != "FROZEN_BY_LEGACY_MOSAIC": return fail("MIGRATION_STATUS", "mismatch", source.get("migration_status"), "FROZEN_BY_LEGACY_MOSAIC")
-        if str(source.get("legacy_source_contract", "")).lower() != LEGACY_MOSAIC_ADDRESS: return fail("LEGACY_V1_SOURCE", "mismatch", source.get("legacy_source_contract"), LEGACY_MOSAIC_ADDRESS)
-        if source.get("settlement") not in (None, "") or source.get("settlement_digest", ""): return fail("SETTLEMENT_STATE", "already_settled")
-        if str(source.get("terminal_tip_sha", "")).lower() != LEGACY_TERMINAL_SHA: return fail("TERMINAL_TIP", "mismatch", source.get("terminal_tip_sha"), LEGACY_TERMINAL_SHA)
-        frozen = source.get("frozen_evidence")
-        if not isinstance(frozen, dict): return fail("FROZEN_EVIDENCE", "missing")
-        if _canonical_digest(frozen) != source.get("frozen_evidence_digest"): return fail("FROZEN_EVIDENCE_DIGEST", "mismatch", source.get("frozen_evidence_digest"), _canonical_digest(frozen))
-        count = int(source.get("contribution_count", 0))
-        if count != 2: return fail("CONTRIBUTION_COUNT", "unexpected", count, 2)
-        records = []
-        for i in range(count):
-            try: item = _safe_json(_LegacyMosaic(Address(V2_MOSAIC_ADDRESS)).view().get_contribution(source_mission_id, u256(i)))
-            except Exception: return fail(f"CONTRIBUTION_{i}_READ", "v2_view_failed")
-            if not isinstance(item, dict): return fail(f"CONTRIBUTION_{i}_READ", "malformed")
-            if item.get("status") != "SEALED": return fail(f"CONTRIBUTION_{i}_STATUS", "not_sealed", item.get("status"), "SEALED")
-            records.append(item)
-        wallets = [_wallet(item.get("wallet", "")) for item in records]
-        expected = ["0xca13851553cb7522a8eebfa19938314a6eb2f661", "0xd896103417d3605aea085c0192dcb1cd305da56e"]
-        if wallets != expected: return fail("CONTRIBUTOR_WALLETS", "mismatch", wallets, expected)
-        return {"ok": True, "stage": "READY", "source_contract": V2_MOSAIC_ADDRESS, "source_mission_id": 0, "terminal_tip_sha": source.get("terminal_tip_sha"), "contribution_count": count, "source_pool_wei": source.get("total_funded_wei"), "frozen_evidence_digest": source.get("frozen_evidence_digest"), "mission_evidence_root": source.get("mission_evidence_root"), "resolution_evidence_root": source.get("resolution_evidence_root"), "ordered_contribution_root": source.get("ordered_contribution_root"), "terminal_lineage_root": source.get("terminal_lineage_root"), "terminal_source_digest": source.get("terminal_source_digest"), "import_digest": source.get("legacy_import_digest")}
-
-    @gl.public.view
-    def preview_legacy_import(self, source_mission_id: u256) -> str:
-        return _canonical_json(self._legacy_preview(source_mission_id))
-
-    @gl.public.write.payable
-    def import_legacy_frozen_mission(self, source_mission_id: u256) -> u256:
-        """One-time trustless import of the canonical unresolved V1 mission."""
-        if int(source_mission_id) != LEGACY_MISSION_ID or int(self.next_mission_id) != 0:
-            raise gl.vm.UserError("legacy_import_not_available")
-        if int(gl.message.value) != 0:
-            raise gl.vm.UserError("legacy_import_funding_mismatch")
-        preview = self._legacy_preview(source_mission_id)
-        if not preview.get("ok"):
-            raise gl.vm.UserError("legacy_preview_" + str(preview.get("stage", "invalid")).lower())
-        legacy = _LegacyMosaic(Address(V2_MOSAIC_ADDRESS))
-        raw = legacy.view().get_mission(source_mission_id)
-        source = _safe_json(raw)
-        if not isinstance(source, dict) or int(source.get("id", -1)) != LEGACY_MISSION_ID:
-            raise gl.vm.UserError("legacy_mission_missing")
-        if source.get("status") != "TERMINAL_FROZEN" or source.get("settlement") not in (None, "") or source.get("settlement_digest", "") or source.get("migration_status") != "FROZEN_BY_LEGACY_MOSAIC" or str(source.get("legacy_source_contract", "")).lower() != LEGACY_MOSAIC_ADDRESS:
-            raise gl.vm.UserError("legacy_mission_not_unsettled")
-        frozen = source.get("frozen_evidence")
-        if not isinstance(frozen, dict) or _canonical_digest(frozen) != source.get("frozen_evidence_digest"):
-            raise gl.vm.UserError("legacy_frozen_evidence_invalid")
-        terminal_sha = str(source.get("terminal_tip_sha") or "").lower()
-        terminal = _safe_json(frozen.get("terminal_state_json", ""))
-        if terminal_sha != LEGACY_TERMINAL_SHA or not isinstance(terminal, dict) or terminal.get("terminal_tip_sha") != terminal_sha:
-            raise gl.vm.UserError("legacy_terminal_sha_mismatch")
-        roots = ("mission_evidence_root", "resolution_evidence_root", "ordered_contribution_root", "terminal_lineage_root")
-        if any(not _digest_ok(str(source.get(key) or "")) for key in roots):
-            raise gl.vm.UserError("legacy_root_invalid")
-        count = int(source.get("contribution_count", 0))
-        if count < 1 or count > MAX_CONTRIBUTIONS:
-            raise gl.vm.UserError("legacy_contribution_count_invalid")
-        records = []
-        contributors = []
-        for index in range(count):
-            item = _safe_json(legacy.view().get_contribution(source_mission_id, u256(index)))
-            if not isinstance(item, dict) or item.get("status") != "SEALED" or not _digest_ok(str(item.get("record_commitment") or "")):
-                raise gl.vm.UserError("legacy_contribution_invalid")
-            wallet = _wallet(item.get("wallet", ""))
-            if not re.fullmatch(r"0x[0-9a-f]{40}", wallet):
-                raise gl.vm.UserError("legacy_wallet_invalid")
-            if wallet not in contributors:
-                contributors.append(wallet)
-            records.append(item)
-            self.contributions[f"0:{index}"] = json.dumps(item, sort_keys=True)
-        if not contributors or len(contributors) != len(source.get("contributor_wallets", [])):
-            raise gl.vm.UserError("legacy_contributor_set_mismatch")
-        imported = dict(source)
-        imported["id"] = 0
-        imported["creator"] = _wallet(source.get("creator", ""))
-        imported["pool_wei"] = "0"
-        imported["total_funded_wei"] = str(LEGACY_POOL_WEI)
-        imported["source_pool_wei"] = str(LEGACY_POOL_WEI)
-        imported["settlement_pool_wei"] = "0"
-        imported["required_settlement_pool_wei"] = str(LEGACY_POOL_WEI)
-        imported["status"] = "TERMINAL_FROZEN"
-        imported["settlement"] = None
-        imported["settlement_digest"] = ""
-        imported["migration_status"] = "FROZEN_BY_LEGACY_MOSAIC"
-        imported["legacy_source_contract"] = LEGACY_MOSAIC_ADDRESS
-        imported["legacy_source_mission_id"] = LEGACY_MISSION_ID
-        imported["legacy_frozen_evidence_digest"] = source.get("frozen_evidence_digest", "")
-        imported["legacy_mission_evidence_root"] = source.get("mission_evidence_root", "")
-        imported["legacy_resolution_evidence_root"] = source.get("resolution_evidence_root", "")
-        imported["legacy_ordered_contribution_root"] = source.get("ordered_contribution_root", "")
-        imported["legacy_terminal_lineage_root"] = source.get("terminal_lineage_root", "")
-        imported["legacy_terminal_tip_sha"] = terminal_sha
-        imported["legacy_terminal_source_digest"] = source.get("terminal_source_digest", "")
-        imported["legacy_import_digest"] = _canonical_digest({"contract": LEGACY_MOSAIC_ADDRESS, "mission_id": 0, "frozen_evidence_digest": source.get("frozen_evidence_digest", ""), "mission_evidence_root": source.get("mission_evidence_root", ""), "resolution_evidence_root": source.get("resolution_evidence_root", ""), "ordered_contribution_root": source.get("ordered_contribution_root", ""), "terminal_lineage_root": source.get("terminal_lineage_root", ""), "terminal_tip_sha": terminal_sha})
-        imported["contributor_wallets"] = contributors
-        imported["criterion_adjudicated"] = [False for _ in imported.get("criteria", [])]
-        imported["criterion_results"] = [{} for _ in imported.get("criteria", [])]
-        imported["role_adjudicated"] = {w: False for w in contributors}
-        imported["role_results"] = {}
-        imported["role_evidence_components"] = {}
-        imported["adjudication_complete"] = False
-        imported["adjudication_digest"] = ""
-        self.missions[0] = json.dumps(imported, sort_keys=True)
-        self.next_mission_id = u256(1)
-        sponsor = imported["creator"]
-        self.sponsor_totals[f"0:{sponsor}"] = "0"
-        return u256(0)
-
-    @gl.public.write
-    def adjudicate_resolution(self, mission_id: u256) -> str:
-        raise gl.vm.UserError("componentized_adjudication_required")
-
     def _component_context(self, mission, index, wallet=""):
         return _component_prompt(mission, index, wallet, self._frozen_adjudication_context(mission))
 
     def _frozen_adjudication_context(self, mission):
+        receipt = mission.get("terminal_verification_receipt")
+        receipt_digest = mission.get("terminal_verification_receipt_digest", "")
+        if not isinstance(receipt, dict) or _canonical_digest(receipt) != receipt_digest:
+            raise gl.vm.UserError("component_terminal_receipt_invalid")
         frozen = mission.get("frozen_evidence")
         if not isinstance(frozen, dict):
             raise gl.vm.UserError("component_frozen_context_missing")
@@ -1082,6 +1046,15 @@ class Mosaic(gl.Contract):
         refs = [str(x.get("id")) for x in context["evidence_objects"] if isinstance(x, dict)]
         return _canonical_json({"ok": True, "kind": "ROLE" if wallet else "CRITERION", "criterion_index": idx, "wallet": _wallet(wallet) if wallet else "", "terminal_tip_sha": context["terminal"].get("terminal_tip_sha"), "source_file_count": len(context["source_files"]), "source_files": [{"evidence_id": x["evidence_id"], "filename": x["filename"], "digest": x["digest"], "patch_chars": len(x["patch"])} for x in context["source_files"]], "allowed_evidence_ids": refs, "claimant_evidence_ids": [x.get("id") for x in context["claimant_evidence"]], "claimant_wallets": mission.get("contributor_wallets", []), "portfolio_count": len(context["portfolios"].get(_wallet(wallet), [])) if wallet else 0, "criterion_result_count": len(mission.get("criterion_results", []))})
 
+    @gl.public.view
+    def get_terminal_verification_receipt(self, mission_id: u256) -> str:
+        mission = self._mission(mission_id)
+        receipt = mission.get("terminal_verification_receipt")
+        digest = mission.get("terminal_verification_receipt_digest", "")
+        if not isinstance(receipt, dict) or _canonical_digest(receipt) != digest:
+            raise gl.vm.UserError("terminal_receipt_invalid")
+        return _canonical_json({"receipt": receipt, "digest": digest})
+
     def _run_component(self, prompt, kind, criterion_index=None, wallet="", allowed=None, check_kind=False):
         allowed = allowed or {}
         def normalize(raw, repair=False):
@@ -1092,20 +1065,29 @@ class Mosaic(gl.Contract):
                 refs = raw.get("evidence_refs", [])
                 if terminal not in COMPONENT_STATUSES or claimant not in COMPONENT_STATUSES or not isinstance(refs, list): return None
                 refs = sorted(set(str(x) for x in refs))
+                support_refs = raw.get("support_refs", [])
+                counter_refs = raw.get("counter_refs", [])
+                causal_status = str(raw.get("causal_status", "UNSPECIFIED")).strip().upper()
+                reason_code = str(raw.get("reason_code", "UNSPECIFIED")).strip().upper()
+                if not isinstance(support_refs, list) or not isinstance(counter_refs, list): return None
+                support_refs = sorted(set(str(x) for x in support_refs)); counter_refs = sorted(set(str(x) for x in counter_refs))
+                if any(x not in allowed for x in support_refs + counter_refs): return None
+                if causal_status not in {"UNSPECIFIED", "CAUSAL", "NON_CAUSAL", "PARTIAL_CAUSAL"}: return None
+                if reason_code not in {"UNSPECIFIED", "IMPLEMENTATION", "REGRESSION", "CHECK", "INSUFFICIENT", "CONTRIBUTION_SCOPE"}: return None
                 if any(x not in allowed for x in refs): return None
                 if criterion_index is not None and allowed.get("__kind") == "SOURCE" and terminal in {"SATISFIED", "PARTIAL"} and not any(allowed[x].get("kind") == "SOURCE" for x in refs): return None
                 if claimant in {"SATISFIED", "PARTIAL"} and not any(allowed[x].get("kind") == "CONTRIBUTION" for x in refs): return None
-                if check_kind and not any(allowed[x].get("kind") == "GITHUB_CHECK" and int(allowed[x].get("criterion_index", -1)) == int(criterion_index) for x in refs): return None
-                return {"terminal_status": terminal, "claimant_status": claimant, "evidence_refs": refs, "rationale": str(raw.get("rationale", ""))[:320]}
+                if check_kind and not any(allowed[x].get("kind") in {"GITHUB_CHECK", "DEPLOYMENT_PROBE", "METRIC_RECEIPT"} and int(allowed[x].get("criterion_index", -1)) == int(criterion_index) for x in refs): return None
+                return {"terminal_status": terminal, "claimant_status": claimant, "evidence_refs": refs, "support_refs": support_refs, "counter_refs": counter_refs, "causal_status": causal_status, "reason_code": reason_code, "rationale": str(raw.get("rationale", ""))[:320]}
             role = str(raw.get("role", "")).strip().upper(); refs = raw.get("evidence_refs", [])
             if role not in IMPACT_ROLES or not isinstance(refs, list): return None
             refs = sorted(set(str(x) for x in refs))
             if any(x not in allowed for x in refs): return None
             if ROLE_WEIGHT[role] > 0 and not any(allowed[x].get("kind") == "CONTRIBUTION" and _wallet(allowed[x].get("wallet", "")) == wallet for x in refs): return None
             return {"role": role, "evidence_refs": refs, "rationale": str(raw.get("rationale", ""))[:320]}
-        correction = "\nThe prior response was invalid. Use ONLY these exact status values: SATISFIED, PARTIAL, NOT_SATISFIED, UNVERIFIABLE. Use only evidence IDs listed below. Positive terminal SOURCE status requires a SOURCE ref. Positive claimant status requires a CONTRIBUTION ref. Return only the required JSON."
+        correction = "\nThe prior response was invalid. Use ONLY these exact status values: SATISFIED, PARTIAL, NOT_SATISFIED, UNVERIFIABLE. Use only evidence IDs listed below. Positive terminal SOURCE status requires a SOURCE ref. Positive claimant status requires a CONTRIBUTION ref. Include support_refs, counter_refs, causal_status (UNSPECIFIED|CAUSAL|NON_CAUSAL|PARTIAL_CAUSAL), and reason_code (UNSPECIFIED|IMPLEMENTATION|REGRESSION|CHECK|INSUFFICIENT|CONTRIBUTION_SCOPE). Return only the required JSON."
         def leader_fn():
-            suffix = "\nReturn ONLY JSON: {\"terminal_status\":\"SATISFIED|PARTIAL|NOT_SATISFIED|UNVERIFIABLE\",\"claimant_status\":\"SATISFIED|PARTIAL|NOT_SATISFIED|UNVERIFIABLE\",\"evidence_refs\":[],\"rationale\":\"...\"}" if kind == "CRITERION" else "\nReturn ONLY JSON: {\"role\":\"CORE|MAJOR|SUPPORTING|NO_CREDIT\",\"evidence_refs\":[],\"rationale\":\"...\"}"
+            suffix = "\nReturn ONLY JSON: {\"terminal_status\":\"SATISFIED|PARTIAL|NOT_SATISFIED|UNVERIFIABLE\",\"claimant_status\":\"SATISFIED|PARTIAL|NOT_SATISFIED|UNVERIFIABLE\",\"evidence_refs\":[],\"support_refs\":[],\"counter_refs\":[],\"causal_status\":\"UNSPECIFIED|CAUSAL|NON_CAUSAL|PARTIAL_CAUSAL\",\"reason_code\":\"UNSPECIFIED|IMPLEMENTATION|REGRESSION|CHECK|INSUFFICIENT|CONTRIBUTION_SCOPE\",\"rationale\":\"...\"}" if kind == "CRITERION" else "\nReturn ONLY JSON: {\"role\":\"CORE|MAJOR|SUPPORTING|NO_CREDIT\",\"evidence_refs\":[],\"rationale\":\"...\"}"
             raw = gl.nondet.exec_prompt(prompt + suffix, response_format="json")
             result = normalize(raw)
             if result is None:
@@ -1119,8 +1101,16 @@ class Mosaic(gl.Contract):
             other = leader_fn()
             leader = leaders_res.calldata
             if kind == "CRITERION":
-                return leader.get("terminal_status") == other.get("terminal_status") and leader.get("claimant_status") == other.get("claimant_status")
-            return leader.get("role") == other.get("role")
+                return (
+                    leader.get("terminal_status") == other.get("terminal_status")
+                    and leader.get("claimant_status") == other.get("claimant_status")
+                    and sorted(leader.get("evidence_refs", [])) == sorted(other.get("evidence_refs", []))
+                    and sorted(leader.get("support_refs", [])) == sorted(other.get("support_refs", []))
+                    and sorted(leader.get("counter_refs", [])) == sorted(other.get("counter_refs", []))
+                    and leader.get("causal_status", "UNSPECIFIED") == other.get("causal_status", "UNSPECIFIED")
+                    and leader.get("reason_code", "UNSPECIFIED") == other.get("reason_code", "UNSPECIFIED")
+                )
+            return leader.get("role") == other.get("role") and sorted(leader.get("evidence_refs", [])) == sorted(other.get("evidence_refs", []))
         return gl.vm.run_nondet_unsafe(leader_fn, validator_fn)
 
     @gl.public.write
@@ -1136,17 +1126,23 @@ class Mosaic(gl.Contract):
         done = mission.get("criterion_adjudicated", [])
         if idx < len(done) and done[idx]:
             raise gl.vm.UserError("criterion_already_adjudicated")
-        result = {"criterion_index": idx, "terminal_status": "", "claimant_status": "", "evidence_refs": [], "rationale": ""}
-        if criteria[idx].get("evidence_kind") == "GITHUB_CHECK":
+        result = {"criterion_index": idx, "terminal_status": "", "claimant_status": "", "evidence_refs": [], "support_refs": [], "counter_refs": [], "causal_status": "UNSPECIFIED", "reason_code": "UNSPECIFIED", "rationale": ""}
+        if criteria[idx].get("evidence_kind") in {"GITHUB_CHECK", "DEPLOYMENT_PROBE", "METRIC_RECEIPT"}:
             checks = [x for x in frozen_context["evidence_objects"] if x.get("kind") == "GITHUB_CHECK" and int(x.get("criterion_index", -1)) == idx]
-            if len(checks) != 1 or checks[0].get("status") != "completed":
-                raise gl.vm.UserError("required_check_unavailable")
-            result["terminal_status"] = "SATISFIED" if checks[0].get("conclusion") == "success" else "NOT_SATISFIED"
+            if criteria[idx].get("evidence_kind") == "GITHUB_CHECK":
+                if len(checks) != 1 or checks[0].get("status") != "completed": raise gl.vm.UserError("required_check_unavailable")
+                result["terminal_status"] = "SATISFIED" if checks[0].get("conclusion") == "success" else "NOT_SATISFIED"
+            else:
+                checks = [x for x in frozen_context["evidence_objects"] if x.get("kind") == criteria[idx].get("evidence_kind") and int(x.get("criterion_index", -1)) == idx]
+                if len(checks) != 1: raise gl.vm.UserError("machine_receipt_unavailable")
+                result["terminal_status"] = "SATISFIED"
             result["evidence_refs"] = [checks[0].get("id")]
-            allowed = {str(x.get("id")): x for x in frozen_context["evidence_objects"]}; allowed["__kind"] = "GITHUB_CHECK"
+            allowed = {str(x.get("id")): x for x in frozen_context["evidence_objects"]}; allowed["__kind"] = criteria[idx].get("evidence_kind")
             judged = self._run_component(self._component_context(mission, idx), "CRITERION", idx, allowed=allowed, check_kind=True)
             result["claimant_status"] = judged.get("claimant_status", "UNVERIFIABLE")
             result["evidence_refs"] = sorted(set(result["evidence_refs"] + list(judged.get("evidence_refs", []))))
+            result["support_refs"] = list(judged.get("support_refs", [])); result["counter_refs"] = list(judged.get("counter_refs", []))
+            result["causal_status"] = judged.get("causal_status", "UNSPECIFIED"); result["reason_code"] = judged.get("reason_code", "UNSPECIFIED")
             result["rationale"] = judged.get("rationale", "")
         else:
             allowed = {str(x.get("id")): x for x in frozen_context["evidence_objects"]}; allowed["__kind"] = criteria[idx].get("evidence_kind")
@@ -1163,15 +1159,16 @@ class Mosaic(gl.Contract):
             raise gl.vm.UserError("component_source_evidence_required")
         if result["claimant_status"] in {"SATISFIED", "PARTIAL"} and not any(allowed[x].get("kind") == "CONTRIBUTION" for x in refs):
             raise gl.vm.UserError("component_claimant_evidence_required")
-        if criteria[idx].get("evidence_kind") == "GITHUB_CHECK":
-            matching = [x for x in refs if allowed[x].get("kind") == "GITHUB_CHECK" and int(allowed[x].get("criterion_index", -1)) == idx]
+        if criteria[idx].get("evidence_kind") in {"GITHUB_CHECK", "DEPLOYMENT_PROBE", "METRIC_RECEIPT"}:
+            expected_kind = criteria[idx].get("evidence_kind")
+            matching = [x for x in refs if allowed[x].get("kind") == expected_kind and int(allowed[x].get("criterion_index", -1)) == idx]
             if len(matching) != 1:
-                raise gl.vm.UserError("component_check_evidence_required")
+                raise gl.vm.UserError("component_machine_evidence_required")
         rows = mission.get("criterion_results", [{} for _ in criteria])
         flags = mission.get("criterion_adjudicated", [False for _ in criteria])
         while len(rows) < len(criteria): rows.append({})
         while len(flags) < len(criteria): flags.append(False)
-        rows[idx] = {k: result[k] for k in ("criterion_index", "terminal_status", "claimant_status", "evidence_refs", "rationale")}
+        rows[idx] = {k: result[k] for k in ("criterion_index", "terminal_status", "claimant_status", "evidence_refs", "support_refs", "counter_refs", "causal_status", "reason_code", "rationale")}
         flags[idx] = True
         mission["criterion_results"] = rows
         mission["criterion_adjudicated"] = flags
@@ -1197,7 +1194,7 @@ class Mosaic(gl.Contract):
         if result.get("role") not in IMPACT_ROLES:
             raise gl.vm.UserError("role_invalid")
         refs = result.get("evidence_refs", [])
-        allowed = {str(x.get("id")): x for x in mission.get("evidence_objects", [])}
+        allowed = {str(x.get("id")): x for x in frozen_context["evidence_objects"]}
         if any(str(x) not in allowed for x in refs):
             raise gl.vm.UserError("role_unknown_evidence")
         if ROLE_WEIGHT[result["role"]] > 0 and not any(str(x).startswith("contribution:") for x in refs):
@@ -1239,21 +1236,35 @@ class Mosaic(gl.Contract):
         self._save_mission(mission_id, mission)
         return "adjudication_finalized"
 
-    @gl.public.write.payable
-    def fund_and_settle_imported(self, mission_id: u256) -> str:
+    @gl.public.write
+    def settle_finalized(self, mission_id: u256) -> str:
+        """Deterministically settle a normally funded V5 mission.
+
+        Component adjudication is the only judgment path.  This entry point
+        consumes the immutable finalized judgment and never invokes an LLM.
+        Imported missions continue to use the payable funding gate above.
+        """
         mission = self._mission(mission_id)
-        if mission.get("migration_status") != "FROZEN_BY_LEGACY_MOSAIC" or not mission.get("adjudication_complete") or not mission.get("adjudication"):
-            raise gl.vm.UserError("adjudication_required")
-        if mission.get("status") == "SETTLED":
+        if mission.get("status") != "TERMINAL_FROZEN":
+            raise gl.vm.UserError("mission_not_frozen")
+        if mission.get("status") == "SETTLED" or mission.get("settlement"):
             raise gl.vm.UserError("already_settled")
-        required = int(mission.get("required_settlement_pool_wei", LEGACY_POOL_WEI))
-        if int(gl.message.value) != required:
-            raise gl.vm.UserError("settlement_funding_mismatch")
-        mission["pool_wei"] = str(required)
-        self._save_mission(mission_id, mission)
+        if not mission.get("adjudication_complete") or not isinstance(mission.get("adjudication"), dict):
+            raise gl.vm.UserError("adjudication_required")
+        if int(mission.get("pool_wei", 0)) <= 0:
+            raise gl.vm.UserError("empty_settlement_pool")
         adjudication = mission["adjudication"]
-        self._settle(mission_id, mission, adjudication["terminal_objective_status"], adjudication["claimant_outcome"], adjudication["roles"], adjudication["rationale"], adjudication["criterion_matrix"], adjudication["role_evidence"])
-        return "settled_imported"
+        self._settle(
+            mission_id,
+            mission,
+            adjudication["terminal_objective_status"],
+            adjudication["claimant_outcome"],
+            adjudication["roles"],
+            adjudication.get("rationale", "componentized adjudication"),
+            adjudication["criterion_matrix"],
+            adjudication["role_evidence"],
+        )
+        return "settled_finalized"
 
     @gl.public.write.payable
     def open_mission(
@@ -1289,6 +1300,9 @@ class Mosaic(gl.Contract):
 
         now = _now_unix()
         freeze_not_before = int(freeze_not_before)
+        # V5 derives a hard close deadline from the frozen launch term while
+        # retaining the historical ABI.  The deadline is immutable thereafter.
+        close_at = freeze_not_before + MIN_MISSION_SECONDS
         duration = freeze_not_before - now
         if duration < MIN_MISSION_SECONDS or duration > MAX_MISSION_SECONDS:
             raise gl.vm.UserError("invalid_mission_duration")
@@ -1314,6 +1328,7 @@ class Mosaic(gl.Contract):
         sponsor = _wallet(gl.message.sender_address)
         mission = {
             "id": int(mission_id),
+            "protocol_version": 5,
             "creator": sponsor,
             "repo": repo_slug,
             "target_ref": target_ref,
@@ -1322,6 +1337,13 @@ class Mosaic(gl.Contract):
             "objective": objective,
             "criteria": cleaned_criteria,
             "created_at": now,
+            "close_at": int(close_at),
+            "last_contribution_sealed_at": 0,
+            "terminal_checkpoint": None,
+            "checkpoint_digest": "",
+            "checkpointed_at": 0,
+            "terminal_verification_receipt": None,
+            "terminal_verification_receipt_digest": "",
             "freeze_not_before": freeze_not_before,
             "closed_at": 0,
             "freeze_attempts": 0,
@@ -1344,7 +1366,7 @@ class Mosaic(gl.Contract):
             "residual_wei": "0",
             "mission_evidence_root": "",
             "settlement_digest": "",
-            "mission_terms_digest": _canonical_digest({"repo": repo_slug, "target_ref": target_ref, "baseline_sha": baseline_sha, "title": title, "objective": objective, "criteria": cleaned_criteria, "freeze_not_before": freeze_not_before}),
+            "mission_terms_digest": _canonical_digest({"repo": repo_slug, "target_ref": target_ref, "baseline_sha": baseline_sha, "title": title, "objective": objective, "criteria": cleaned_criteria, "freeze_not_before": freeze_not_before, "close_at": close_at, "protocol_version": 5}),
             "terminal_source_digest": "",
             "terminal_tip_sha": "",
             "terminal_lineage_root": "",
@@ -1368,6 +1390,8 @@ class Mosaic(gl.Contract):
     def add_funding(self, mission_id: u256) -> str:
         mission = self._mission(mission_id)
         self._require_open(mission)
+        if _now_unix() >= int(mission.get("close_at", 0)):
+            raise gl.vm.UserError("mission_closed")
         amount = int(gl.message.value)
         if amount < MIN_FUND_WEI:
             raise gl.vm.UserError("funding_below_minimum")
@@ -1390,6 +1414,8 @@ class Mosaic(gl.Contract):
     def seal_contribution(self, mission_id: u256, pr_number: int, proof_comment_id: int) -> str:
         mission = self._mission(mission_id)
         self._require_open(mission)
+        if _now_unix() >= int(mission.get("close_at", 0)):
+            raise gl.vm.UserError("mission_closed")
         pr_number = int(pr_number)
         proof_comment_id = int(proof_comment_id)
         if pr_number <= 0 or proof_comment_id <= 0:
@@ -1610,8 +1636,37 @@ class Mosaic(gl.Contract):
         mission["contributor_wallets"] = contributors
         mission["last_evidence_status"] = "SEALED"
         mission["contribution_count"] = index + 1
+        mission["last_contribution_sealed_at"] = int(record["sealed_at"])
         self._save_mission(mission_id, mission)
         return f"sealed_{index}"
+
+    @gl.public.write
+    def checkpoint_terminal(self, mission_id: u256) -> str:
+        mission = self._mission(mission_id)
+        now = _now_unix()
+        if mission["status"] != "OPEN":
+            raise gl.vm.UserError("mission_not_checkpointable")
+        if now >= int(mission.get("close_at", 0)):
+            raise gl.vm.UserError("mission_closed")
+        terminal_context = _canonical_json({"repo": mission["repo"], "target_ref": mission["target_ref"], "baseline": mission["baseline_sha"], "criteria": mission["criteria"]})
+        def fetch_terminal_state():
+            return _fetch_terminal_state(terminal_context)
+        terminal = json.loads(gl.eq_principle.strict_eq(fetch_terminal_state))
+        if terminal.get("status") == "SOURCE_UNAVAILABLE":
+            return "source_unavailable"
+        if terminal.get("status") != "OK" or not _sha_ok(str(terminal.get("terminal_tip_sha") or "")):
+            return "insufficient_evidence"
+        candidate = {
+            "checkpoint_tip_sha": str(terminal["terminal_tip_sha"]).lower(),
+            "checkpointed_at": now,
+            "baseline_sha": mission["baseline_sha"],
+            "target_ref": mission["target_ref"],
+            "terminal": terminal,
+            "checkpoint_digest": _canonical_digest({"checkpoint_tip_sha": str(terminal["terminal_tip_sha"]).lower(), "checkpointed_at": now, "baseline_sha": mission["baseline_sha"], "target_ref": mission["target_ref"], "terminal": terminal}),
+        }
+        mission["terminal_checkpoint"] = candidate
+        self._save_mission(mission_id, mission)
+        return "checkpointed"
 
     @gl.public.write
     def freeze_terminal(self, mission_id: u256) -> str:
@@ -1623,10 +1678,18 @@ class Mosaic(gl.Contract):
         if _now_unix() > int(mission["freeze_not_before"]) + UNRESOLVED_GRACE_SECONDS:
             raise gl.vm.UserError("mission_expiry_due")
 
-        terminal_context = _canonical_json({"repo": mission["repo"], "target_ref": mission["target_ref"], "baseline": mission["baseline_sha"], "criteria": mission["criteria"]})
-        def fetch_terminal_state():
-            return _fetch_terminal_state(terminal_context)
-        terminal = json.loads(gl.eq_principle.strict_eq(fetch_terminal_state))
+        checkpoint = mission.get("terminal_checkpoint")
+        if not isinstance(checkpoint, dict):
+            raise gl.vm.UserError("no_valid_terminal_checkpoint")
+        if int(checkpoint.get("checkpointed_at", 0)) > int(mission.get("close_at", 0)):
+            raise gl.vm.UserError("checkpoint_after_close")
+        if int(checkpoint.get("checkpointed_at", 0)) < int(mission.get("last_contribution_sealed_at", 0)):
+            raise gl.vm.UserError("checkpoint_predates_contribution")
+        if int(mission.get("close_at", 0)) - int(checkpoint.get("checkpointed_at", 0)) > MAX_CHECKPOINT_AGE_SECONDS:
+            raise gl.vm.UserError("checkpoint_too_old")
+        if _canonical_digest({"checkpoint_tip_sha": checkpoint.get("checkpoint_tip_sha"), "checkpointed_at": checkpoint.get("checkpointed_at"), "baseline_sha": checkpoint.get("baseline_sha"), "target_ref": checkpoint.get("target_ref"), "terminal": checkpoint.get("terminal")}) != checkpoint.get("checkpoint_digest"):
+            raise gl.vm.UserError("invalid_terminal_checkpoint")
+        terminal = checkpoint.get("terminal")
         if terminal.get("status") == "SOURCE_UNAVAILABLE":
             mission["freeze_attempts"] = int(mission["freeze_attempts"]) + 1
             mission["last_freeze"] = "SOURCE_UNAVAILABLE"
@@ -1788,10 +1851,28 @@ class Mosaic(gl.Contract):
         mission["mission_evidence_root"] = mission_evidence_root
         mission["terminal_source_digest"] = terminal["terminal_source_digest"]
         mission["terminal_tip_sha"] = terminal["terminal_tip_sha"]
+        mission["checkpoint_digest"] = checkpoint["checkpoint_digest"]
+        mission["checkpointed_at"] = int(checkpoint["checkpointed_at"])
         mission["terminal_lineage_root"] = terminal_lineage_root
         mission["terminal_lineage_records"] = lineage_records
         mission["resolution_evidence_root"] = resolution_evidence_root
         mission["ordered_contribution_root"] = ordered_contribution_root
+        mission["terminal_verification_receipt"] = {
+            "version": 1,
+            "mission_terms_digest": mission["mission_terms_digest"],
+            "baseline_sha": mission["baseline_sha"],
+            "checkpoint_tip_sha": checkpoint["checkpoint_tip_sha"],
+            "checkpointed_at": int(checkpoint["checkpointed_at"]),
+            "checkpoint_digest": checkpoint["checkpoint_digest"],
+            "terminal_source_digest": terminal["terminal_source_digest"],
+            "mission_evidence_root": mission_evidence_root,
+            "ordered_contribution_root": ordered_contribution_root,
+            "terminal_lineage_root": terminal_lineage_root,
+            "resolution_evidence_root": resolution_evidence_root,
+            "verification_plan_digest": _canonical_digest(mission["criteria"]),
+            "closed_at": int(mission["closed_at"]),
+        }
+        mission["terminal_verification_receipt_digest"] = _canonical_digest(mission["terminal_verification_receipt"])
         mission["freeze_attempts"] = int(mission["freeze_attempts"]) + 1
         mission["last_freeze"] = "FROZEN"
         mission["status"] = "TERMINAL_FROZEN"
@@ -1801,6 +1882,28 @@ class Mosaic(gl.Contract):
     @gl.public.write
     def resolve_mission(self, mission_id: u256) -> str:
         mission = self._mission(mission_id)
+        if int(mission.get("protocol_version", 1)) >= 5:
+            # Compatibility façade for callers using the historical ABI.  V5
+            # still has exactly one adjudication architecture: this method
+            # delegates to the immutable component workflow and deterministic
+            # settlement; it never performs a monolithic judgment.
+            if mission.get("status") != "TERMINAL_FROZEN":
+                raise gl.vm.UserError("mission_not_resolvable")
+            try:
+                for index, _criterion in enumerate(mission.get("criteria", [])):
+                    self.adjudicate_criterion(mission_id, index)
+                for wallet in mission.get("contributor_wallets", []):
+                    self.adjudicate_role(mission_id, wallet)
+                self.finalize_adjudication(mission_id)
+                self.settle_finalized(mission_id)
+            except gl.vm.UserError as error:
+                # Preserve the historical ABI's bounded error category while
+                # keeping all semantic validation in the component methods.
+                detail = str(error)
+                if any(token in detail for token in ("component_", "incompatible_roles", "role_", "criteria_", "roles_")):
+                    raise gl.vm.UserError("invalid_resolution_judgment")
+                raise
+            return "settled_" + str(self._mission(mission_id).get("last_resolution", "")).lower()
         if mission["status"] != "TERMINAL_FROZEN":
             raise gl.vm.UserError("mission_not_resolvable")
         frozen_evidence = mission.get("frozen_evidence")

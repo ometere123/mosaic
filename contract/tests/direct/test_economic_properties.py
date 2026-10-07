@@ -15,7 +15,7 @@ def wallet(addr):
 def open_mission(contract, vm, sender, terms, amount):
     vm.sender = sender; vm.value = amount
     mock_baseline(vm, terms["repo"], terms["baseline"], terms["target_ref"])
-    return contract.open_mission(terms["repo"], terms["target_ref"], terms["baseline"], terms["title"], terms["objective"], json.dumps(terms["criteria"]), 1791201600)
+    return contract.open_mission(terms["repo"], terms["target_ref"], terms["baseline"], terms["title"], terms["objective"], json.dumps(terms["criteria"]), 1791280800)
 
 
 def seal_two(contract, vm, mission_id, bob, charlie):
