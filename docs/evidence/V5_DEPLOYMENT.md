@@ -7,12 +7,12 @@ checkpoint.
 - Repository main: `ac17c0f5305dadadc22774fc4074dcb7589c19e2`
 - Contract source tree: `05130a97b0ab4f7f78d4c5780bce27e0b37ac238`
 - Contract source path: `contract/contracts/mosaic.py`
-- Contract source SHA-256: `a44c95fe98b397549ff1fcaaaff30eb9b5d07d7016db63eb70f6a0fd2c20f664`
+- Contract source SHA-256: `2d62cc8b9de7bc4a94bd4bb79081d9013eae338afbc347a5ce132b495dee8537`
 - Network: GenLayer Studionet, chain `61999` (`0xF22F`)
 - RPC: `https://studio.genlayer.com/api`
 - Repository-local CLI: `genlayer@0.39.1`
 - GenVM target: `0.2.12`
-- V5 contract: `0xeeb7eD7e0684514e71973f221Fce271D190FA637`
+- V5 contract: `0xFc94b79754bFb57Ff72fD5Ce86c55050Aa615E46`
 - Deployment transaction: `0xd5e7868bc37d981f39e873166f0c97fd0cdc5167fe507b2f44d371c33fb68af2`
 - Deployment result: `FINALIZED`, `MAJORITY_AGREE`, execution `SUCCESS`
 - Retrieved deployed source: canonicalized source matches the recorded SHA-256 exactly.
