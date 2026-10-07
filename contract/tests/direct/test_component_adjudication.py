@@ -140,7 +140,7 @@ def test_github_check_terminal_status_is_bound(direct_vm, direct_deploy, direct_
     frozen = json.loads(contract.get_mission(mission_id))
     terminal = json.loads(frozen["frozen_evidence"]["terminal_state_json"])
     check_ref = next(item["id"] for item in terminal["evidence_objects"] if item["kind"] == "GITHUB_CHECK")
-    direct_vm.mock_llm(r'"kind": "CRITERION"', json.dumps({
+    direct_vm.mock_llm(r'"kind":"CRITERION"', json.dumps({
         "terminal_status": "NOT_SATISFIED",
         "claimant_status": "NOT_SATISFIED",
         "evidence_refs": [check_ref],
