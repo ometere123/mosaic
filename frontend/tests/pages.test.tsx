@@ -29,7 +29,7 @@ describe("release information architecture", () => {
     expect(screen.getByText(/settlement-state semantics with an atomic terminal freeze/i)).toBeInTheDocument();
     expect(screen.getByText(/one public contribution can receive value from multiple independently funded missions/i)).toBeInTheDocument();
     expect(screen.getByText(/protocol policy, not claims of mathematical optimality/i)).toBeInTheDocument();
-    expect(screen.getByText(/0x97C9AB9afd4dCC03cAeF693cc5c8E93A7Db0395e/i)).toBeInTheDocument();
+    expect(screen.getByText(/0xeeb7eD7e0684514e71973f221Fce271D190FA637/i)).toBeInTheDocument();
     expect(screen.getByText(/hardened release candidate is deployed on GenLayer Studionet/i)).toBeInTheDocument();
   });
 
