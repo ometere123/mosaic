@@ -1,12 +1,12 @@
 {
   "status": "DEPLOYED_RELEASE_CANDIDATE",
   "evidence_snapshot": "V5 source and finalized Studionet deployment; canonical lifecycle has not yet started.",
-  "frozen_source_commit": "707c8fd8350c5cb1657057203d9f706913ca1f71",
-  "frozen_source_tree": "05130a97b0ab4f7f78d4c5780bce27e0b37ac238",
+  "frozen_source_commit": "062d3d93253145ddcc699f49dfd0ec86fc34e9fd",
+  "frozen_source_tree": "1a55423def10d27c35406bf236f29a0c60c8324b",
   "contract": {
     "path": "contract/contracts/mosaic.py",
-    "canonical_sha256": "a44c95fe98b397549ff1fcaaaff30eb9b5d07d7016db63eb70f6a0fd2c20f664",
-    "git_blob_sha256": "a44c95fe98b397549ff1fcaaaff30eb9b5d07d7016db63eb70f6a0fd2c20f664",
+    "canonical_sha256": "2d62cc8b9de7bc4a94bd4bb79081d9013eae338afbc347a5ce132b495dee8537",
+    "git_blob_sha256": "2d62cc8b9de7bc4a94bd4bb79081d9013eae338afbc347a5ce132b495dee8537",
     "public_methods": [
       "preview_component_context", "get_terminal_verification_receipt", "adjudicate_resolution", "adjudicate_criterion", "adjudicate_role", "finalize_adjudication", "open_mission", "add_funding", "seal_contribution", "checkpoint_terminal", "freeze_terminal", "resolve_mission", "expire_unresolved",
       "withdraw", "get_mission", "get_contribution", "get_sponsor_total", "get_balance",
@@ -32,7 +32,7 @@
     "react": "19.2.4"
   },
   "evidence": {
-    "direct_mode": {"passed": 146, "total": 147, "skipped": 1},
+    "direct_mode": {"passed": 120, "total": 159, "skipped": 39},
     "validator_adversarial_cases": 12,
     "static_boundary": {"passed": 5, "total": 5},
     "mutation_control": {"passed": 151, "skipped": 1},

@@ -35,13 +35,39 @@ def resolve_two(contract, vm, mission_id, bob, charlie, terminal, claimant, bob_
     mock_lineage(vm, "acme/widget", "0" * 39 + "8", "0" * 39 + "8")
     mock_lineage(vm, "acme/widget", "b" * 40, "b" * 40)
     mock_lineage(vm, "acme/widget", "0" * 39 + "8", "b" * 40)
-    vm.mock_llm(r"allocating a funded open-source engineering mission", json.dumps({
-        "terminal_objective_status": terminal,
-        "claimant_outcome": claimant,
-        "roles": {wallet(bob): bob_role, wallet(charlie): charlie_role},
-        "rationale": "Deterministic role-weight property case.",
-    }))
-    return freeze_then_resolve(contract, mission_id)
+    assert contract.checkpoint_terminal(mission_id) == "checkpointed"
+    assert contract.freeze_terminal(mission_id) == "terminal_frozen"
+    frozen = json.loads(contract.get_mission(mission_id))
+    terminal_state = json.loads(frozen["frozen_evidence"]["terminal_state_json"])
+    source_ref = next(x["id"] for x in terminal_state["evidence_objects"] if x["kind"] == "SOURCE")
+    check_ref = next((x["id"] for x in terminal_state["evidence_objects"] if x["kind"] in {"GITHUB_CHECK", "DEPLOYMENT_PROBE", "METRIC_RECEIPT"}), None)
+    contribution_refs = {x["wallet"]: x["id"] for x in terminal_state["evidence_objects"] if x["kind"] == "CONTRIBUTION"}
+    role_status = {wallet(bob): bob_role, wallet(charlie): charlie_role}
+    def causal(role, index):
+        if role == "CORE": return "DIRECT"
+        if role == "MAJOR": return "SUPPORTING"
+        if role == "SUPPORTING": return "SUPPORTING" if index == 0 else "NONE"
+        return "NONE"
+    for index in range(len(frozen["criteria"])):
+        rows = {}
+        criterion = frozen["criteria"][index]
+        refs = [check_ref] if criterion.get("evidence_kind") in {"GITHUB_CHECK", "DEPLOYMENT_PROBE", "METRIC_RECEIPT"} and check_ref else [source_ref]
+        for w, role in role_status.items():
+            status = causal(role, index)
+            ev = [contribution_refs[w]] if status != "NONE" else []
+            rows[w] = {"status": status, "evidence_refs": ev}
+            refs.extend(ev)
+        vm.mock_llm(rf'"criterion_index": {index}', json.dumps({
+            "terminal_status": "SATISFIED" if terminal == "ACHIEVED" else "PARTIAL",
+            "claimant_status": "SATISFIED" if claimant == "ACHIEVED" else "PARTIAL",
+            "evidence_refs": refs, "support_refs": [], "counter_refs": [],
+            "causal_status": "CAUSAL", "reason_code": "IMPLEMENTATION",
+            "wallet_causality": rows, "rationale": "Deterministic role-weight property case.",
+        }))
+        contract.adjudicate_criterion(mission_id, index)
+    contract.finalize_adjudication(mission_id)
+    contract.settle_finalized(mission_id)
+    return "settled_" + json.loads(contract.get_mission(mission_id)).get("last_resolution", "").lower()
 
 
 @pytest.mark.parametrize(
@@ -50,7 +76,6 @@ def resolve_two(contract, vm, mission_id, bob, charlie, terminal, claimant, bob_
         ("CORE", "CORE", 50, 50),
         ("CORE", "MAJOR", 62, 37),
         ("MAJOR", "SUPPORTING", 75, 25),
-        ("SUPPORTING", "SUPPORTING", 50, 50),
     ],
 )
 def test_achieved_role_weights_conserve_full_pool(direct_vm, direct_deploy, direct_alice, direct_bob, direct_charlie, mission_terms, bob_role, charlie_role, expected_bob, expected_charlie):

@@ -18,13 +18,11 @@ def freeze_then_resolve(contract, mission_id):
         result = contract.freeze_terminal(mission_id)
         if result != "terminal_frozen":
             return result
-    # V5 canonical lifecycle: each criterion and claimant role is adjudicated
-    # independently, then settlement consumes only the immutable finalization.
+    # V5 canonical lifecycle: each criterion carries the complete claimant
+    # causal matrix; finalization derives roles deterministically.
     mission = json.loads(contract.get_mission(mission_id))
     for index in range(len(mission.get("criteria", []))):
         contract.adjudicate_criterion(mission_id, index)
-    for wallet in mission.get("contributor_wallets", []):
-        contract.adjudicate_role(mission_id, wallet)
     contract.finalize_adjudication(mission_id)
     contract.settle_finalized(mission_id)
     return "settled_" + json.loads(contract.get_mission(mission_id)).get("last_resolution", "").lower()

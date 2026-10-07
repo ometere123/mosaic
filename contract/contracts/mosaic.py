@@ -948,6 +948,8 @@ Every frozen criterion must appear exactly once. Use only IDs from the manifest.
 
 
 COMPONENT_STATUSES = {"SATISFIED", "PARTIAL", "NOT_SATISFIED", "UNVERIFIABLE"}
+CAUSAL_STATUSES = {"DIRECT", "MATERIAL", "SUPPORTING", "NONE"}
+CAUSAL_SCORE = {"DIRECT": 3, "MATERIAL": 2, "SUPPORTING": 1, "NONE": 0}
 
 
 def _derive_component_outcome(statuses):
@@ -959,6 +961,29 @@ def _derive_component_outcome(statuses):
     if any(v in {"SATISFIED", "PARTIAL"} for v in vals):
         return "MATERIAL_PROGRESS"
     return "NOT_ACHIEVED"
+
+
+def _derive_causal_roles(criteria, wallets):
+    """Derive economic roles solely from the immutable criterion causal matrix."""
+    maximum = max(1, len(criteria) * 3)
+    roles = {}
+    scores = {}
+    for wallet in wallets:
+        score = 0
+        for row in criteria:
+            causal = row.get("wallet_causality", {}) if isinstance(row, dict) else {}
+            status = causal.get(_wallet(wallet), {}).get("status", "NONE") if isinstance(causal, dict) else "NONE"
+            score += CAUSAL_SCORE.get(str(status).upper(), 0)
+        scores[_wallet(wallet)] = score
+        if score == 0:
+            roles[_wallet(wallet)] = "NO_CREDIT"
+        elif score * 3 >= maximum * 2:
+            roles[_wallet(wallet)] = "CORE"
+        elif score * 3 >= maximum:
+            roles[_wallet(wallet)] = "MAJOR"
+        else:
+            roles[_wallet(wallet)] = "SUPPORTING"
+    return roles, scores
 
 
 def _component_prompt(mission, criterion_index, wallet="", frozen_context=None):
@@ -975,7 +1000,7 @@ def _component_prompt(mission, criterion_index, wallet="", frozen_context=None):
     source_files = context.get("source_files", [])
     portfolios = context.get("portfolios", {})
     claimant_evidence = [{"evidence_id": x.get("id"), "contribution_index": x.get("contribution_index"), "wallet": x.get("wallet"), "capsule": portfolios.get("portfolios", {}).get(_wallet(x.get("wallet", "")), [])} for x in evidence if x.get("kind") == "CONTRIBUTION"]
-    rules = "Use exact uppercase status enum only. For SOURCE, terminal_status evaluates the frozen implementation and tests, not whether a live payout occurred; a live event is required only if the criterion explicitly says so. SATISFIED/PARTIAL terminal SOURCE requires a SOURCE ref; positive claimant status asks whether sealed claimant portfolios caused the implementation and requires a CONTRIBUTION ref. Do not emit ACHIEVED, PASS, FAILED, TRUE, FALSE or synonyms."
+    rules = "Use exact uppercase status enum only. For SOURCE, terminal_status evaluates the frozen implementation and tests, not whether a live payout occurred; a live event is required only if the criterion explicitly says so. SATISFIED/PARTIAL terminal SOURCE requires a SOURCE ref; positive claimant status asks whether sealed claimant portfolios caused the implementation and requires a CONTRIBUTION ref. Return exactly one wallet_causality row for every claimant wallet using DIRECT, MATERIAL, SUPPORTING or NONE; positive causal statuses require same-wallet contribution evidence. Do not emit ACHIEVED, PASS, FAILED, TRUE, FALSE or role labels."
     return json.dumps({"kind": "CRITERION", "criterion_index": criterion_index, "criterion": criterion, "terminal_tip_sha": terminal.get("terminal_tip_sha"), "source_files": source_files, "claimant_evidence": claimant_evidence, "allowed_evidence": manifest, "claimant_wallets": contributions, "status_enum":["SATISFIED","PARTIAL","NOT_SATISFIED","UNVERIFIABLE"], "rules": rules}, sort_keys=True)
 
 
@@ -1069,7 +1094,9 @@ class Mosaic(gl.Contract):
                 counter_refs = raw.get("counter_refs", [])
                 causal_status = str(raw.get("causal_status", "UNSPECIFIED")).strip().upper()
                 reason_code = str(raw.get("reason_code", "UNSPECIFIED")).strip().upper()
+                wallet_causality = raw.get("wallet_causality", {})
                 if not isinstance(support_refs, list) or not isinstance(counter_refs, list): return None
+                if not isinstance(wallet_causality, dict): return None
                 support_refs = sorted(set(str(x) for x in support_refs)); counter_refs = sorted(set(str(x) for x in counter_refs))
                 if any(x not in allowed for x in support_refs + counter_refs): return None
                 if causal_status not in {"UNSPECIFIED", "CAUSAL", "NON_CAUSAL", "PARTIAL_CAUSAL"}: return None
@@ -1078,16 +1105,38 @@ class Mosaic(gl.Contract):
                 if criterion_index is not None and allowed.get("__kind") == "SOURCE" and terminal in {"SATISFIED", "PARTIAL"} and not any(allowed[x].get("kind") == "SOURCE" for x in refs): return None
                 if claimant in {"SATISFIED", "PARTIAL"} and not any(allowed[x].get("kind") == "CONTRIBUTION" for x in refs): return None
                 if check_kind and not any(allowed[x].get("kind") in {"GITHUB_CHECK", "DEPLOYMENT_PROBE", "METRIC_RECEIPT"} and int(allowed[x].get("criterion_index", -1)) == int(criterion_index) for x in refs): return None
-                return {"terminal_status": terminal, "claimant_status": claimant, "evidence_refs": refs, "support_refs": support_refs, "counter_refs": counter_refs, "causal_status": causal_status, "reason_code": reason_code, "rationale": str(raw.get("rationale", ""))[:320]}
+                expected_wallets = []
+                if isinstance(prompt, str):
+                    # The prompt is canonical JSON; wallet keys are also validated below.
+                    try:
+                        parsed_prompt = json.loads(prompt)
+                        expected_wallets = [_wallet(x) for x in parsed_prompt.get("claimant_wallets", [])]
+                    except Exception:
+                        expected_wallets = []
+                if expected_wallets:
+                    if {_wallet(x) for x in wallet_causality.keys()} != set(expected_wallets): return None
+                normalized_causality = {}
+                for raw_wallet, row in wallet_causality.items():
+                    normalized_wallet = _wallet(raw_wallet)
+                    if normalized_wallet not in expected_wallets or not isinstance(row, dict): return None
+                    status = str(row.get("status", "")).strip().upper()
+                    evrefs = row.get("evidence_refs", [])
+                    if status not in CAUSAL_STATUSES or not isinstance(evrefs, list): return None
+                    evrefs = sorted(set(str(x) for x in evrefs))
+                    if any(x not in allowed for x in evrefs): return None
+                    if any(allowed[x].get("kind") == "CONTRIBUTION" and _wallet(allowed[x].get("wallet", "")) != normalized_wallet for x in evrefs): return None
+                    if status != "NONE" and not any(allowed[x].get("kind") == "CONTRIBUTION" and _wallet(allowed[x].get("wallet", "")) == normalized_wallet for x in evrefs): return None
+                    normalized_causality[normalized_wallet] = {"status": status, "evidence_refs": evrefs}
+                return {"terminal_status": terminal, "claimant_status": claimant, "evidence_refs": refs, "support_refs": support_refs, "counter_refs": counter_refs, "causal_status": causal_status, "reason_code": reason_code, "wallet_causality": normalized_causality, "rationale": str(raw.get("rationale", ""))[:320]}
             role = str(raw.get("role", "")).strip().upper(); refs = raw.get("evidence_refs", [])
             if role not in IMPACT_ROLES or not isinstance(refs, list): return None
             refs = sorted(set(str(x) for x in refs))
             if any(x not in allowed for x in refs): return None
             if ROLE_WEIGHT[role] > 0 and not any(allowed[x].get("kind") == "CONTRIBUTION" and _wallet(allowed[x].get("wallet", "")) == wallet for x in refs): return None
             return {"role": role, "evidence_refs": refs, "rationale": str(raw.get("rationale", ""))[:320]}
-        correction = "\nThe prior response was invalid. Use ONLY these exact status values: SATISFIED, PARTIAL, NOT_SATISFIED, UNVERIFIABLE. Use only evidence IDs listed below. Positive terminal SOURCE status requires a SOURCE ref. Positive claimant status requires a CONTRIBUTION ref. Include support_refs, counter_refs, causal_status (UNSPECIFIED|CAUSAL|NON_CAUSAL|PARTIAL_CAUSAL), and reason_code (UNSPECIFIED|IMPLEMENTATION|REGRESSION|CHECK|INSUFFICIENT|CONTRIBUTION_SCOPE). Return only the required JSON."
+        correction = "\nThe prior response was invalid. Use ONLY these exact status values: SATISFIED, PARTIAL, NOT_SATISFIED, UNVERIFIABLE. Use only evidence IDs listed below. Positive terminal SOURCE status requires a SOURCE ref. Positive claimant status requires a CONTRIBUTION ref. Include support_refs, counter_refs, causal_status (UNSPECIFIED|CAUSAL|NON_CAUSAL|PARTIAL_CAUSAL), reason_code (UNSPECIFIED|IMPLEMENTATION|REGRESSION|CHECK|INSUFFICIENT|CONTRIBUTION_SCOPE), and wallet_causality with exactly one row for every claimant wallet. Each row must be {status:DIRECT|MATERIAL|SUPPORTING|NONE,evidence_refs:[...]}; positive statuses require same-wallet contribution evidence. Return only the required JSON."
         def leader_fn():
-            suffix = "\nReturn ONLY JSON: {\"terminal_status\":\"SATISFIED|PARTIAL|NOT_SATISFIED|UNVERIFIABLE\",\"claimant_status\":\"SATISFIED|PARTIAL|NOT_SATISFIED|UNVERIFIABLE\",\"evidence_refs\":[],\"support_refs\":[],\"counter_refs\":[],\"causal_status\":\"UNSPECIFIED|CAUSAL|NON_CAUSAL|PARTIAL_CAUSAL\",\"reason_code\":\"UNSPECIFIED|IMPLEMENTATION|REGRESSION|CHECK|INSUFFICIENT|CONTRIBUTION_SCOPE\",\"rationale\":\"...\"}" if kind == "CRITERION" else "\nReturn ONLY JSON: {\"role\":\"CORE|MAJOR|SUPPORTING|NO_CREDIT\",\"evidence_refs\":[],\"rationale\":\"...\"}"
+            suffix = "\nReturn ONLY JSON: {\"terminal_status\":\"SATISFIED|PARTIAL|NOT_SATISFIED|UNVERIFIABLE\",\"claimant_status\":\"SATISFIED|PARTIAL|NOT_SATISFIED|UNVERIFIABLE\",\"evidence_refs\":[],\"support_refs\":[],\"counter_refs\":[],\"causal_status\":\"UNSPECIFIED|CAUSAL|NON_CAUSAL|PARTIAL_CAUSAL\",\"reason_code\":\"UNSPECIFIED|IMPLEMENTATION|REGRESSION|CHECK|INSUFFICIENT|CONTRIBUTION_SCOPE\",\"wallet_causality\":{\"<wallet>\":{\"status\":\"DIRECT|MATERIAL|SUPPORTING|NONE\",\"evidence_refs\":[]}},\"rationale\":\"...\"}" if kind == "CRITERION" else "\nReturn ONLY JSON: {\"role\":\"CORE|MAJOR|SUPPORTING|NO_CREDIT\",\"evidence_refs\":[],\"rationale\":\"...\"}"
             raw = gl.nondet.exec_prompt(prompt + suffix, response_format="json")
             result = normalize(raw)
             if result is None:
@@ -1101,14 +1150,12 @@ class Mosaic(gl.Contract):
             other = leader_fn()
             leader = leaders_res.calldata
             if kind == "CRITERION":
+                leader_causal = {str(wallet): str(row.get("status", "")).upper() for wallet, row in leader.get("wallet_causality", {}).items() if isinstance(row, dict)}
+                other_causal = {str(wallet): str(row.get("status", "")).upper() for wallet, row in other.get("wallet_causality", {}).items() if isinstance(row, dict)}
                 return (
                     leader.get("terminal_status") == other.get("terminal_status")
                     and leader.get("claimant_status") == other.get("claimant_status")
-                    and sorted(leader.get("evidence_refs", [])) == sorted(other.get("evidence_refs", []))
-                    and sorted(leader.get("support_refs", [])) == sorted(other.get("support_refs", []))
-                    and sorted(leader.get("counter_refs", [])) == sorted(other.get("counter_refs", []))
-                    and leader.get("causal_status", "UNSPECIFIED") == other.get("causal_status", "UNSPECIFIED")
-                    and leader.get("reason_code", "UNSPECIFIED") == other.get("reason_code", "UNSPECIFIED")
+                    and leader_causal == other_causal
                 )
             return leader.get("role") == other.get("role") and sorted(leader.get("evidence_refs", [])) == sorted(other.get("evidence_refs", []))
         return gl.vm.run_nondet_unsafe(leader_fn, validator_fn)
@@ -1126,7 +1173,7 @@ class Mosaic(gl.Contract):
         done = mission.get("criterion_adjudicated", [])
         if idx < len(done) and done[idx]:
             raise gl.vm.UserError("criterion_already_adjudicated")
-        result = {"criterion_index": idx, "terminal_status": "", "claimant_status": "", "evidence_refs": [], "support_refs": [], "counter_refs": [], "causal_status": "UNSPECIFIED", "reason_code": "UNSPECIFIED", "rationale": ""}
+        result = {"criterion_index": idx, "terminal_status": "", "claimant_status": "", "evidence_refs": [], "support_refs": [], "counter_refs": [], "causal_status": "UNSPECIFIED", "reason_code": "UNSPECIFIED", "wallet_causality": {}, "rationale": ""}
         if criteria[idx].get("evidence_kind") in {"GITHUB_CHECK", "DEPLOYMENT_PROBE", "METRIC_RECEIPT"}:
             checks = [x for x in frozen_context["evidence_objects"] if x.get("kind") == "GITHUB_CHECK" and int(x.get("criterion_index", -1)) == idx]
             if criteria[idx].get("evidence_kind") == "GITHUB_CHECK":
@@ -1143,6 +1190,7 @@ class Mosaic(gl.Contract):
             result["evidence_refs"] = sorted(set(result["evidence_refs"] + list(judged.get("evidence_refs", []))))
             result["support_refs"] = list(judged.get("support_refs", [])); result["counter_refs"] = list(judged.get("counter_refs", []))
             result["causal_status"] = judged.get("causal_status", "UNSPECIFIED"); result["reason_code"] = judged.get("reason_code", "UNSPECIFIED")
+            result["wallet_causality"] = judged.get("wallet_causality", {})
             result["rationale"] = judged.get("rationale", "")
         else:
             allowed = {str(x.get("id")): x for x in frozen_context["evidence_objects"]}; allowed["__kind"] = criteria[idx].get("evidence_kind")
@@ -1168,7 +1216,7 @@ class Mosaic(gl.Contract):
         flags = mission.get("criterion_adjudicated", [False for _ in criteria])
         while len(rows) < len(criteria): rows.append({})
         while len(flags) < len(criteria): flags.append(False)
-        rows[idx] = {k: result[k] for k in ("criterion_index", "terminal_status", "claimant_status", "evidence_refs", "support_refs", "counter_refs", "causal_status", "reason_code", "rationale")}
+        rows[idx] = {k: result[k] for k in ("criterion_index", "terminal_status", "claimant_status", "evidence_refs", "support_refs", "counter_refs", "causal_status", "reason_code", "wallet_causality", "rationale")}
         flags[idx] = True
         mission["criterion_results"] = rows
         mission["criterion_adjudicated"] = flags
@@ -1178,10 +1226,12 @@ class Mosaic(gl.Contract):
     @gl.public.write
     def adjudicate_role(self, mission_id: u256, wallet: str) -> str:
         mission = self._mission(mission_id)
-        frozen_context = self._frozen_adjudication_context(mission)
         wallet = _wallet(wallet)
         if wallet not in [_wallet(x) for x in mission.get("contributor_wallets", [])]:
             raise gl.vm.UserError("unregistered_wallet")
+        if int(mission.get("protocol_version", 1)) >= 5:
+            raise gl.vm.UserError("role_adjudication_not_used_v5")
+        frozen_context = self._frozen_adjudication_context(mission)
         if mission.get("status") != "TERMINAL_FROZEN":
             raise gl.vm.UserError("mission_not_frozen")
         done = mission.get("role_adjudicated", {})
@@ -1219,20 +1269,20 @@ class Mosaic(gl.Contract):
         if not all(mission.get("criterion_adjudicated", [])) or len(mission.get("criterion_results", [])) < len(criteria):
             raise gl.vm.UserError("criteria_incomplete")
         wallets = [_wallet(x) for x in mission.get("contributor_wallets", [])]
-        if any(not mission.get("role_adjudicated", {}).get(w) for w in wallets):
-            raise gl.vm.UserError("roles_incomplete")
         rows = mission.get("criterion_results", [])
         terminal = _derive_component_outcome([r.get("terminal_status") for r in rows])
         claimant = _derive_component_outcome([r.get("claimant_status") for r in rows])
-        roles = {w: mission.get("role_results", {}).get(w, "NO_CREDIT") for w in wallets}
+        roles, scores = _derive_causal_roles(rows, wallets)
         if claimant in {"NOT_ACHIEVED", "INSUFFICIENT_EVIDENCE"} and any(ROLE_WEIGHT[r] > 0 for r in roles.values()):
             raise gl.vm.UserError("incompatible_roles")
-        digest = _canonical_digest({"frozen_evidence_digest": mission.get("frozen_evidence_digest", ""), "criterion_results": rows, "terminal_objective_status": terminal, "claimant_outcome": claimant, "roles": roles, "role_evidence": mission.get("role_evidence_components", {})})
+        digest = _canonical_digest({"frozen_evidence_digest": mission.get("frozen_evidence_digest", ""), "criterion_results": rows, "terminal_objective_status": terminal, "claimant_outcome": claimant, "roles": roles, "causal_scores": scores})
         mission["derived_terminal_objective_status"] = terminal
         mission["derived_claimant_outcome"] = claimant
         mission["adjudication_digest"] = digest
         mission["adjudication_complete"] = True
-        mission["adjudication"] = {"terminal_objective_status": terminal, "claimant_outcome": claimant, "roles": roles, "criterion_matrix": rows, "role_evidence": mission.get("role_evidence_components", {}), "rationale": "componentized adjudication", "judgment_digest": digest, "adjudicated_at": _now_unix()}
+        mission["role_results"] = roles
+        mission["role_evidence_components"] = {w: sorted({ref for row in rows for ref in row.get("wallet_causality", {}).get(w, {}).get("evidence_refs", [])}) for w in wallets}
+        mission["adjudication"] = {"terminal_objective_status": terminal, "claimant_outcome": claimant, "roles": roles, "causal_scores": scores, "criterion_matrix": rows, "role_evidence": mission["role_evidence_components"], "rationale": "deterministic causal-matrix derivation", "judgment_digest": digest, "adjudicated_at": _now_unix()}
         self._save_mission(mission_id, mission)
         return "adjudication_finalized"
 
@@ -1892,8 +1942,6 @@ class Mosaic(gl.Contract):
             try:
                 for index, _criterion in enumerate(mission.get("criteria", [])):
                     self.adjudicate_criterion(mission_id, index)
-                for wallet in mission.get("contributor_wallets", []):
-                    self.adjudicate_role(mission_id, wallet)
                 self.finalize_adjudication(mission_id)
                 self.settle_finalized(mission_id)
             except gl.vm.UserError as error:
