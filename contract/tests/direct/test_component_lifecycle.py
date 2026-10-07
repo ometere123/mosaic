@@ -1,3 +1,4 @@
+import hashlib
 import json
 
 from helpers import checkpoint_then_freeze, mock_baseline, mock_terminal, set_block_time
@@ -33,6 +34,13 @@ def test_componentized_source_criteria_finalize_without_monolithic_resolver(
     assert frozen["terminal_verification_receipt"]["terminal_source_digest"] == frozen["terminal_source_digest"]
     assert frozen["terminal_verification_receipt"]["mission_terms_digest"] == frozen["mission_terms_digest"]
     assert frozen["terminal_verification_receipt"]["terminal_lineage_root"] == frozen["terminal_lineage_root"]
+    expected_resolution_root = hashlib.sha256(json.dumps({
+        "mission_terms_digest": frozen["mission_terms_digest"],
+        "ordered_contribution_root": frozen["ordered_contribution_root"],
+        "terminal_source_digest": frozen["terminal_source_digest"],
+        "terminal_lineage_root": frozen["terminal_lineage_root"],
+    }, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    assert frozen["resolution_evidence_root"] == expected_resolution_root
     response = json.dumps({
         "terminal_status": "SATISFIED",
         "claimant_status": "NOT_SATISFIED",
