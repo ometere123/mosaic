@@ -30,7 +30,7 @@ describe("release information architecture", () => {
     expect(screen.getByText(/one public contribution can receive value from multiple independently funded missions/i)).toBeInTheDocument();
     expect(screen.getByText(/protocol policy, not claims of mathematical optimality/i)).toBeInTheDocument();
     expect(screen.getByText(/0xeeb7eD7e0684514e71973f221Fce271D190FA637/i)).toBeInTheDocument();
-    expect(screen.getByText(/hardened release candidate is deployed on GenLayer Studionet/i)).toBeInTheDocument();
+    expect(screen.getByText(/MOSAIC V5 is deployed on GenLayer Studionet/i)).toBeInTheDocument();
   });
 
   it("keeps primary navigation on product routes", () => {
