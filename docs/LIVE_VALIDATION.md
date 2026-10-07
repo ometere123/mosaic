@@ -1,9 +1,11 @@
 # Live Validation
 
-## Final canonical release surfaces
+## V5 canonical release surfaces
 
-- Contract: `0x97C9AB9afd4dCC03cAeF693cc5c8E93A7Db0395e` (fresh hardened deployment; lifecycle gated pending manual plan)
-- Deployment transaction: `0x3a5c8a6a305469d56d183af7c35e116189ea85cb6dc36e347080ec0be8b23668` (`FINALIZED`, `MAJORITY_AGREE`, leader execution `SUCCESS`)
+- Contract: `0xeeb7eD7e0684514e71973f221Fce271D190FA637` (V5; fresh lifecycle not started)
+- Deployment transaction: `0xd5e7868bc37d981f39e873166f0c97fd0cdc5167fe507b2f44d371c33fb68af2` (`FINALIZED`, `MAJORITY_AGREE`, leader execution `SUCCESS`)
+- Source commit: `707c8fd8350c5cb1657057203d9f706913ca1f71`
+- Source SHA-256: `a44c95fe98b397549ff1fcaaaff30eb9b5d07d7016db63eb70f6a0fd2c20f664`
 - Frontend: https://themosaic.vercel.app
 - Network: Studionet `61999` / `0xF22F`
 
