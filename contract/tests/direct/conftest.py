@@ -64,6 +64,14 @@ def migrate_legacy_test_verdicts(direct_vm):
         claimant_status = {"ACHIEVED": "SATISFIED", "MATERIAL_PROGRESS": "PARTIAL", "NOT_ACHIEVED": "NOT_SATISFIED", "INSUFFICIENT_EVIDENCE": "UNVERIFIABLE"}.get(claimant, "UNVERIFIABLE")
         role_items = list(value.get("roles", {}).items())
         roles = {wallet: {"role": role, "evidence_refs": [f"contribution:{index}"] if role != "NO_CREDIT" else []} for index, (wallet, role) in enumerate(role_items)}
+        causal_by_role = {"CORE": "DIRECT", "MAJOR": "MATERIAL", "SUPPORTING": "SUPPORTING", "NO_CREDIT": "NONE"}
+        wallet_causality = {
+            wallet: {
+                "status": causal_by_role.get(role, "NONE"),
+                "evidence_refs": [f"contribution:{index}"] if role != "NO_CREDIT" else [],
+            }
+            for index, (wallet, role) in enumerate(role_items)
+        }
         claimant_refs = [f"contribution:{index}" for index, (_, role) in enumerate(role_items) if role != "NO_CREDIT"]
         row_refs = ["source:0:src/wallet.ts", *claimant_refs] if claimant_status in {"SATISFIED", "PARTIAL"} or terminal_status in {"SATISFIED", "PARTIAL"} else []
         rows = [{"criterion_index": 0, "terminal_status": terminal_status, "claimant_status": claimant_status, "evidence_refs": row_refs}, {"criterion_index": 1, "terminal_status": terminal_status, "claimant_status": claimant_status, "evidence_refs": row_refs}]
@@ -80,6 +88,7 @@ def migrate_legacy_test_verdicts(direct_vm):
                 "counter_refs": [],
                 "causal_status": "UNSPECIFIED",
                 "reason_code": "IMPLEMENTATION",
+                "wallet_causality": wallet_causality,
                 "rationale": value["rationale"],
             }),
         )
