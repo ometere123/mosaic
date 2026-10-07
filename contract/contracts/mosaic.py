@@ -878,6 +878,12 @@ Return ONLY JSON with exactly these fields:
   "substantive_changes": ["up to four concrete changes evidenced by the diff"],
   "risk_flags": ["zero or more concise limitations, missing-context notes, or overlap risks"]
 }}
+
+The JSON types are mandatory: `summary` and `relevance` are strings;
+`substantive_changes` is an array of 0 to 4 strings; and `risk_flags` is an
+array of 0 to 4 strings. When there are no risks, return exactly
+`"risk_flags": []`—never a string, null, object, or omitted field. Keep every
+array item non-empty and under 400 characters.
 """
     return gl.nondet.exec_prompt(prompt, response_format="json")
 
@@ -1589,6 +1595,13 @@ class Mosaic(gl.Contract):
         relevance = capsule.get("relevance")
         changes = capsule.get("substantive_changes")
         risks = capsule.get("risk_flags")
+        # Some otherwise valid structured-model responses encode a singleton
+        # array as a string. Canonicalize only that harmless representation;
+        # bounds and item validation below remain strict and fail closed.
+        if isinstance(changes, str):
+            changes = [changes]
+        if isinstance(risks, str):
+            risks = [risks]
         if not isinstance(summary, str) or not summary.strip() or len(summary) > MAX_CAPSULE_SUMMARY_CHARS:
             raise gl.vm.UserError("capsule_missing_summary")
         if not isinstance(relevance, str) or not relevance.strip() or len(relevance) > MAX_CAPSULE_RELEVANCE_CHARS:
