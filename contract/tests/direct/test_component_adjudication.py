@@ -174,7 +174,7 @@ def test_github_check_failure_cannot_be_positive(direct_vm, direct_deploy, direc
 
 def test_github_check_evidence_is_bound_to_criterion(direct_vm, direct_deploy, direct_alice):
     contract = direct_deploy("contract/contracts/mosaic.py")
-    direct_vm.mock_llm(r'"kind": "CRITERION"', json.dumps({
+    direct_vm.mock_llm(r'CRITERION', json.dumps({
         "terminal_status": "SATISFIED", "claimant_status": "NOT_SATISFIED",
         "evidence_refs": ["check:0:51"], "support_refs": [], "counter_refs": [],
         "causal_status": "UNSPECIFIED", "reason_code": "CHECK", "rationale": "wrong criterion evidence",
