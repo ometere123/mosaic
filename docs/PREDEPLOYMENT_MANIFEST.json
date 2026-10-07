@@ -69,7 +69,7 @@
   },
   "deployment": {
     "performed": true,
-    "contract_address": "0xFc94b79754bFb57Ff72fD5Ce86c55050Aa615E46",
+    "contract_address": "0x30BF3a932690e557d31db74521F8BdDE1483898a",
     "transaction": {
       "hash": "0x58670c26820ba8c704ac88c7cea8478732e579d70f8928f60587d45d2cb52be3",
       "status": "FINALIZED",

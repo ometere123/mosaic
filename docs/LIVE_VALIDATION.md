@@ -2,10 +2,10 @@
 
 ## V5 canonical release surfaces
 
-- Contract: `0xFc94b79754bFb57Ff72fD5Ce86c55050Aa615E46` (V5; fresh lifecycle not started)
-- Deployment transaction: `0xd5e7868bc37d981f39e873166f0c97fd0cdc5167fe507b2f44d371c33fb68af2` (`FINALIZED`, `MAJORITY_AGREE`, leader execution `SUCCESS`)
-- Source commit: `63f8f920348f0f0831b68e777e634a8f4ae38a53`
-- Source SHA-256: `2d62cc8b9de7bc4a94bd4bb79081d9013eae338afbc347a5ce132b495dee8537`
+- Contract: `0x30BF3a932690e557d31db74521F8BdDE1483898a` (V5; fresh lifecycle not started)
+- Deployment transaction: `0xbe17206cd6fea236dd92ca59be687dd2eccd50cd8fd0785e6ff51039fa85a9be` (`FINALIZED`, `MAJORITY_AGREE`, leader execution `SUCCESS`)
+- Source commit: `b2b5a85000401261e207e4d84e90f08d77ca0ab7`
+- Source SHA-256: `23d1d4c38f5e30b2f4b60966c65f0aca9f3dcfa7ae528ef03958f30650c1b32a`
 - Frontend: https://themosaic.vercel.app
 - Network: Studionet `61999` / `0xF22F`
 
