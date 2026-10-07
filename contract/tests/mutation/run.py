@@ -91,7 +91,7 @@ MUTANTS = {
     "settlement_residual_binding": ("\"residual_wei\": str(residual),\n            \"contributor_allocations\": contributor_allocations,", "\"residual_wei\": \"0\",\n            \"contributor_allocations\": contributor_allocations,", "contract/tests/direct/test_terminal_commitments.py::test_settlement_digest_commits_both_economic_statuses"),
     "machine_success_status_binding": ("result[\"terminal_status\"] = \"SATISFIED\" if checks[0].get(\"conclusion\") == \"success\" else \"NOT_SATISFIED\"", "result[\"terminal_status\"] = \"NOT_SATISFIED\"", "contract/tests/direct/test_component_adjudication.py::test_github_check_terminal_status_is_bound"),
     "machine_failure_status_binding": ("result[\"terminal_status\"] = \"SATISFIED\" if checks[0].get(\"conclusion\") == \"success\" else \"NOT_SATISFIED\"", "result[\"terminal_status\"] = \"SATISFIED\"", "contract/tests/direct/test_component_adjudication.py::test_github_check_failure_cannot_be_positive"),
-    "criterion_check_binding": ("matching = [x for x in refs if allowed[x].get(\"kind\") == expected_kind and int(allowed[x].get(\"criterion_index\", -1)) == idx]", "matching = [x for x in refs if allowed[x].get(\"kind\") == expected_kind]", "contract/tests/direct/test_component_adjudication.py::test_github_check_evidence_is_bound_to_criterion"),
+    "criterion_check_binding": ("if check_kind and not any(allowed[x].get(\"kind\") in {\"GITHUB_CHECK\", \"DEPLOYMENT_PROBE\", \"METRIC_RECEIPT\"} and int(allowed[x].get(\"criterion_index\", -1)) == int(criterion_index) for x in refs): return None", "if False: return None", "contract/tests/direct/test_component_adjudication.py::test_github_check_evidence_is_bound_to_criterion"),
 }
 
 def main() -> int:
