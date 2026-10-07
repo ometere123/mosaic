@@ -3,6 +3,13 @@ import { ensureStudionet } from "@/lib/eip1193";
 import { NETWORK } from "@/lib/constants";
 
 describe("wallet network guard", () => {
+  it("selects MetaMask deterministically when multiple injected providers exist", async () => {
+    const metaMask = { isMetaMask: true, request: vi.fn(async ({ method }: { method: string }) => method === "eth_chainId" ? NETWORK.chainIdHex : null) };
+    const other = { isOkxWallet: true, request: vi.fn() };
+    Object.defineProperty(window, "ethereum", { configurable: true, value: { providers: [other, metaMask] } });
+    const { injectedProvider } = await import("@/lib/eip1193");
+    expect(injectedProvider()).toBe(metaMask);
+  });
   it("does not switch an already-correct wallet", async () => {
     const request = vi.fn(async ({ method }: { method: string }) => method === "eth_chainId" ? NETWORK.chainIdHex : null);
     await ensureStudionet({ request });

@@ -5,6 +5,11 @@ export type Eip1193Provider = {
   request(args: Eip1193Request): Promise<unknown>;
   on?(event: string, listener: (...args: unknown[]) => void): void;
   removeListener?(event: string, listener: (...args: unknown[]) => void): void;
+  isMetaMask?: boolean;
+  isCoinbaseWallet?: boolean;
+  isRabby?: boolean;
+  isBraveWallet?: boolean;
+  isOkxWallet?: boolean;
 };
 
 declare global {
@@ -13,8 +18,16 @@ declare global {
 
 export function injectedProvider(): Eip1193Provider | null {
   if (typeof window === "undefined" || !window.ethereum) return null;
-  const providers = window.ethereum.providers;
-  return providers?.length ? providers[0] : window.ethereum;
+  const providers = window.ethereum.providers?.length ? window.ethereum.providers : [window.ethereum];
+  // Prefer the provider with the strongest stable wallet identity.  This keeps
+  // the selection deterministic when extensions race to install window.ethereum.
+  return providers.find((provider) => provider.isMetaMask)
+    ?? providers.find((provider) => provider.isCoinbaseWallet)
+    ?? providers.find((provider) => provider.isRabby)
+    ?? providers.find((provider) => provider.isBraveWallet)
+    ?? providers.find((provider) => provider.isOkxWallet)
+    ?? providers[0]
+    ?? null;
 }
 
 function providerCode(error: unknown): number | undefined {

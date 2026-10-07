@@ -6,12 +6,12 @@
 - RPC: https://studio.genlayer.com/api
 - Explorer: https://explorer-studio.genlayer.com
 - Repository-local CLI: `0.39.1`
-- Frozen source commit: `63f8f920348f0f0831b68e777e634a8f4ae38a53`
-- Frozen source tree: `05130a97b0ab4f7f78d4c5780bce27e0b37ac238`
+- Frozen source commit: `b2b5a85000401261e207e4d84e90f08d77ca0ab7`
+- Frozen source tree: `8fce82c9b60d2528323984514f02c9ea723e3fb0`
 - Contract source: `contract/contracts/mosaic.py`
-- Canonical source SHA-256: `2d62cc8b9de7bc4a94bd4bb79081d9013eae338afbc347a5ce132b495dee8537`
-- Final V5 release candidate: `0xFc94b79754bFb57Ff72fD5Ce86c55050Aa615E46`
-- Deployment transaction: [`0xd5e7868bc37d981f39e873166f0c97fd0cdc5167fe507b2f44d371c33fb68af2`](https://explorer-studio.genlayer.com/tx/0xd5e7868bc37d981f39e873166f0c97fd0cdc5167fe507b2f44d371c33fb68af2) (`FINALIZED`, `SUCCESS`, `MAJORITY_AGREE`)
+- Canonical source SHA-256: `23d1d4c38f5e30b2f4b60966c65f0aca9f3dcfa7ae528ef03958f30650c1b32a`
+- Final V5 release candidate: `0x30BF3a932690e557d31db74521F8BdDE1483898a`
+- Deployment transaction: [`0xbe17206cd6fea236dd92ca59be687dd2eccd50cd8fd0785e6ff51039fa85a9be`](https://explorer-studio.genlayer.com/tx/0xbe17206cd6fea236dd92ca59be687dd2eccd50cd8fd0785e6ff51039fa85a9be) (`FINALIZED`, `SUCCESS`, `MAJORITY_AGREE`)
 - Receipt: `FINALIZED`, consensus `MAJORITY_AGREE`, leader execution `SUCCESS`
 - Created on 2026-10-03 (Studionet receipt timestamp `1791025599`).
 - Retrieved deployed source, canonicalized to LF, matches the frozen repository bytes and exact SHA-256.
@@ -22,7 +22,7 @@
 - Root directory: `frontend`
 - Deployment: `dpl_E4D3LcVYDSccPotNzV2pemy2wWyH`
 - Production URL: [themosaic.vercel.app](https://themosaic.vercel.app)
-- Production environment points to the canonical contract address above.
+- Production environment will point to the canonical contract address above after the next production redeployment.
 - Deployment status: `READY`; build completed with Next.js `16.3.8`.
 - Release commit: `30e4137471b72e84aa81f82dd55b8aedd8733dcf`.
 
