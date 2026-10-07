@@ -25,6 +25,10 @@ def test_componentized_source_criteria_finalize_without_monolithic_resolver(
     mock_terminal(direct_vm)
     assert checkpoint_then_freeze(contract, mission_id) == "terminal_frozen"
     frozen = json.loads(contract.get_mission(mission_id))
+    assert frozen["mission_terms_digest"]
+    assert frozen["ordered_contribution_root"]
+    assert frozen["terminal_lineage_root"]
+    assert frozen["resolution_evidence_root"]
     source_ref = json.loads(frozen["frozen_evidence"]["terminal_state_json"])["evidence_objects"][0]["id"]
     assert frozen["terminal_verification_receipt"]["terminal_source_digest"] == frozen["terminal_source_digest"]
     assert frozen["terminal_verification_receipt"]["mission_terms_digest"] == frozen["mission_terms_digest"]

@@ -90,3 +90,64 @@ def test_checkpoint_source_failure_is_retryable(direct_vm, direct_deploy, direct
     direct_vm.clear_mocks()
     direct_vm.mock_web(r"api\.github\.com/repos/acme/widget/branches/main$", {"status": 503, "body": "{}"})
     assert contract.checkpoint_terminal(mission_id) == "source_unavailable"
+
+
+def test_github_check_terminal_status_is_bound(direct_vm, direct_deploy, direct_alice, mission_terms):
+    """The frozen check identity and conclusion determine the component status."""
+    terms = {**mission_terms, "criteria": [{
+        "text": "the verification check passes",
+        "evidence_kind": "GITHUB_CHECK",
+        "check_name": "verify",
+        "check_app_slug": "github-actions",
+    }]}
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/mosaic.py")
+    direct_vm.sender = direct_alice
+    direct_vm.value = WEI
+    mock_baseline(direct_vm)
+    mission_id = contract.open_mission(
+        terms["repo"], terms["target_ref"], terms["baseline"], terms["title"],
+        terms["objective"], json.dumps(terms["criteria"]), 1791201600,
+    )
+    set_block_time(direct_vm, "2026-10-05T12:30:00Z")
+    direct_vm.value = 0
+    direct_vm.clear_mocks()
+    mock_terminal(direct_vm)
+    direct_vm.mock_web(r".*check-runs.*", {"status": 200, "body": json.dumps({
+        "total_count": 1,
+        "check_runs": [{"id": 42, "name": "verify", "app": {"slug": "github-actions"},
+                         "head_sha": "d" * 40, "status": "completed", "conclusion": "success"}],
+    })})
+    assert checkpoint_then_freeze(contract, mission_id) == "terminal_frozen"
+    frozen = json.loads(contract.get_mission(mission_id))
+    terminal = json.loads(frozen["frozen_evidence"]["terminal_state_json"])
+    check_ref = next(item["id"] for item in terminal["evidence_objects"] if item["kind"] == "GITHUB_CHECK")
+    direct_vm.mock_llm(r'"kind": "CRITERION"', json.dumps({
+        "terminal_status": "NOT_SATISFIED",
+        "claimant_status": "NOT_SATISFIED",
+        "evidence_refs": [check_ref],
+        "support_refs": [], "counter_refs": [], "causal_status": "UNSPECIFIED",
+        "reason_code": "MACHINE", "rationale": "Frozen check is authoritative.",
+    }))
+    assert contract.adjudicate_criterion(mission_id, 0) == "criterion_adjudicated"
+    result = json.loads(contract.get_mission(mission_id))
+    row = result["criterion_matrix"][0]
+    assert row["criterion_index"] == 0
+    assert row["terminal_status"] == "SATISFIED"
+    assert check_ref in row["evidence_refs"]
+
+
+def test_github_check_failure_cannot_be_positive(direct_vm, direct_deploy, direct_alice, mission_terms):
+    terms = {**mission_terms, "criteria": [{"text": "verification fails closed", "evidence_kind": "GITHUB_CHECK", "check_name": "verify", "check_app_slug": "github-actions"}]}
+    set_block_time(direct_vm, "2026-10-01T10:00:00Z")
+    contract = direct_deploy("contract/contracts/mosaic.py")
+    direct_vm.sender = direct_alice; direct_vm.value = WEI; mock_baseline(direct_vm)
+    mission_id = contract.open_mission(terms["repo"], terms["target_ref"], terms["baseline"], terms["title"], terms["objective"], json.dumps(terms["criteria"]), 1791201600)
+    set_block_time(direct_vm, "2026-10-05T12:30:00Z"); direct_vm.value = 0; direct_vm.clear_mocks(); mock_terminal(direct_vm)
+    direct_vm.mock_web(r".*check-runs.*", {"status": 200, "body": json.dumps({"total_count": 1, "check_runs": [{"id": 43, "name": "verify", "app": {"slug": "github-actions"}, "head_sha": "d" * 40, "status": "completed", "conclusion": "failure"}]})})
+    assert checkpoint_then_freeze(contract, mission_id) == "terminal_frozen"
+    frozen = json.loads(contract.get_mission(mission_id)); terminal = json.loads(frozen["frozen_evidence"]["terminal_state_json"])
+    check_ref = next(item["id"] for item in terminal["evidence_objects"] if item["kind"] == "GITHUB_CHECK")
+    direct_vm.mock_llm(r'"kind": "CRITERION"', json.dumps({"terminal_status": "SATISFIED", "claimant_status": "NOT_SATISFIED", "evidence_refs": [check_ref], "support_refs": [], "counter_refs": [], "causal_status": "UNSPECIFIED", "reason_code": "MACHINE", "rationale": "A failed check cannot be positive."}))
+    with direct_vm.expect_revert("invalid_criterion_status"):
+        contract.adjudicate_criterion(mission_id, 0)
