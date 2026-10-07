@@ -1,8 +1,8 @@
 {
   "status": "DEPLOYED_RELEASE_CANDIDATE",
   "evidence_snapshot": "V5 source and finalized Studionet deployment; canonical lifecycle has not yet started.",
-  "frozen_source_commit": "22ee045e6c7c3d957e68efba73e71590e4833433",
-  "frozen_source_tree": "8fce82c9b60d2528323984514f02c9ea723e3fb0",
+  "frozen_source_commit": "b2b5a85000401261e207e4d84e90f08d77ca0ab7",
+  "frozen_source_tree": "8fe4306d98b8614e4019c9e12212f1b1a28ef2be",
   "contract": {
     "path": "contract/contracts/mosaic.py",
     "canonical_sha256": "23d1d4c38f5e30b2f4b60966c65f0aca9f3dcfa7ae528ef03958f30650c1b32a",
