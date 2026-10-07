@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useWallet } from "@/hooks/use-wallet";
 import { useTransactions } from "@/hooks/use-transactions";
@@ -20,6 +20,7 @@ export default function LaunchPage() {
   const [title, setTitle] = useState(""); const [objective, setObjective] = useState(""); const [criteria, setCriteria] = useState<Criterion[]>(initialCriteria);
   const [freezeAt, setFreezeAt] = useState(""); const [funding, setFunding] = useState("10"); const [submitting, setSubmitting] = useState(false); const [error, setError] = useState<string | null>(null);
   const updateCriterion = (index: number, patch: Partial<Criterion>) => setCriteria((current) => current.map((item, i) => i === index ? { ...item, ...patch } : item));
+  useEffect(() => { if (criteria.some((criterion) => criterion.evidence_kind === "DEPLOYMENT_PROBE" && (!criterion.terminal_sha_field || !criterion.predicates))) setCriteria((current) => current.map((criterion) => criterion.evidence_kind === "DEPLOYMENT_PROBE" ? { ...criterion, terminal_sha_field: criterion.terminal_sha_field ?? "git_sha", predicates: criterion.predicates ?? [{ field: "healthy", operator: "EQ", value: true }, { field: "chain_id", operator: "EQ", value: 61999 }] } : criterion)); }, [criteria]);
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault(); setError(null);
     if (!CONTRACT_ADDRESS) { setError("Contract deployment is not configured."); return; }
